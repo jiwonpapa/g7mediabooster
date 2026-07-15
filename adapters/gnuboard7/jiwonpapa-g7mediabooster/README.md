@@ -84,18 +84,21 @@ npm run build
 
 # G7 vendor의 PHPUnit 사용
 /path/to/gnuboard7/vendor/bin/phpunit -c phpunit.xml
+
+# G7에 설치한 뒤 비밀글·삭제/복원·보존 lease 실제 DB 게이트
+/path/to/G7MediaBooster/scripts/g7-host-security-gate.sh /path/to/gnuboard7
 ```
 
 현재 검증 범위는 PHP HMAC/config/client·삭제·Ready materialization·URL resolver 계약,
 TypeScript 100개 bounded scheduling·multipart·ETag·Ready polling·native attachment 생성,
 site policy PUT/GET, Vite production build와 G7 upstream 계약 검사입니다.
 워터마크 자산은 현재 관리자 화면에서 Ready upload UUID로 지정합니다. 설치·설정·user/admin
-form 주입·disabled fail-safe는 격리 브라우저 smoke를 통과했으며, 실제 S3/R2 전송과
-create/update·권한·삭제/복원은 별도 운영 게이트입니다.
+form 주입·disabled fail-safe와 MinIO single/multipart→create/update→private thumbnail은 격리
+브라우저 smoke를 통과했습니다. 비밀·블라인드·삭제글 전달과 삭제/복원·보존 lease는 실제 G7
+DB host gate를 통과했습니다. 실제 R2/Lightsail·5GiB와 실 provider 만료 삭제는 별도 운영 게이트입니다.
 
 ## 아직 공식 지원으로 게시하지 않는 연동
 
-모듈에는 form 자동 연결, Ready→native attachment bridge, 권한 기반 private delivery와
-보존기간 삭제 대조가 구현돼 있습니다. 다만 실제 저장소 전송과 create/update·비밀글·삭제/복원
-브라우저 smoke 전에는 이를 배포 설명의 공식 지원 기능으로 게시하지 않습니다. patch가 없는
-`sirsoft-board`에서는 manifest와 runtime 계약 검사가 설치·실행을 fail-closed 합니다.
+실 R2/Lightsail profile, 5GiB 중단·재개, 권한 차단의 실브라우저 매트릭스와 보존 만료
+command→실 provider 삭제는 각 종단 게이트 전 공식 지원으로 게시하지 않습니다. patch `0001`~`0005`가
+없는 `sirsoft-board`에서는 manifest와 runtime 계약 검사가 설치·실행을 fail-closed 합니다.

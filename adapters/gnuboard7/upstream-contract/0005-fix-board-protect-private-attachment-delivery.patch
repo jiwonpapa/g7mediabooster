@@ -1,0 +1,518 @@
+diff --git a/modules/_bundled/sirsoft-board/src/Http/Controllers/User/AttachmentController.php b/modules/_bundled/sirsoft-board/src/Http/Controllers/User/AttachmentController.php
+index 1f62addc..57a20692 100644
+--- a/modules/_bundled/sirsoft-board/src/Http/Controllers/User/AttachmentController.php
++++ b/modules/_bundled/sirsoft-board/src/Http/Controllers/User/AttachmentController.php
+@@ -13,6 +13,7 @@
+ use Modules\Sirsoft\Board\Services\BoardService;
+ use Symfony\Component\HttpFoundation\BinaryFileResponse;
+ use Symfony\Component\HttpFoundation\StreamedResponse;
++use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
+ 
+ /**
+  * 사용자용 첨부파일 컨트롤러
+@@ -66,7 +67,7 @@ public function download(string $slug, string $hash): StreamedResponse|JsonRespo
+             }
+ 
+             return $response;
+-        } catch (\Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException $e) {
++        } catch (AccessDeniedHttpException $e) {
+             return $this->error('auth.scope_denied', 403);
+         } catch (BoardNotFoundException $e) {
+             return $this->notFound(__('sirsoft-board::messages.boards.not_found'));
+@@ -76,10 +77,10 @@ public function download(string $slug, string $hash): StreamedResponse|JsonRespo
+     }
+ 
+     /**
+-     * 이미지 미리보기 (권한 체크 없이, 캐싱 헤더 포함)
++     * 이미지 미리보기 (게시글 열람 권한 및 캐싱 헤더 적용)
+      *
+-     * 이미지 파일만 미리보기를 제공합니다.
+-     * 비회원도 이미지를 볼 수 있습니다.
++     * 공개 게시글 이미지는 비회원도 볼 수 있습니다. 비밀·블라인드·삭제 게시글은
++     * 본문과 동일한 열람 정책을 적용합니다.
+      *
+      * @param  string  $slug  게시판 슬러그
+      * @param  string  $hash  첨부파일 해시 (12자)
+@@ -116,8 +117,8 @@ public function preview(string $slug, string $hash): BinaryFileResponse|Response
+                 $fileInfo['mime_type'],
+                 (int) g7_core_settings('cache.layout_ttl', 86400)
+             );
+-        } catch (\Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException $e) {
+-            // 삭제글 첨부 등 권한 차단은 403 으로 응답
++        } catch (AccessDeniedHttpException $e) {
++            // 비밀·블라인드·삭제글 첨부 권한 차단은 403 으로 응답
+             return $this->error('auth.scope_denied', 403);
+         } catch (BoardNotFoundException $e) {
+             return $this->notFound(__('sirsoft-board::messages.boards.not_found'));
+diff --git a/modules/_bundled/sirsoft-board/src/Repositories/AttachmentRepository.php b/modules/_bundled/sirsoft-board/src/Repositories/AttachmentRepository.php
+index aca19a06..613f29fb 100644
+--- a/modules/_bundled/sirsoft-board/src/Repositories/AttachmentRepository.php
++++ b/modules/_bundled/sirsoft-board/src/Repositories/AttachmentRepository.php
+@@ -77,6 +77,23 @@ public function isPostDeleted(string $slug, int $postId): bool
+         return $post->deleted_at !== null || $post->status === PostStatus::Deleted;
+     }
+ 
++    /**
++     * 첨부 전달 권한 판정용 게시글을 최소 필드로 조회합니다.
++     */
++    public function findPostForAttachmentDelivery(string $slug, int $postId): ?Post
++    {
++        $board = Board::where('slug', $slug)->first();
++
++        if (! $board) {
++            return null;
++        }
++
++        return Post::withTrashed()
++            ->where('board_id', $board->id)
++            ->where('id', $postId)
++            ->first(['id', 'user_id', 'is_secret', 'status', 'deleted_at']);
++    }
++
+     /**
+      * 여러 ID로 첨부파일 조회 (order 정렬)
+      *
+diff --git a/modules/_bundled/sirsoft-board/src/Repositories/Contracts/AttachmentRepositoryInterface.php b/modules/_bundled/sirsoft-board/src/Repositories/Contracts/AttachmentRepositoryInterface.php
+index bbd2735e..32fe7fc1 100644
+--- a/modules/_bundled/sirsoft-board/src/Repositories/Contracts/AttachmentRepositoryInterface.php
++++ b/modules/_bundled/sirsoft-board/src/Repositories/Contracts/AttachmentRepositoryInterface.php
+@@ -4,6 +4,7 @@
+ 
+ use Illuminate\Database\Eloquent\Collection;
+ use Modules\Sirsoft\Board\Models\Attachment;
++use Modules\Sirsoft\Board\Models\Post;
+ 
+ /**
+  * 게시판 첨부파일 Repository 인터페이스
+@@ -39,6 +40,13 @@ public function findByHash(string $slug, string $hash): ?Attachment;
+      */
+     public function isPostDeleted(string $slug, int $postId): bool;
+ 
++    /**
++     * 첨부 전달 권한 판정에 필요한 게시글을 삭제 상태까지 포함해 조회합니다.
++     *
++     * 비밀글·블라인드·삭제글 여부와 작성자만 노출하며 본문은 로드하지 않습니다.
++     */
++    public function findPostForAttachmentDelivery(string $slug, int $postId): ?Post;
++
+     /**
+      * 여러 ID로 첨부파일 조회 (order 정렬)
+      *
+diff --git a/modules/_bundled/sirsoft-board/src/Services/AttachmentService.php b/modules/_bundled/sirsoft-board/src/Services/AttachmentService.php
+index 226ed716..f85650ce 100644
+--- a/modules/_bundled/sirsoft-board/src/Services/AttachmentService.php
++++ b/modules/_bundled/sirsoft-board/src/Services/AttachmentService.php
+@@ -11,6 +11,7 @@
+ use Illuminate\Support\Facades\Auth;
+ use Illuminate\Support\Facades\Log;
+ use Illuminate\Support\Str;
++use Modules\Sirsoft\Board\Enums\PostStatus;
+ use Modules\Sirsoft\Board\Models\Attachment;
+ use Modules\Sirsoft\Board\Repositories\Contracts\AttachmentRepositoryInterface;
+ use Modules\Sirsoft\Board\Repositories\Contracts\BoardRepositoryInterface;
+@@ -250,36 +251,6 @@ public function getByHash(string $slug, string $hash): ?Attachment
+         return $this->repository->findByHash($slug, $hash);
+     }
+ 
+-    /**
+-     * 삭제된 게시글의 첨부파일 접근 권한을 검증합니다.
+-     *
+-     * 첨부가 속한 게시글이 삭제 상태이면 관리 권한(manager/admin.manage)
+-     * 보유자만 접근을 허용합니다. 권한이 없으면 AccessDeniedHttpException 을 던집니다.
+-     * 정상 게시글(또는 게시글 미연결 임시 첨부)은 통과시킵니다.
+-     *
+-     * @param  string  $slug  게시판 슬러그
+-     * @param  Attachment  $attachment  첨부파일 모델
+-     *
+-     * @throws AccessDeniedHttpException 삭제글 첨부에 권한 없이 접근한 경우
+-     */
+-    private function assertDeletedPostAttachmentAccess(string $slug, Attachment $attachment): void
+-    {
+-        if (! $attachment->post_id) {
+-            return;
+-        }
+-
+-        if (! $this->repository->isPostDeleted($slug, $attachment->post_id)) {
+-            return;
+-        }
+-
+-        $canManage = PermissionHelper::check("sirsoft-board.{$slug}.manager")
+-            || PermissionHelper::check("sirsoft-board.{$slug}.admin.manage");
+-
+-        if (! $canManage) {
+-            throw new AccessDeniedHttpException(__('auth.scope_denied'));
+-        }
+-    }
+-
+     /**
+      * ID로 첨부파일 조회
+      *
+@@ -487,12 +458,67 @@ public function authorizeDelivery(string $slug, int $id, string $context = 'admi
+             throw new AccessDeniedHttpException(__('auth.scope_denied'));
+         }
+ 
+-        // 삭제된 게시글의 첨부파일은 관리 권한자만 접근
+-        $this->assertDeletedPostAttachmentAccess($slug, $attachment);
++        // 게시글의 비밀·블라인드·삭제 가드를 첨부 URL에서도 동일하게 적용합니다.
++        $this->assertPostAttachmentAccess($slug, $attachment, $context);
+ 
+         return $attachment;
+     }
+ 
++    /**
++     * 게시글 본문에서 가려지는 첨부가 직접 URL로 우회되지 않도록 검사합니다.
++     */
++    private function assertPostAttachmentAccess(string $slug, Attachment $attachment, string $context): void
++    {
++        if (! $attachment->post_id) {
++            return;
++        }
++
++        $post = $this->repository->findPostForAttachmentDelivery($slug, (int) $attachment->post_id);
++        if ($post === null) {
++            throw new AccessDeniedHttpException(__('auth.scope_denied'));
++        }
++
++        $isDeleted = $post->deleted_at !== null || $post->status === PostStatus::Deleted;
++        $isBlinded = $post->status === PostStatus::Blinded;
++        if (! $isDeleted && ! $isBlinded && ! $post->is_secret) {
++            return;
++        }
++
++        $user = Auth::user();
++        $isOwner = $user !== null && $post->user_id !== null && (int) $post->user_id === (int) $user->id;
++        $managePermission = $context === 'admin'
++            ? "sirsoft-board.{$slug}.admin.manage"
++            : "sirsoft-board.{$slug}.manager";
++
++        if ($isDeleted) {
++            if (! PermissionHelper::check($managePermission)) {
++                throw new AccessDeniedHttpException(__('auth.scope_denied'));
++            }
++
++            return;
++        }
++
++        if ($isBlinded) {
++            if (! $isOwner && ! PermissionHelper::check($managePermission)) {
++                throw new AccessDeniedHttpException(__('auth.scope_denied'));
++            }
++
++            return;
++        }
++
++        if ($post->is_secret) {
++            $readSecretPermission = $context === 'admin'
++                ? "sirsoft-board.{$slug}.admin.posts.read-secret"
++                : "sirsoft-board.{$slug}.posts.read-secret";
++            if (! $isOwner
++                && ! PermissionHelper::check($managePermission)
++                && ! PermissionHelper::check($readSecretPermission)
++            ) {
++                throw new AccessDeniedHttpException(__('auth.scope_denied'));
++            }
++        }
++    }
++
+     /**
+      * 첨부파일 URL 조회
+      *
+@@ -512,10 +538,10 @@ public function getUrl(string $slug, int $id): ?string
+     }
+ 
+     /**
+-     * 이미지 미리보기 (권한 체크 없이)
++     * 이미지 미리보기
+      *
+-     * 이미지 파일을 권한 체크 없이 스트리밍합니다.
+-     * 비회원도 이미지를 볼 수 있습니다.
++     * 공개 게시글 이미지는 비회원도 볼 수 있으며, 비밀·블라인드·삭제 게시글은
++     * 본문과 동일한 열람 정책을 적용합니다.
+      *
+      * @param  string  $slug  게시판 식별자
+      * @param  int  $id  첨부파일 ID
+@@ -534,8 +560,7 @@ public function preview(string $slug, int $id): ?StreamedResponse
+             return null;
+         }
+ 
+-        // 삭제된 게시글의 첨부파일은 관리 권한자만 접근
+-        $this->assertDeletedPostAttachmentAccess($slug, $attachment);
++        $this->assertPostAttachmentAccess($slug, $attachment, 'user');
+ 
+         return $this->storage->response(
+             'attachments',
+@@ -566,8 +591,7 @@ public function getFileInfo(string $slug, int $id): ?array
+             return null;
+         }
+ 
+-        // 삭제된 게시글의 첨부파일은 관리 권한자만 접근
+-        $this->assertDeletedPostAttachmentAccess($slug, $attachment);
++        $this->assertPostAttachmentAccess($slug, $attachment, 'user');
+ 
+         // 파일 존재 확인
+         if (! $this->storage->exists('attachments', $attachment->path)) {
+diff --git a/modules/_bundled/sirsoft-board/tests/Unit/AttachmentRepositoryTest.php b/modules/_bundled/sirsoft-board/tests/Unit/AttachmentRepositoryTest.php
+index be5aae1b..4e50f8e6 100644
+--- a/modules/_bundled/sirsoft-board/tests/Unit/AttachmentRepositoryTest.php
++++ b/modules/_bundled/sirsoft-board/tests/Unit/AttachmentRepositoryTest.php
+@@ -6,8 +6,10 @@
+ require_once __DIR__.'/../ModuleTestCase.php';
+ 
+ use App\Models\User;
++use Modules\Sirsoft\Board\Enums\PostStatus;
+ use Modules\Sirsoft\Board\Models\Attachment;
+ use Modules\Sirsoft\Board\Models\Board;
++use Modules\Sirsoft\Board\Models\Post;
+ use Modules\Sirsoft\Board\Repositories\AttachmentRepository;
+ use Modules\Sirsoft\Board\Tests\ModuleTestCase;
+ use PHPUnit\Framework\Attributes\Test;
+@@ -130,6 +132,32 @@ public function test_link_attachments_by_ids_with_empty_array_returns_zero(): vo
+         $this->assertEquals(0, $result);
+     }
+ 
++    #[Test]
++    public function test_find_post_for_attachment_delivery_is_board_scoped_and_includes_trashed(): void
++    {
++        $post = Post::create([
++            'board_id' => $this->board->id,
++            'title' => 'secret attachment source',
++            'content' => 'must not be loaded for delivery authorization',
++            'user_id' => $this->user->id,
++            'ip_address' => '127.0.0.1',
++            'is_secret' => true,
++            'status' => PostStatus::Blinded->value,
++        ]);
++        $post->delete();
++
++        $result = $this->repository->findPostForAttachmentDelivery('attach-repo-test', $post->id);
++
++        $this->assertInstanceOf(Post::class, $result);
++        $this->assertTrue($result->trashed());
++        $this->assertTrue($result->is_secret);
++        $this->assertSame(PostStatus::Blinded, $result->status);
++        $this->assertSame($this->user->id, $result->user_id);
++        $this->assertArrayNotHasKey('title', $result->getAttributes());
++        $this->assertArrayNotHasKey('content', $result->getAttributes());
++        $this->assertNull($this->repository->findPostForAttachmentDelivery('unknown-board', $post->id));
++    }
++
+     #[Test]
+     public function test_link_attachments_by_ids_never_claims_another_users_temp_upload(): void
+     {
+diff --git a/modules/_bundled/sirsoft-board/tests/Unit/AttachmentServiceTest.php b/modules/_bundled/sirsoft-board/tests/Unit/AttachmentServiceTest.php
+index b855938a..33ac14b4 100644
+--- a/modules/_bundled/sirsoft-board/tests/Unit/AttachmentServiceTest.php
++++ b/modules/_bundled/sirsoft-board/tests/Unit/AttachmentServiceTest.php
+@@ -7,6 +7,8 @@
+ 
+ use App\Contracts\Extension\StorageInterface;
+ use App\Extension\HookManager;
++use App\Models\Permission;
++use App\Models\Role;
+ use App\Models\User;
+ use Illuminate\Database\Eloquent\Collection;
+ use Illuminate\Database\Eloquent\Collection as EloquentCollection;
+@@ -14,14 +16,17 @@
+ use Illuminate\Support\Facades\Auth;
+ use Mockery;
+ use Mockery\MockInterface;
++use Modules\Sirsoft\Board\Enums\PostStatus;
+ use Modules\Sirsoft\Board\Models\Attachment;
+ use Modules\Sirsoft\Board\Models\Board;
++use Modules\Sirsoft\Board\Models\Post;
+ use Modules\Sirsoft\Board\Repositories\Contracts\AttachmentRepositoryInterface;
+ use Modules\Sirsoft\Board\Repositories\Contracts\BoardRepositoryInterface;
+ use Modules\Sirsoft\Board\Services\AttachmentService;
+ use Modules\Sirsoft\Board\Tests\ModuleTestCase;
+ use PHPUnit\Framework\Attributes\Test;
+ use Symfony\Component\HttpFoundation\StreamedResponse;
++use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
+ 
+ /**
+  * AttachmentService 단위 테스트
+@@ -659,6 +664,185 @@ public function test_authorize_delivery_returns_model_without_reading_storage():
+         $this->assertSame($attachment, $result);
+     }
+ 
++    #[Test]
++    public function test_authorize_delivery_allows_public_post_attachment(): void
++    {
++        $attachment = $this->deliveryAttachment();
++        $post = $this->deliveryPost(userId: $this->user->id + 1000);
++
++        $this->expectDeliveryLookup($attachment, $post);
++
++        $result = $this->service->authorizeDelivery('notice', 1, context: 'user');
++
++        $this->assertSame($attachment, $result);
++    }
++
++    #[Test]
++    public function test_authorize_delivery_allows_secret_post_owner(): void
++    {
++        $attachment = $this->deliveryAttachment();
++        $post = $this->deliveryPost(userId: $this->user->id, isSecret: true);
++
++        $this->expectDeliveryLookup($attachment, $post);
++
++        $result = $this->service->authorizeDelivery('notice', 1, context: 'user');
++
++        $this->assertSame($attachment, $result);
++    }
++
++    #[Test]
++    public function test_authorize_delivery_denies_secret_post_other_user(): void
++    {
++        $attachment = $this->deliveryAttachment();
++        $post = $this->deliveryPost(userId: $this->user->id + 1000, isSecret: true);
++
++        $this->expectDeliveryLookup($attachment, $post);
++        $this->expectException(AccessDeniedHttpException::class);
++
++        $this->service->authorizeDelivery('notice', 1, context: 'user');
++    }
++
++    #[Test]
++    public function test_authorize_delivery_allows_secret_post_reader(): void
++    {
++        $attachment = $this->deliveryAttachment();
++        $post = $this->deliveryPost(userId: $this->user->id + 1000, isSecret: true);
++        $this->grantUserPermission('sirsoft-board.notice.posts.read-secret');
++
++        $this->expectDeliveryLookup($attachment, $post);
++
++        $result = $this->service->authorizeDelivery('notice', 1, context: 'user');
++
++        $this->assertSame($attachment, $result);
++    }
++
++    #[Test]
++    public function test_authorize_delivery_denies_blinded_post_other_user(): void
++    {
++        $attachment = $this->deliveryAttachment();
++        $post = $this->deliveryPost(
++            userId: $this->user->id + 1000,
++            status: PostStatus::Blinded,
++        );
++
++        $this->expectDeliveryLookup($attachment, $post);
++        $this->expectException(AccessDeniedHttpException::class);
++
++        $this->service->authorizeDelivery('notice', 1, context: 'user');
++    }
++
++    #[Test]
++    public function test_authorize_delivery_denies_deleted_post_even_to_owner(): void
++    {
++        $attachment = $this->deliveryAttachment();
++        $post = $this->deliveryPost(
++            userId: $this->user->id,
++            status: PostStatus::Deleted,
++        );
++
++        $this->expectDeliveryLookup($attachment, $post);
++        $this->expectException(AccessDeniedHttpException::class);
++
++        $this->service->authorizeDelivery('notice', 1, context: 'user');
++    }
++
++    #[Test]
++    public function test_authorize_delivery_allows_deleted_post_manager(): void
++    {
++        $attachment = $this->deliveryAttachment();
++        $post = $this->deliveryPost(
++            userId: $this->user->id + 1000,
++            status: PostStatus::Deleted,
++        );
++        $this->grantUserPermission('sirsoft-board.notice.manager');
++
++        $this->expectDeliveryLookup($attachment, $post);
++
++        $result = $this->service->authorizeDelivery('notice', 1, context: 'user');
++
++        $this->assertSame($attachment, $result);
++    }
++
++    #[Test]
++    public function test_authorize_delivery_denies_attachment_when_post_is_missing(): void
++    {
++        $attachment = $this->deliveryAttachment();
++
++        $this->expectDeliveryLookup($attachment, null);
++        $this->expectException(AccessDeniedHttpException::class);
++
++        $this->service->authorizeDelivery('notice', 1, context: 'user');
++    }
++
++    #[Test]
++    public function test_get_file_info_denies_secret_post_before_storage_access(): void
++    {
++        $attachment = $this->deliveryAttachment();
++        $post = $this->deliveryPost(userId: $this->user->id + 1000, isSecret: true);
++
++        $this->expectDeliveryLookup($attachment, $post);
++        $this->storage->shouldNotReceive('exists');
++        $this->expectException(AccessDeniedHttpException::class);
++
++        $this->service->getFileInfo('notice', 1);
++    }
++
++    private function deliveryAttachment(): Attachment
++    {
++        $attachment = new Attachment([
++            'post_id' => 10,
++            'path' => 'external/018f47f0-3333-7333-8333-333333333333',
++            'original_filename' => 'photo.jpg',
++            'mime_type' => 'image/jpeg',
++        ]);
++        $attachment->id = 1;
++
++        return $attachment;
++    }
++
++    private function deliveryPost(
++        int $userId,
++        bool $isSecret = false,
++        PostStatus $status = PostStatus::Published,
++    ): Post {
++        $post = new Post;
++        $post->id = 10;
++        $post->user_id = $userId;
++        $post->is_secret = $isSecret;
++        $post->status = $status;
++
++        return $post;
++    }
++
++    private function expectDeliveryLookup(Attachment $attachment, ?Post $post): void
++    {
++        $this->repository->shouldReceive('findById')
++            ->once()
++            ->with('notice', 1)
++            ->andReturn($attachment);
++        $this->repository->shouldReceive('findPostForAttachmentDelivery')
++            ->once()
++            ->with('notice', 10)
++            ->andReturn($post);
++    }
++
++    private function grantUserPermission(string $identifier): void
++    {
++        $permission = Permission::firstOrCreate(
++            ['identifier' => $identifier],
++            [
++                'name' => ['ko' => $identifier, 'en' => $identifier],
++                'type' => 'user',
++            ],
++        );
++        $role = Role::firstOrCreate(
++            ['identifier' => 'attachment-delivery-test-role'],
++            ['name' => ['ko' => '첨부 전달 테스트', 'en' => 'Attachment Delivery Test']],
++        );
++        $role->permissions()->syncWithoutDetaching([$permission->id]);
++        $this->user->roles()->syncWithoutDetaching([$role->id]);
++    }
++
+     #[Test]
+     public function test_download_returns_null_when_not_found(): void
+     {

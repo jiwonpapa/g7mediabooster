@@ -32,6 +32,8 @@ final class BridgeContractSourceTest extends TestCase
         self::assertStringContainsString('lockForUpdate()', $store);
         self::assertStringContainsString("->whereNull('attachment_id')", $store);
         self::assertStringContainsString('assertSecureUpstreamContract()', $bridge);
+        self::assertStringContainsString('findPostForAttachmentDelivery', $bridge);
+        self::assertStringContainsString('visibility-aware attachment delivery is unavailable', $bridge);
         self::assertStringContainsString("->where('board_id', 0)", $bridge);
         self::assertStringContainsString('isMaterializedAs(', $delivery);
         self::assertStringContainsString('authorizeDelivery(', $delivery);

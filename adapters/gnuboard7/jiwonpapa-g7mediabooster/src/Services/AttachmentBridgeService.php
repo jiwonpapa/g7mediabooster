@@ -69,6 +69,15 @@ final class AttachmentBridgeService
             throw new LogicException('sirsoft-board secure external attachment contract is unavailable');
         }
 
+        if (! method_exists(AttachmentRepositoryInterface::class, 'findPostForAttachmentDelivery')) {
+            throw new LogicException('sirsoft-board visibility-aware attachment delivery is unavailable');
+        }
+
+        $visibilityMethod = new ReflectionMethod(AttachmentRepositoryInterface::class, 'findPostForAttachmentDelivery');
+        if ($visibilityMethod->getNumberOfParameters() !== 2) {
+            throw new LogicException('sirsoft-board visibility-aware attachment delivery is incompatible');
+        }
+
         $linkMethod = new ReflectionMethod(AttachmentRepositoryInterface::class, 'linkAttachmentsByIds');
         if ($linkMethod->getNumberOfParameters() !== 4) {
             throw new LogicException('sirsoft-board owner-bound attachment linking is unavailable');

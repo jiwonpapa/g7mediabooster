@@ -1,6 +1,7 @@
 # G7 설치·브라우저 smoke 증거
 
 - 기준 G7: `e64381ddb5ba02caed60933427fbb86ef72ef94e`
+- G7MediaBooster module: `0.3.0`
 - 적용 patch: upstream contract `0001`, module-prefixed overlay core fix `0002`
 - 격리 환경: 별도 worktree, MySQL 8.4, PHP 8.5.3, G7 7.0.4
 - 원본 G7 작업 트리: 미수정

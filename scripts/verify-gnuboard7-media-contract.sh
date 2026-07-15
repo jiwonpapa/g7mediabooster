@@ -28,6 +28,23 @@ require_pattern() {
   fi
 }
 
+require_pattern_count_at_least() {
+  local file="$1"
+  local pattern="$2"
+  local minimum="$3"
+  local label="$4"
+  local count=0
+  if [[ -f "$file" ]]; then
+    count="$(rg -c -- "$pattern" "$file" || true)"
+  fi
+  if [[ ! "$count" =~ ^[0-9]+$ ]] || (( count < minimum )); then
+    echo "FAIL: $label" >&2
+    failures=$((failures + 1))
+  else
+    echo "PASS: $label"
+  fi
+}
+
 require_pattern "$board/src/Repositories/AttachmentRepository.php" \
   'linkAttachmentsByIds\(string \$slug, array \$ids, int \$postId, int \$ownerId\)' \
   'owner-scoped attachment repository signature'
@@ -67,6 +84,22 @@ require_pattern "$user_update_request" \
 require_pattern "$board/src/Services/AttachmentService.php" \
   'public function authorizeDelivery\(' \
   'byte-free attachment delivery authorization'
+require_pattern "$board/src/Repositories/Contracts/AttachmentRepositoryInterface.php" \
+  'findPostForAttachmentDelivery\(string \$slug, int \$postId\)' \
+  'visibility-aware attachment repository contract'
+require_pattern "$board/src/Repositories/AttachmentRepository.php" \
+  'Post::withTrashed\(\)' \
+  'deleted post metadata remains available to delivery guard'
+require_pattern "$board/src/Services/AttachmentService.php" \
+  'PostStatus::Blinded' \
+  'blinded post attachment guard'
+require_pattern "$board/src/Services/AttachmentService.php" \
+  'posts\.read-secret' \
+  'secret post attachment permission guard'
+require_pattern_count_at_least "$board/src/Services/AttachmentService.php" \
+  "assertPostAttachmentAccess\\(\\\$slug, \\\$attachment, 'user'\\)" \
+  2 \
+  'native preview paths reuse post visibility guard'
 require_pattern "$board/src/Models/Attachment.php" \
   'sirsoft-board\.attachment\.filter_download_url' \
   'download URL filter'
@@ -98,4 +131,4 @@ if (( failures > 0 )); then
   exit 1
 fi
 
-echo "Gnuboard7 media contract: PASS (23/23)"
+echo "Gnuboard7 media contract: PASS (28/28)"

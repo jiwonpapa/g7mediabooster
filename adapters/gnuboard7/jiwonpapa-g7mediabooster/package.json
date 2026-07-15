@@ -1,6 +1,6 @@
 {
     "name": "@g7/jiwonpapa-g7mediabooster",
-    "version": "0.3.0",
+    "version": "0.3.1",
     "description": "Bounded direct multi-uploader for the G7MediaBooster Gnuboard 7 module",
     "private": true,
     "type": "module",
