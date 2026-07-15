@@ -1,0 +1,39 @@
+{
+  "target_layout": "admin_board_post_form",
+  "injections": [
+    {
+      "target_id": "admin_board_native_file_uploader",
+      "position": "prepend",
+      "components": [
+        {
+          "id": "g7mb_admin_uploader_mount",
+          "type": "basic",
+          "name": "Div",
+          "props": {
+            "id": "g7mb-admin-uploader-mount",
+            "className": "mb-4"
+          },
+          "lifecycle": {
+            "onMount": [
+              {
+                "handler": "jiwonpapa-g7mediabooster.mountUploader",
+                "params": {
+                  "mountId": "g7mb-admin-uploader-mount",
+                  "boardSlug": "{{route.slug}}"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "target_id": "footer_save_button",
+      "position": "inject_props",
+      "props": {
+        "disabled": "{{_computed.isReadOnly || _local.isSaving || _local.g7mbUploading || (!!route?.id && !_local.hasChanges)}}"
+      }
+    }
+  ],
+  "priority": 120
+}

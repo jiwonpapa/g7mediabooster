@@ -19,6 +19,7 @@ final class MediaBoosterConfigurationTest extends TestCase
         self::assertSame('https://media-control.example.com:8443', $configuration->endpoint);
         self::assertSame(8, $configuration->maxParallelFiles);
         self::assertSame(4, $configuration->maxParallelParts);
+        self::assertSame(30, $configuration->attachmentRetentionDays);
         self::assertFalse($configuration->watermarkEnabled);
     }
 
@@ -88,6 +89,7 @@ final class MediaBoosterConfigurationTest extends TestCase
             'max_parallel_parts' => 4,
             'max_part_retries' => 3,
             'status_poll_interval_ms' => 1500,
+            'attachment_retention_days' => 30,
             'watermark_enabled' => false,
             'watermark_asset_upload_id' => '',
             'watermark_position' => 'bottom_right',

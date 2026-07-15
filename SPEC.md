@@ -312,12 +312,12 @@ health/metrics를 제외한 모든 API는 인증과 tenant scope가 필요합니
 - G7 관리자 전용 capability proxy가 Rust 응답을 길이·형식 제한 후 반환합니다.
 - HMAC tenant-scoped 삭제 예약, G7 소유권 프록시, SQLite cleanup lease/retry/attempt 상한,
   만료 multipart abort, derivative/raw idempotent 삭제와 systemd timer를 구현했습니다.
-- G7 module 0.2.0에 Ready master·thumbnail 전건 검증, DB lock 기반 native attachment 멱등
-  materialization, 게시글 scope·삭제글 정책을 재사용하는 private viewer redirect를 구현하고
-  `sirsoft-board` 1.1.0 upstream 계약 patch와 14항목 검증기를 준비했습니다.
+- G7 module 0.3.0에 form 자동 연결, Ready master·thumbnail 전건 검증, DB lock 기반 native
+  attachment 멱등 materialization, 게시글 scope·삭제글 정책을 재사용하는 private viewer redirect,
+  soft-delete 보존 대조를 구현하고 `sirsoft-board` 1.1.0 upstream 계약 patch와 17항목 검증기를 준비했습니다.
 
 실제 AWS S3/R2 credential conformance, G7 관리자 전용 워터마크 asset picker의 실제
 브라우저 smoke, G5 모듈,
-G7 upstream merge·form 자동 주입·실제 게시물/권한 smoke, 5GiB·200MP/AVIF heavy-image 운영 부하 증거는
+G7 upstream merge·실제 게시물/권한/삭제·복원 smoke, 5GiB·200MP/AVIF heavy-image 운영 부하 증거는
 아직 완료가 아니며
 `docs/IMPLEMENTATION_PLAN.md` 순서로 추진합니다.

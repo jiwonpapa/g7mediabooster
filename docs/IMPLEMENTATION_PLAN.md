@@ -69,8 +69,8 @@ G7 모듈은 세션·게시판 권한·첨부 연결의 진실 원천이고, Rus
 - 단계 A 직접·재개 가능 업로드: 진행 중
 - 단계 B 미디어 보안·가공: 진행 중
 - 단계 C G7 모듈·썸네일·워터마크: 제어 업로더, 이미지·영상 poster 렌더링,
-  서명 policy revision, Ready→native attachment bridge와 권한 viewer redirect 구현;
-  upstream merge·form 자동 주입·전용 asset picker smoke 대기
+  서명 policy revision, form 자동 연결, Ready→native attachment bridge, 권한 viewer redirect와
+  soft-delete 보존 대조 구현; upstream merge·브라우저·전용 asset picker smoke 대기
 - 단계 D 멀티업로드 큐·자원 통제: lease/heartbeat, 100 JPEG RSS·crash 복구,
   25,000px heavy semaphore, tenant fair queue·active capacity·Linux cgroup 부하 통과
 - 단계 E 운영 완성: lifecycle 삭제·보존 cleanup 구현, quota·관측·백업 등 후속 대기
@@ -91,7 +91,8 @@ G7 모듈은 세션·게시판 권한·첨부 연결의 진실 원천이고, Rus
 - Stage B video fallback: FFmpeg 실행 파일 부재를 주입한 MP4/H.264에서 Rust `mp4` demux,
   OpenH264 첫 frame decode, libvips JPEG 재가공·임시 파일 제거 통과. HEVC/AV1·MOV·WebM 차단
 - Stage C: G7 관리자 설정/HMAC client, upload ownership, browser direct multi-uploader,
-  원자적 attachment materialization과 private viewer redirect 구현
+  form state 자동 연결, 원자적 attachment materialization, private viewer redirect와
+  lease 기반 soft-delete 보존 대조 구현
 - Stage D: SQLite lease, heartbeat, retry/dead-letter, bounded worker pool, systemd quota 구현
 - Stage D 계약 하네스: 브라우저 100개 batch를 제어 요청 1회·전체 연결 최대 8개로 제한하고,
   Rust 100개 예약을 저장 1회로 커밋하는 테스트 구현
@@ -203,7 +204,7 @@ bounded 동시성, 진행률·취소·재시도·ETag/abort, Ready polling·nati
 2. CDN/Rust URL을 반환하는 download/preview URL filter와 byte-free 권한 검사
 3. `attachment_ids`의 owner·list·최대 수·전건 일치 연결
 
-이는 `sirsoft-board` 1.1.0 후보 patch와 14항목 검증기로 고정했습니다. 실제 G7 정식 병합과
+이는 `sirsoft-board` 1.1.0 후보 patch와 17항목 검증기로 고정했습니다. 실제 G7 정식 병합과
 브라우저 smoke 전에는 공식 지원으로 게시하지 않습니다.
 
 #### 썸네일 URL·캐시
@@ -261,7 +262,7 @@ lifecycle worker로 구현했습니다.
 ### 단계 E — 운영 완성
 
 - 완료: 미완료 multipart 자동 abort, 사용자 삭제 예약, rejected/failed 원본 보존 만료,
-  derivative/raw 객체 정리, tombstone, bounded lease/retry/attempt 상한
+  derivative/raw 객체 정리, G7 soft-delete 보존 대조, tombstone, bounded lease/retry/attempt 상한
 - 남음: orphan inventory 대조, tenant 저장용량 quota, rate limit, tombstone 장기 보존·복구 정책
 - digest 중복 제거는 tenant 내부에서만 수행해 파일 존재 여부 oracle 방지
 - private media signed delivery, CDN purge, cache stampede 방지

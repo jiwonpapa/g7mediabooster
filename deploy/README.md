@@ -19,14 +19,14 @@
 
 다음 항목은 구현·실환경 검증 전 공식 지원 기능으로 게시하지 않습니다.
 
-- G7 게시글 form 자동 주입과 기존 `attachment_ids` 원격 미디어 본문·미리보기·다운로드 연결
+- 실제 G7 브라우저에서 아직 검증하지 않은 게시글 form 자동 연결·첨부 표시·삭제/복원 연동
 - 멀티노드, PostgreSQL queue, 임의 URL query 기반 동적 리사이즈
 - MOV/WebM release fixture, 영상 트랜스코딩·metadata 제거, HEVC/AV1 Rust 폴백
 - S3의 ACL, Object Lock, replication, inventory, IAM/STS, SSE-KMS 관리 기능
 - 실계정 conformance를 아직 통과하지 않은 R2 또는 Lightsail profile
 
-G7 module 0.2.0에는 Ready→native attachment와 권한 기반 viewer redirect 후보 코드가
-포함되지만, upstream `sirsoft-board` 1.1.0 계약 반영과 실제 browser smoke 전에는 위 첫 항목을
+G7 module 0.3.0에는 form 자동 연결, Ready→native attachment, 권한 기반 viewer redirect와
+보존기간 삭제 대조 후보 코드가 포함되지만, upstream `sirsoft-board` 1.1.0 계약 반영과 실제 browser smoke 전에는 위 첫 항목을
 공식 지원으로 승격하지 않습니다.
 
 ## 공식 object storage 지원 범위

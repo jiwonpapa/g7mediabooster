@@ -187,6 +187,11 @@ export class G7MediaUploaderElement extends HTMLElement {
         this.input.disabled = running || this.configuration?.enabled === false;
         this.startButton.disabled = running || this.selectedFiles.length === 0;
         this.cancelButton.hidden = !running;
+        this.dispatchEvent(new CustomEvent('g7mb:state', {
+            detail: { running },
+            bubbles: true,
+            composed: true,
+        }));
     }
 
     private setStatus(message: string, error = false): void {

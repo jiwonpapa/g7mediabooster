@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Jiwonpapa\G7mediabooster;
 
 use App\Extension\AbstractModule;
+use Modules\Jiwonpapa\G7mediabooster\Listeners\AttachmentLifecycleListener;
 use Modules\Jiwonpapa\G7mediabooster\Listeners\AttachmentUrlListener;
 
 final class Module extends AbstractModule
@@ -12,7 +13,7 @@ final class Module extends AbstractModule
     /** @return array<class-string> */
     public function getHookListeners(): array
     {
-        return [AttachmentUrlListener::class];
+        return [AttachmentUrlListener::class, AttachmentLifecycleListener::class];
     }
 
     /**
@@ -49,6 +50,7 @@ final class Module extends AbstractModule
             'max_parallel_parts' => ['type' => 'integer'],
             'max_part_retries' => ['type' => 'integer'],
             'status_poll_interval_ms' => ['type' => 'integer'],
+            'attachment_retention_days' => ['type' => 'integer'],
         ];
     }
 
@@ -101,6 +103,17 @@ final class Module extends AbstractModule
             'icon' => 'fas fa-photo-film',
             'order' => 45,
             'permission' => 'jiwonpapa-g7mediabooster.settings.read',
+        ]];
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    public function getSchedules(): array
+    {
+        return [[
+            'command' => 'g7mediabooster:reconcile-attachment-retention',
+            'schedule' => '*/15 * * * *',
+            'description' => '보존기간 만료 원격 미디어 첨부 삭제 예약',
+            'enabled_config' => 'enabled',
         ]];
     }
 }

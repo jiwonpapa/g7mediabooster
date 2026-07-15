@@ -368,7 +368,7 @@
                             {
                                 "type": "basic",
                                 "name": "Div",
-                                "props": { "className": "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5" },
+                                "props": { "className": "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-5" },
                                 "children": [
                                     {
                                         "type": "basic", "name": "Div", "props": { "className": "space-y-2" },
@@ -409,8 +409,19 @@
                                             { "type": "basic", "name": "Label", "text": "상태 조회 간격(ms)" },
                                             {
                                                 "type": "basic", "name": "Input",
-                                                "props": { "type": "number", "min": 250, "max": 10000, "step": 250, "value": "{{_local.form?.status_poll_interval_ms ?? 1500}}", "className": "input w-full" },
+                                                "props": { "type": "number", "min": 1500, "max": 10000, "step": 250, "value": "{{_local.form?.status_poll_interval_ms ?? 1500}}", "className": "input w-full" },
                                                 "actions": [{ "type": "change", "handler": "setState", "params": { "target": "local", "form.status_poll_interval_ms": "{{Number($event.target.value)}}", "hasChanges": true } }]
+                                            }
+                                        ]
+                                    },
+                                    {
+                                        "type": "basic", "name": "Div", "props": { "className": "space-y-2" },
+                                        "children": [
+                                            { "type": "basic", "name": "Label", "text": "첨부 삭제 보존일" },
+                                            {
+                                                "type": "basic", "name": "Input",
+                                                "props": { "type": "number", "min": 1, "max": 365, "value": "{{_local.form?.attachment_retention_days ?? 30}}", "className": "input w-full" },
+                                                "actions": [{ "type": "change", "handler": "setState", "params": { "target": "local", "form.attachment_retention_days": "{{Number($event.target.value)}}", "hasChanges": true } }]
                                             }
                                         ]
                                     }

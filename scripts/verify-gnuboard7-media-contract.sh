@@ -9,6 +9,8 @@ fi
 
 board="$root/modules/_bundled/sirsoft-board"
 template="$root/templates/_bundled/sirsoft-basic/layouts/partials/board/form/_post_form.json"
+admin_attachments="$board/resources/layouts/admin/partials/admin_board_post_form/_attachments.json"
+admin_form="$board/resources/layouts/admin/admin_board_post_form.json"
 failures=0
 
 require_pattern() {
@@ -61,12 +63,18 @@ require_pattern "$board/src/Models/Attachment.php" \
   'URL filter receives validated board slug'
 require_pattern "$template" '"id": "board_native_attachment_section"' \
   'user attachment layout target'
+require_pattern "$template" '"id": "board_native_file_uploader"' \
+  'user attachment uploader layout target'
 require_pattern "$template" '"id": "board_post_submit"' \
   'user submit layout target'
+require_pattern "$admin_attachments" '"id": "admin_board_native_file_uploader"' \
+  'admin attachment uploader layout target'
+require_pattern "$admin_form" '"id": "footer_save_button"' \
+  'admin submit layout target'
 
 if (( failures > 0 )); then
   echo "Gnuboard7 media contract: FAIL ($failures missing)" >&2
   exit 1
 fi
 
-echo "Gnuboard7 media contract: PASS (14/14)"
+echo "Gnuboard7 media contract: PASS (17/17)"

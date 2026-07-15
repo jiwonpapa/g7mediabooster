@@ -7,6 +7,7 @@ namespace Modules\Jiwonpapa\G7mediabooster\Providers;
 use App\Extension\BaseModuleServiceProvider;
 use App\Services\ModuleSettingsService;
 use Modules\Jiwonpapa\G7mediabooster\Config\MediaBoosterConfiguration;
+use Modules\Jiwonpapa\G7mediabooster\Console\Commands\ReconcileAttachmentRetentionCommand;
 
 final class G7mediaboosterServiceProvider extends BaseModuleServiceProvider
 {
@@ -22,5 +23,14 @@ final class G7mediaboosterServiceProvider extends BaseModuleServiceProvider
                 $app->make(ModuleSettingsService::class)->get($this->moduleIdentifier) ?? [],
             ),
         );
+    }
+
+    public function boot(): void
+    {
+        parent::boot();
+
+        if ($this->app->runningInConsole()) {
+            $this->commands([ReconcileAttachmentRetentionCommand::class]);
+        }
     }
 }
