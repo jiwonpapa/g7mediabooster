@@ -14,7 +14,7 @@
     "g7_version": ">=7.0.4",
     "dependencies": {
         "modules": {
-            "sirsoft-board": ">=1.1.0"
+            "sirsoft-board": ">=1.2.0"
         },
         "plugins": {}
     },

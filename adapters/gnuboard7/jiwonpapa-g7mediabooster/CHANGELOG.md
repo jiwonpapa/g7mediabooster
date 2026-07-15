@@ -6,7 +6,7 @@
 - 전송 중에는 submit을 차단하고 최대 100개 ID를 중복 없이 병합합니다.
 - G7 soft delete를 즉시 원격 삭제로 바꾸지 않고 설정된 보존기간 뒤 lease 기반으로 대조·삭제합니다.
 - 원격 삭제 시작 전 복원은 예약을 취소하고, 원격 삭제가 시작된 뒤 복원은 fail-closed 합니다.
-- upstream 첨부 계약 검증을 사용자·관리자 폼 17항목으로 확장했습니다.
+- upstream 첨부 계약을 현재 G7 기준 `sirsoft-board >=1.2.0`으로 재배치하고 사용자·관리자 FormRequest를 분리 검증하는 21항목으로 확장했습니다.
 
 ## 0.2.0 - 2026-07-15
 
@@ -14,7 +14,7 @@
 - Ready master·thumbnail 전건 검증과 DB lock 기반 native attachment 멱등 생성을 추가했습니다.
 - G7 게시글 권한·삭제글 정책을 재사용하는 private master·thumbnail/poster redirect를 추가했습니다.
 - 원본 파일명은 G7 내부에만 보관하고 Rust upload intent에서는 제거합니다.
-- `sirsoft-board >=1.1.0` 보안 첨부 계약이 없으면 설치·runtime을 fail-closed 합니다.
+- 보안 첨부 계약이 없으면 설치·runtime을 fail-closed 합니다.
 - MOV/WebM은 release 검증 전 사용자 업로더 지원 형식에서 제외했습니다.
 
 ## 0.1.0 - 2026-07-15

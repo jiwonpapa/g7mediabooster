@@ -205,7 +205,7 @@ bounded 동시성, 진행률·취소·재시도·ETag/abort, Ready polling·nati
 2. CDN/Rust URL을 반환하는 download/preview URL filter와 byte-free 권한 검사
 3. `attachment_ids`의 owner·list·최대 수·전건 일치 연결
 
-이는 `sirsoft-board` 1.1.0 후보 patch와 17항목 검증기로 고정했습니다. 실제 G7 정식 병합과
+이는 현재 G7 기준 `sirsoft-board` 1.2.0 후보 patch와 21항목 검증기로 고정했습니다. 실제 G7 정식 병합과
 브라우저 smoke 전에는 공식 지원으로 게시하지 않습니다.
 
 #### 썸네일 URL·캐시

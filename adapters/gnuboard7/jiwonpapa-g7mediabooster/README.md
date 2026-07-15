@@ -1,6 +1,6 @@
 # G7 Media Booster for Gnuboard 7
 
-Gnuboard 7.0.4+와 `sirsoft-board` 1.1.0 보안 첨부 계약용 전용 모듈입니다. PHP는 로그인·게시판 권한·HMAC 제어 요청만 담당하고,
+Gnuboard 7.0.4+와 `sirsoft-board` 1.2.0 보안 첨부 계약용 전용 모듈입니다. PHP는 로그인·게시판 권한·HMAC 제어 요청만 담당하고,
 파일 바이트는 브라우저에서 S3/R2 quarantine bucket으로 직접 전송합니다.
 
 ## 제공 기능
@@ -30,7 +30,7 @@ PHP 8.2 이상과 `mbstring` 확장이 필요합니다.
 modules/jiwonpapa-g7mediabooster
 ```
 
-먼저 `adapters/gnuboard7/upstream-contract`의 계약이 정식 반영된 `sirsoft-board >=1.1.0`인지
+먼저 `adapters/gnuboard7/upstream-contract`의 계약이 정식 반영된 `sirsoft-board >=1.2.0`인지
 검증한 뒤 G7의 표준 모듈 설치·활성화 절차를 사용합니다. 설치 시
 `g7mb_upload_sessions`, attachment bridge, retention queue migration이 실행되고 관리자 메뉴에 `미디어 부스터`가 추가됩니다.
 Rust API의 `key_id`, HMAC secret, tenant 설정은 G7 관리자 값과 정확히 맞아야 합니다.

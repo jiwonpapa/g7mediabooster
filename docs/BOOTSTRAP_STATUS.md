@@ -41,7 +41,7 @@
 | AVIF decoder memory | PASS | 64MP AVIF peak RSS 1,221,776 KiB, 200MP AVIF full decode 전 정책 거부 |
 | tenant fair queue·backpressure | PASS | 영속 round-robin claim, global 1,000/tenant 200 활성 cap, presign 전 차단, 429 계약 |
 | Linux cgroup 부하 | PASS | CPU 2 core, memory 2GiB, PID 64, network none, API health 267/267, worker 100/100 |
-| G7 게시물 첨부 표시 | PARTIAL | form 자동 연결·module bridge·viewer redirect·보존 삭제 대조·upstream patch 17/17 구현; upstream merge·browser smoke 필요 |
+| G7 게시물 첨부 표시 | PARTIAL | 현재 G7 `e64381dd` 기준 patch clean apply, 계약 21/21, 핵심 PHP 48/48 PASS, 전체 baseline 대비 신규 실패 0; upstream merge·browser smoke 필요 |
 
 ## 준비된 하네스
 

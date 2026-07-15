@@ -11,6 +11,8 @@ board="$root/modules/_bundled/sirsoft-board"
 template="$root/templates/_bundled/sirsoft-basic/layouts/partials/board/form/_post_form.json"
 admin_attachments="$board/resources/layouts/admin/partials/admin_board_post_form/_attachments.json"
 admin_form="$board/resources/layouts/admin/admin_board_post_form.json"
+user_store_request="$board/src/Http/Requests/User/StorePostRequest.php"
+user_update_request="$board/src/Http/Requests/User/UpdatePostRequest.php"
 failures=0
 
 require_pattern() {
@@ -42,10 +44,22 @@ require_pattern "$board/src/Http/Controllers/User/PostController.php" \
   'user update passes attachment IDs'
 require_pattern "$board/src/Http/Requests/StorePostRequest.php" \
   "'attachment_ids'.*'list'.*'max:'" \
-  'user create bounds attachment ID list'
+  'admin create bounds attachment ID list'
 require_pattern "$board/src/Http/Requests/UpdatePostRequest.php" \
   "'list'," \
-  'user update requires attachment ID list'
+  'admin update requires attachment ID list'
+require_pattern "$user_store_request" \
+  "'attachment_ids'.*'list'.*'max:'" \
+  'user create bounds attachment ID list'
+require_pattern "$user_store_request" \
+  "'attachment_ids\.\*'.*'distinct:strict'" \
+  'user create rejects duplicate attachment IDs'
+require_pattern "$user_update_request" \
+  'max_file_count' \
+  'user update bounds attachment ID list'
+require_pattern "$user_update_request" \
+  "'attachment_ids\.\*'.*'distinct:strict'" \
+  'user update rejects duplicate attachment IDs'
 require_pattern "$board/src/Services/AttachmentService.php" \
   'public function authorizeDelivery\(' \
   'byte-free attachment delivery authorization'
@@ -77,4 +91,4 @@ if (( failures > 0 )); then
   exit 1
 fi
 
-echo "Gnuboard7 media contract: PASS (17/17)"
+echo "Gnuboard7 media contract: PASS (21/21)"

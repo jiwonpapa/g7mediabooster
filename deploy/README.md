@@ -32,7 +32,7 @@
 - 실계정 conformance를 아직 통과하지 않은 R2 또는 Lightsail profile
 
 G7 module 0.3.0에는 form 자동 연결, Ready→native attachment, 권한 기반 viewer redirect와
-보존기간 삭제 대조 후보 코드가 포함되지만, upstream `sirsoft-board` 1.1.0 계약 반영과 실제 browser smoke 전에는 위 첫 항목을
+보존기간 삭제 대조 후보 코드가 포함되지만, upstream `sirsoft-board` 1.2.0 계약 반영과 실제 browser smoke 전에는 위 첫 항목을
 공식 지원으로 승격하지 않습니다.
 
 ## 공식 object storage 지원 범위

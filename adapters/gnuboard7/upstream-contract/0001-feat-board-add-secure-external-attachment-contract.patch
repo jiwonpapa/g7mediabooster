@@ -1,6 +1,6 @@
-From 47a6ee29f2042a0146486bd3df8e52ffb897db07 Mon Sep 17 00:00:00 2001
+From 9e8b4d7902c762dcb3488aea495ab1cae2297705 Mon Sep 17 00:00:00 2001
 From: Baek Jinseok <baegjins@gmail.com>
-Date: Wed, 15 Jul 2026 22:02:50 +0900
+Date: Thu, 16 Jul 2026 00:39:04 +0900
 Subject: [PATCH] feat(board): add secure external attachment contract
 
 ---
@@ -10,31 +10,33 @@ Subject: [PATCH] feat(board): add secure external attachment contract
  .../_bundled/sirsoft-board/package-lock.json  |  4 +-
  modules/_bundled/sirsoft-board/package.json   |  2 +-
  .../admin_board_post_form/_attachments.json   |  1 +
- .../Http/Controllers/User/PostController.php  | 10 ++-
+ .../Http/Controllers/User/PostController.php  | 11 +++-
  .../src/Http/Requests/StorePostRequest.php    |  5 +-
  .../src/Http/Requests/UpdatePostRequest.php   | 11 +++-
+ .../Http/Requests/User/StorePostRequest.php   |  5 +-
+ .../Http/Requests/User/UpdatePostRequest.php  |  9 ++-
  .../sirsoft-board/src/Models/Attachment.php   | 27 ++++++--
  .../src/Repositories/AttachmentRepository.php |  4 +-
  .../AttachmentRepositoryInterface.php         |  3 +-
- .../src/Services/AttachmentService.php        | 48 ++++++++++----
+ .../src/Services/AttachmentService.php        | 56 ++++++++++++-----
  .../src/Services/PostService.php              | 23 ++++++-
  .../Feature/FormRequestValidationTest.php     | 23 +++++++
- .../tests/Unit/AttachmentRepositoryTest.php   | 30 +++++++--
- .../tests/Unit/AttachmentServiceTest.php      | 22 +++++++
- .../tests/Unit/AttachmentUrlFilterTest.php    | 63 +++++++++++++++++++
+ .../tests/Unit/AttachmentRepositoryTest.php   | 32 ++++++++--
+ .../tests/Unit/AttachmentServiceTest.php      | 46 ++++++++++----
+ .../tests/Unit/AttachmentUrlFilterTest.php    | 62 +++++++++++++++++++
  .../partials/board/form/_post_form.json       |  5 +-
- 19 files changed, 259 insertions(+), 39 deletions(-)
+ 21 files changed, 286 insertions(+), 60 deletions(-)
  create mode 100644 modules/_bundled/sirsoft-board/tests/Unit/AttachmentUrlFilterTest.php
 
 diff --git a/modules/_bundled/sirsoft-board/CHANGELOG.md b/modules/_bundled/sirsoft-board/CHANGELOG.md
-index 9369166f..78f4e5f4 100644
+index 60777141..f87dc09b 100644
 --- a/modules/_bundled/sirsoft-board/CHANGELOG.md
 +++ b/modules/_bundled/sirsoft-board/CHANGELOG.md
 @@ -4,6 +4,19 @@ # Changelog
  형식은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)를 따르며,
  [Semantic Versioning](https://semver.org/lang/ko/)을 준수합니다.
  
-+## [1.1.0] - 2026-07-15
++## [1.2.0] - 2026-07-16
 +
 +### Added
 +
@@ -47,63 +49,63 @@ index 9369166f..78f4e5f4 100644
 +- 순차 첨부 ID만 알면 다른 사용자의 임시 첨부를 게시글에 연결할 수 있던 문제를 소유자 조건과 전건 일치 검사로 차단했습니다.
 +- `attachment_ids`를 list와 게시판별 최대 첨부 수로 제한해 비정상 대량 연결 요청을 차단했습니다.
 +
- ## [1.0.2] - 2026-07-14
+ ## [1.1.1] - 2026-07-15
  
- ### Fixed
+ ### Added
 diff --git a/modules/_bundled/sirsoft-board/composer.json b/modules/_bundled/sirsoft-board/composer.json
-index a59b9a81..b426f515 100644
+index f2c4f06a..83eb3602 100644
 --- a/modules/_bundled/sirsoft-board/composer.json
 +++ b/modules/_bundled/sirsoft-board/composer.json
 @@ -2,7 +2,7 @@
      "name": "modules/sirsoft-board",
      "description": "Board module for Gnuboard7",
      "type": "library",
--    "version": "1.0.2",
-+    "version": "1.1.0",
+-    "version": "1.1.1",
++    "version": "1.2.0",
      "license": "MIT",
      "autoload": {
          "psr-4": {
 diff --git a/modules/_bundled/sirsoft-board/module.json b/modules/_bundled/sirsoft-board/module.json
-index 1476f801..eee461fd 100644
+index c6978dbc..a0c33a06 100644
 --- a/modules/_bundled/sirsoft-board/module.json
 +++ b/modules/_bundled/sirsoft-board/module.json
 @@ -5,7 +5,7 @@
          "ko": "게시판",
          "en": "Board"
      },
--    "version": "1.0.2",
-+    "version": "1.1.0",
+-    "version": "1.1.1",
++    "version": "1.2.0",
      "license": "MIT",
      "description": {
          "ko": "게시판 관리를 위한 모듈",
 diff --git a/modules/_bundled/sirsoft-board/package-lock.json b/modules/_bundled/sirsoft-board/package-lock.json
-index 1f256d45..4b0d6142 100644
+index fa177ce9..f9c4d778 100644
 --- a/modules/_bundled/sirsoft-board/package-lock.json
 +++ b/modules/_bundled/sirsoft-board/package-lock.json
 @@ -1,12 +1,12 @@
  {
      "name": "@g7/sirsoft-board",
--    "version": "1.0.2",
-+    "version": "1.1.0",
+-    "version": "1.1.1",
++    "version": "1.2.0",
      "lockfileVersion": 3,
      "requires": true,
      "packages": {
          "": {
              "name": "@g7/sirsoft-board",
--            "version": "1.0.2",
-+            "version": "1.1.0",
+-            "version": "1.1.1",
++            "version": "1.2.0",
              "devDependencies": {
                  "jsdom": "^27.4.0",
                  "typescript": "^5.3.3",
 diff --git a/modules/_bundled/sirsoft-board/package.json b/modules/_bundled/sirsoft-board/package.json
-index e063df2d..246a3d9d 100644
+index 2dcc25a1..aa8072c9 100644
 --- a/modules/_bundled/sirsoft-board/package.json
 +++ b/modules/_bundled/sirsoft-board/package.json
 @@ -1,6 +1,6 @@
  {
      "name": "@g7/sirsoft-board",
--    "version": "1.0.2",
-+    "version": "1.1.0",
+-    "version": "1.1.1",
++    "version": "1.2.0",
      "description": "그누보드7 게시판 모듈 프론트엔드 에셋",
      "private": true,
      "type": "module",
@@ -120,7 +122,7 @@ index fb3d1099..b07f3530 100644
            "name": "FileUploader",
            "props": {
 diff --git a/modules/_bundled/sirsoft-board/src/Http/Controllers/User/PostController.php b/modules/_bundled/sirsoft-board/src/Http/Controllers/User/PostController.php
-index cf0fbfe4..90617f7e 100644
+index cf0fbfe4..9752fbb9 100644
 --- a/modules/_bundled/sirsoft-board/src/Http/Controllers/User/PostController.php
 +++ b/modules/_bundled/sirsoft-board/src/Http/Controllers/User/PostController.php
 @@ -301,6 +301,10 @@ public function store(StorePostRequest $request, string $slug): JsonResponse
@@ -154,6 +156,14 @@ index cf0fbfe4..90617f7e 100644
  
              // board 관계 수동 설정
              $post->setRelation('board', $board);
+@@ -787,7 +793,6 @@ private function hasBoardManagePermission(string $slug): bool
+      *
+      * @param  Post  $parentPost  부모 게시글 모델
+      * @param  int  $parentId  부모 게시글 ID (예외 메시지용)
+-     * @return void
+      *
+      * @throws PostNotFoundException 부모글이 블라인드/삭제 상태인 경우
+      */
 diff --git a/modules/_bundled/sirsoft-board/src/Http/Requests/StorePostRequest.php b/modules/_bundled/sirsoft-board/src/Http/Requests/StorePostRequest.php
 index 19837f9d..f1588241 100644
 --- a/modules/_bundled/sirsoft-board/src/Http/Requests/StorePostRequest.php
@@ -197,6 +207,42 @@ index 5b5f4abe..19f52781 100644
 -}
 \ No newline at end of file
 +}
+diff --git a/modules/_bundled/sirsoft-board/src/Http/Requests/User/StorePostRequest.php b/modules/_bundled/sirsoft-board/src/Http/Requests/User/StorePostRequest.php
+index 273ea6ab..5663c345 100644
+--- a/modules/_bundled/sirsoft-board/src/Http/Requests/User/StorePostRequest.php
++++ b/modules/_bundled/sirsoft-board/src/Http/Requests/User/StorePostRequest.php
+@@ -106,8 +106,9 @@ public function rules(): array
+                 Rule::exists(Post::class, 'id')->where('board_id', $board->id),
+                 new ParentPostValidationRule($slug),
+             ];
+-            $rules['attachment_ids'] = ['nullable', 'array'];
+-            $rules['attachment_ids.*'] = ['integer', 'min:1'];
++            $maxAttachmentIds = min(100, max(1, (int) ($board->max_file_count ?? 1)));
++            $rules['attachment_ids'] = ['nullable', 'array', 'list', 'max:'.$maxAttachmentIds];
++            $rules['attachment_ids.*'] = ['integer', 'min:1', 'distinct:strict'];
+         }
+ 
+         // 파일 업로드 검증 규칙 (게시판 설정에 따라)
+diff --git a/modules/_bundled/sirsoft-board/src/Http/Requests/User/UpdatePostRequest.php b/modules/_bundled/sirsoft-board/src/Http/Requests/User/UpdatePostRequest.php
+index d2c209ec..890979fb 100644
+--- a/modules/_bundled/sirsoft-board/src/Http/Requests/User/UpdatePostRequest.php
++++ b/modules/_bundled/sirsoft-board/src/Http/Requests/User/UpdatePostRequest.php
+@@ -71,8 +71,13 @@ public function rules(): array
+             'is_notice' => ['nullable', 'boolean'],
+             'is_secret' => ['nullable', 'boolean'],
+             'status' => ['nullable', 'string', Rule::in($allowedStatuses)],
+-            'attachment_ids' => ['nullable', 'array'],
+-            'attachment_ids.*' => ['integer', 'min:1'],
++            'attachment_ids' => [
++                'nullable',
++                'array',
++                'list',
++                'max:'.min(100, max(1, (int) ($board->max_file_count ?? 1))),
++            ],
++            'attachment_ids.*' => ['integer', 'min:1', 'distinct:strict'],
+             // temp_key는 게시판 존재 여부와 무관하게 항상 허용
+             'temp_key' => ['nullable', 'string', 'max:64'],
+         ];
 diff --git a/modules/_bundled/sirsoft-board/src/Models/Attachment.php b/modules/_bundled/sirsoft-board/src/Models/Attachment.php
 index dd8c06ca..b8d0c6f6 100644
 --- a/modules/_bundled/sirsoft-board/src/Models/Attachment.php
@@ -294,9 +340,50 @@ index 7f3cb3e3..bbd2735e 100644
      /**
       * 게시판 ID 기준으로 첨부파일을 일괄 소프트 삭제합니다.
 diff --git a/modules/_bundled/sirsoft-board/src/Services/AttachmentService.php b/modules/_bundled/sirsoft-board/src/Services/AttachmentService.php
-index 582ba756..db4ec0c5 100644
+index 582ba756..226ed716 100644
 --- a/modules/_bundled/sirsoft-board/src/Services/AttachmentService.php
 +++ b/modules/_bundled/sirsoft-board/src/Services/AttachmentService.php
+@@ -4,12 +4,13 @@
+ 
+ use App\Contracts\Extension\StorageInterface;
+ use App\Extension\HookManager;
++use App\Helpers\PermissionHelper;
++use Illuminate\Database\Eloquent\Collection;
+ use Illuminate\Database\Eloquent\ModelNotFoundException;
+ use Illuminate\Http\UploadedFile;
+ use Illuminate\Support\Facades\Auth;
+ use Illuminate\Support\Facades\Log;
+ use Illuminate\Support\Str;
+-use App\Helpers\PermissionHelper;
+ use Modules\Sirsoft\Board\Models\Attachment;
+ use Modules\Sirsoft\Board\Repositories\Contracts\AttachmentRepositoryInterface;
+ use Modules\Sirsoft\Board\Repositories\Contracts\BoardRepositoryInterface;
+@@ -230,7 +231,7 @@ public function linkTempAttachmentsWithMove(string $slug, string $tempKey, int $
+      * @param  string  $slug  게시판 슬러그
+      * @param  string  $tempKey  임시 업로드 키
+      * @param  string|null  $collection  컬렉션 필터
+-     * @return \Illuminate\Database\Eloquent\Collection
++     * @return Collection
+      */
+     public function getTempAttachments(string $slug, string $tempKey, ?string $collection = null)
+     {
+@@ -258,7 +259,6 @@ public function getByHash(string $slug, string $hash): ?Attachment
+      *
+      * @param  string  $slug  게시판 슬러그
+      * @param  Attachment  $attachment  첨부파일 모델
+-     * @return void
+      *
+      * @throws AccessDeniedHttpException 삭제글 첨부에 권한 없이 접근한 경우
+      */
+@@ -402,7 +402,7 @@ protected function reorderAfterDelete(string $slug, int $postId, string $collect
+      * @param  string  $slug  게시판 슬러그
+      * @param  int  $postId  게시글 ID
+      * @param  string|null  $collection  컬렉션 필터
+-     * @return \Illuminate\Database\Eloquent\Collection
++     * @return Collection
+      */
+     public function getAttachments(string $slug, int $postId, ?string $collection = null)
+     {
 @@ -434,24 +434,12 @@ public function rollbackUploadedFiles(string $slug, array $attachmentIds): void
       */
      public function download(string $slug, int $id, string $context = 'admin'): ?StreamedResponse
@@ -365,10 +452,10 @@ index 582ba756..db4ec0c5 100644
       * 첨부파일 URL 조회
       *
 diff --git a/modules/_bundled/sirsoft-board/src/Services/PostService.php b/modules/_bundled/sirsoft-board/src/Services/PostService.php
-index 3a09ce17..01c01330 100644
+index eaee78ed..fb075edb 100644
 --- a/modules/_bundled/sirsoft-board/src/Services/PostService.php
 +++ b/modules/_bundled/sirsoft-board/src/Services/PostService.php
-@@ -725,7 +725,28 @@ private function linkAttachments(
+@@ -772,7 +772,28 @@ private function linkAttachments(
      ): void {
          // 방안 A: 업로드 완료된 첨부파일 ID로 연결 (신규 방식)
          if (! empty($attachmentIds)) {
@@ -438,7 +525,7 @@ index 39500b8d..f6a3391f 100644
 +    }
  }
 diff --git a/modules/_bundled/sirsoft-board/tests/Unit/AttachmentRepositoryTest.php b/modules/_bundled/sirsoft-board/tests/Unit/AttachmentRepositoryTest.php
-index e6ce5b96..d737a993 100644
+index e6ce5b96..be5aae1b 100644
 --- a/modules/_bundled/sirsoft-board/tests/Unit/AttachmentRepositoryTest.php
 +++ b/modules/_bundled/sirsoft-board/tests/Unit/AttachmentRepositoryTest.php
 @@ -100,7 +100,8 @@ public function test_link_attachments_by_ids_moves_temp_to_real_board_id(): void
@@ -504,14 +591,86 @@ index e6ce5b96..d737a993 100644
          );
  
          // When: 게시판 slug + postId로 조회
+@@ -222,7 +244,7 @@ public function test_linked_attachments_are_queryable_by_board_id(): void
+     public function test_get_by_temp_key_returns_temp_attachments(): void
+     {
+         // Given: 고유 temp_key로 임시 첨부파일 2개 생성 (테스트 격리)
+-        $tempKey = 'get-temp-test-' . uniqid();
++        $tempKey = 'get-temp-test-'.uniqid();
+         $this->createTempAttachment([
+             'temp_key' => $tempKey,
+             'original_filename' => 'temp1.pdf',
 diff --git a/modules/_bundled/sirsoft-board/tests/Unit/AttachmentServiceTest.php b/modules/_bundled/sirsoft-board/tests/Unit/AttachmentServiceTest.php
-index dedbf652..dddd4638 100644
+index dedbf652..b855938a 100644
 --- a/modules/_bundled/sirsoft-board/tests/Unit/AttachmentServiceTest.php
 +++ b/modules/_bundled/sirsoft-board/tests/Unit/AttachmentServiceTest.php
-@@ -635,6 +635,28 @@ public function test_download_returns_streamed_response(): void
-         $this->assertInstanceOf(\Symfony\Component\HttpFoundation\StreamedResponse::class, $result);
-     }
+@@ -8,10 +8,12 @@
+ use App\Contracts\Extension\StorageInterface;
+ use App\Extension\HookManager;
+ use App\Models\User;
++use Illuminate\Database\Eloquent\Collection;
+ use Illuminate\Database\Eloquent\Collection as EloquentCollection;
+ use Illuminate\Http\UploadedFile;
+ use Illuminate\Support\Facades\Auth;
+ use Mockery;
++use Mockery\MockInterface;
+ use Modules\Sirsoft\Board\Models\Attachment;
+ use Modules\Sirsoft\Board\Models\Board;
+ use Modules\Sirsoft\Board\Repositories\Contracts\AttachmentRepositoryInterface;
+@@ -19,6 +21,7 @@
+ use Modules\Sirsoft\Board\Services\AttachmentService;
+ use Modules\Sirsoft\Board\Tests\ModuleTestCase;
+ use PHPUnit\Framework\Attributes\Test;
++use Symfony\Component\HttpFoundation\StreamedResponse;
  
+ /**
+  * AttachmentService 단위 테스트
+@@ -27,16 +30,15 @@
+  */
+ class AttachmentServiceTest extends ModuleTestCase
+ {
+-
+     private AttachmentService $service;
+ 
+-    /** @var \Mockery\MockInterface&AttachmentRepositoryInterface */
++    /** @var MockInterface&AttachmentRepositoryInterface */
+     private $repository;
+ 
+-    /** @var \Mockery\MockInterface&BoardRepositoryInterface */
++    /** @var MockInterface&BoardRepositoryInterface */
+     private $boardRepository;
+ 
+-    /** @var \Mockery\MockInterface&StorageInterface */
++    /** @var MockInterface&StorageInterface */
+     private $storage;
+ 
+     private User $user;
+@@ -528,7 +530,7 @@ public function test_link_temp_attachments_links_temp_files_to_post(): void
+             ->shouldReceive('getByTempKey')
+             ->once()
+             ->with($slug, $tempKey)
+-            ->andReturn(new \Illuminate\Database\Eloquent\Collection());
++            ->andReturn(new Collection);
+ 
+         $this->repository
+             ->shouldReceive('linkTempAttachments')
+@@ -613,7 +615,7 @@ public function test_download_returns_streamed_response(): void
+             ->with('notice', 1)
+             ->andReturn($attachment);
+ 
+-        $expectedResponse = new \Symfony\Component\HttpFoundation\StreamedResponse;
++        $expectedResponse = new StreamedResponse;
+ 
+         $this->storage->shouldReceive('response')
+             ->once()
+@@ -632,7 +634,29 @@ public function test_download_returns_streamed_response(): void
+         $result = $this->service->download('notice', 1);
+ 
+         // Assert
+-        $this->assertInstanceOf(\Symfony\Component\HttpFoundation\StreamedResponse::class, $result);
++        $this->assertInstanceOf(StreamedResponse::class, $result);
++    }
++
 +    #[Test]
 +    public function test_authorize_delivery_returns_model_without_reading_storage(): void
 +    {
@@ -532,17 +691,51 @@ index dedbf652..dddd4638 100644
 +        $result = $this->service->authorizeDelivery('notice', 1, context: 'user');
 +
 +        $this->assertSame($attachment, $result);
-+    }
-+
+     }
+ 
      #[Test]
-     public function test_download_returns_null_when_not_found(): void
-     {
+@@ -667,7 +691,7 @@ public function test_download_with_korean_filename(): void
+             ->with('notice', 1)
+             ->andReturn($attachment);
+ 
+-        $expectedResponse = new \Symfony\Component\HttpFoundation\StreamedResponse;
++        $expectedResponse = new StreamedResponse;
+ 
+         $this->storage->shouldReceive('response')
+             ->once()
+@@ -688,7 +712,7 @@ public function test_download_with_korean_filename(): void
+         $result = $this->service->download('notice', 1);
+ 
+         // Assert
+-        $this->assertInstanceOf(\Symfony\Component\HttpFoundation\StreamedResponse::class, $result);
++        $this->assertInstanceOf(StreamedResponse::class, $result);
+     }
+ 
+     #[Test]
+@@ -722,7 +746,7 @@ function ($attachment, $context = null) use (&$afterDownloadFired, &$firedAttach
+ 
+         $this->storage->shouldReceive('response')
+             ->once()
+-            ->andReturn(new \Symfony\Component\HttpFoundation\StreamedResponse);
++            ->andReturn(new StreamedResponse);
+ 
+         // Act (user 컨텍스트)
+         $this->service->download('notice', 1, context: 'user');
+@@ -763,7 +787,7 @@ function ($attachment, $context = null) use (&$firedContext) {
+ 
+         $this->storage->shouldReceive('response')
+             ->once()
+-            ->andReturn(new \Symfony\Component\HttpFoundation\StreamedResponse);
++            ->andReturn(new StreamedResponse);
+ 
+         // Act (admin 컨텍스트 기본값)
+         $this->service->download('notice', 1);
 diff --git a/modules/_bundled/sirsoft-board/tests/Unit/AttachmentUrlFilterTest.php b/modules/_bundled/sirsoft-board/tests/Unit/AttachmentUrlFilterTest.php
 new file mode 100644
-index 00000000..59f87683
+index 00000000..511a328b
 --- /dev/null
 +++ b/modules/_bundled/sirsoft-board/tests/Unit/AttachmentUrlFilterTest.php
-@@ -0,0 +1,63 @@
+@@ -0,0 +1,62 @@
 +<?php
 +
 +namespace Modules\Sirsoft\Board\Tests\Unit;
@@ -599,8 +792,7 @@ index 00000000..59f87683
 +
 +        HookManager::addFilter(
 +            'sirsoft-board.attachment.filter_preview_url',
-+            static fn (?string $url, Attachment $model, ?string $slug): string =>
-+                '/external/'.$slug.'/'.$model->hash.'/thumbnail',
++            static fn (?string $url, Attachment $model, ?string $slug): string => '/external/'.$slug.'/'.$model->hash.'/thumbnail',
 +        );
 +
 +        $this->assertSame('/external/notice/abc123def456/thumbnail', $attachment->preview_url);

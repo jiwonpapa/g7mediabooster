@@ -6,8 +6,8 @@
 
 ## 기준과 범위
 
-- 기준 Gnuboard7 commit: `8590b9d172c470689cfef925f56c22c7a99fbe5b`
-- 대상 모듈: `sirsoft-board` 1.1.0
+- 기준 Gnuboard7 commit: `e64381ddb5ba02caed60933427fbb86ef72ef94e`
+- 대상 모듈: `sirsoft-board` 1.2.0
 - 실제 Gnuboard7 작업 트리는 수정하지 않고 별도 patch만 제공합니다.
 - G7MediaBooster module은 이 계약을 검증한 뒤에만 attachment materialization을 활성화해야 합니다.
 
@@ -18,6 +18,9 @@
 3. PHP가 원격 파일 바이트를 읽지 않는 `AttachmentService::authorizeDelivery()`
 4. download/preview URL filter, 영상 poster URL, 사용자·관리자 form의 안정적인 layout extension ID
 5. 저장소·URL filter 회귀 테스트와 `sirsoft-board` 버전/변경 이력 동기화
+
+기존 patch가 admin FormRequest만 보강하고 실제 사용자 PostController가 쓰는 `User/*Request`를
+놓친 문제를 현재 기준에서 수정했습니다. 계약 검증기는 admin·user 경로를 각각 검사합니다.
 
 ## 적용 순서
 
