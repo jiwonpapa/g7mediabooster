@@ -71,6 +71,7 @@ cargo xtask supply-chain
 - [요구사항 1~17 현재 판정표](docs/REQUIREMENTS_STATUS.md)
 - [멀티업로드와 lease queue 설명](docs/QUEUE_MODEL.md)
 - [Gnuboard 7 연동 계약](docs/GNUBOARD7_INTEGRATION.md)
+- [Gnuboard 7 upstream 첨부 계약 patch](adapters/gnuboard7/upstream-contract/README.md)
 - [워터마크 계약](docs/WATERMARK.md)
 - [미디어 수명주기·삭제](docs/LIFECYCLE.md)
 - [R2/Lightsail 외부 검증 인계서](docs/EXTERNAL_VALIDATION_20260716.md)

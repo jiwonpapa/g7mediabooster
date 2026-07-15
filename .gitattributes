@@ -4,4 +4,5 @@
 *.md text
 *.sh text eol=lf
 *.php text eol=lf
+*.patch text eol=lf -whitespace
 Cargo.lock text eol=lf

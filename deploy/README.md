@@ -15,11 +15,11 @@
 - G7 소유권 검사 뒤 private master/thumbnail을 5분 presigned GET으로 전달하는 no-store redirect
 - 위치·여백·비율·투명도가 제한된 revision 고정 워터마크
 - SQLite WAL 단일 노드 durable queue, lease 복구, backpressure, lifecycle cleanup
-- G7 관리자 설정·HMAC policy 동기화와 사용자 소유권이 적용된 제어 업로더
+- G7 관리자 설정·HMAC policy 동기화, 소유권 적용 제어 API와 programmatic browser uploader
 
 다음 항목은 구현·실환경 검증 전 공식 지원 기능으로 게시하지 않습니다.
 
-- G7 기존 `attachment_ids`에 대한 원격 미디어 본문·미리보기·다운로드 연결
+- G7 게시글 form 자동 주입과 기존 `attachment_ids` 원격 미디어 본문·미리보기·다운로드 연결
 - 멀티노드, PostgreSQL queue, 임의 URL query 기반 동적 리사이즈
 - MOV/WebM release fixture, 영상 트랜스코딩·metadata 제거, HEVC/AV1 Rust 폴백
 - S3의 ACL, Object Lock, replication, inventory, IAM/STS, SSE-KMS 관리 기능
