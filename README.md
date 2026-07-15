@@ -3,12 +3,14 @@
 Gnuboard 5/7용 고성능 미디어 업로드·가공 서버입니다. Rust가 제어 계층을 맡고,
 이미지는 libvips, MP4 썸네일은 FFmpeg가 별도 샌드박스 프로세스에서 처리합니다. FFmpeg를
 시작할 수 없는 MP4/H.264만 Rust `mp4` + OpenH264 첫 프레임 폴백을 사용합니다.
-S3와 Cloudflare R2는 같은 S3 호환 포트로 지원합니다.
+S3와 Cloudflare R2는 같은 S3 호환 포트로 구현하며, 공급자별 실계정 conformance를 통과한
+profile만 공식 지원으로 게시합니다.
 
 현재 저장소는 **v0.1 구현 진행 단계**입니다. batch 생성, S3/R2 single·multipart 제어,
-HMAC 인증, SQLite lease queue, worker 기본 가공·digest-pinned 이미지 워터마크, sandbox
-runtime capability, 삭제·보존 cleanup과 G7 제어 업로더까지 연결됐습니다. 실제 R2/Lightsail·G7
-게시물 첨부 표시 등 남은 게이트는 구현 계획에 따라 진행합니다.
+HMAC 인증, SQLite lease queue, 검증된 master+thumbnail/poster 원자적 발행,
+digest-pinned 이미지 워터마크, sandbox runtime capability, 삭제·보존 cleanup과 G7 제어
+업로더까지 연결됐습니다. 실제 R2/Lightsail·G7 게시물 첨부 표시 등 남은 게이트는 구현
+계획에 따라 진행합니다. 배포 시에는 [검증된 공식 기능 범위](deploy/README.md)만 게시합니다.
 
 ## 확정 기술 스택
 
@@ -66,6 +68,7 @@ cargo xtask supply-chain
 - [개발·검증 방법](docs/DEVELOPMENT.md)
 - [부트스트랩 완료 보고서](docs/BOOTSTRAP_STATUS.md)
 - [요구사항 1~17 구현 계획](docs/IMPLEMENTATION_PLAN.md)
+- [요구사항 1~17 현재 판정표](docs/REQUIREMENTS_STATUS.md)
 - [멀티업로드와 lease queue 설명](docs/QUEUE_MODEL.md)
 - [Gnuboard 7 연동 계약](docs/GNUBOARD7_INTEGRATION.md)
 - [워터마크 계약](docs/WATERMARK.md)

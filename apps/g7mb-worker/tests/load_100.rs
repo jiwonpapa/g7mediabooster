@@ -276,8 +276,8 @@ async fn load_100_real_jpeg_recovers_expired_leases() -> Result<(), Box<dyn std:
 
     assert_eq!(ready, JOB_COUNT as i64);
     assert_eq!(completed_jobs, JOB_COUNT as i64);
-    assert_eq!(derivatives, JOB_COUNT as i64);
-    assert_eq!(storage.derivatives.load(Ordering::Relaxed), JOB_COUNT);
+    assert_eq!(derivatives, (JOB_COUNT * 2) as i64);
+    assert_eq!(storage.derivatives.load(Ordering::Relaxed), JOB_COUNT * 2);
     assert_eq!(recovered, CRASHED_LEASE_COUNT as i64);
     assert_eq!(dead_letter, 0);
     assert_eq!(unexpected_attempts, 0);

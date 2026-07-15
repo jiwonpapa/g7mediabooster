@@ -33,7 +33,7 @@ pub struct PublishedDerivative {
     pub object_key: ObjectKey,
     /// Versioned server-side preset identifier.
     pub preset_id: String,
-    /// Stable derivative variant such as `thumbnail`.
+    /// Stable derivative variant such as `master` or `thumbnail`.
     pub variant: String,
     /// Trusted encoded content type.
     pub content_type: String,
@@ -66,11 +66,11 @@ pub trait ProcessingRepository: Send + Sync {
         now: OffsetDateTime,
     ) -> Result<(), ProcessingRepositoryError>;
 
-    /// Records an uploaded immutable derivative and atomically marks the upload ready.
-    async fn publish_derivative(
+    /// Records the complete immutable derivative set and atomically marks the upload ready.
+    async fn publish_derivatives(
         &self,
         upload_id: UploadId,
-        derivative: &PublishedDerivative,
+        derivatives: &[PublishedDerivative],
         now: OffsetDateTime,
     ) -> Result<(), ProcessingRepositoryError>;
 

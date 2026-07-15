@@ -80,6 +80,9 @@ G7 모듈은 세션·게시판 권한·첨부 연결의 진실 원천이고, Rus
 - Stage A conformance: pinned MinIO에서 실제 presigned PUT, 2-part complete, abort, HEAD,
   bounded download와 derivative PUT 통과
 - Stage B: bounded download, signature, libvips/FFprobe probe, EXIF 제거 기본 썸네일 구현
+- Stage B publish: 이미지는 metadata-strip·sRGB·최대 8,192px JPEG master, 영상은 검증된
+  원 container master, 공통 1,280px JPEG thumbnail/poster를 저장하고 전체 DB set이 원자적으로
+  커밋된 뒤에만 Ready 처리
 - Stage B native formats: 실제 AVIF encode/decode와 HEIC/HEIF signature·decoder probe·JPEG
   파생 runtime smoke 통과
 - Stage B runtime capability: sandbox 내장 fixture로 필수 6개 image input, 4개 output과
@@ -91,10 +94,10 @@ G7 모듈은 세션·게시판 권한·첨부 연결의 진실 원천이고, Rus
 - Stage D 계약 하네스: 브라우저 100개 batch를 제어 요청 1회·전체 연결 최대 8개로 제한하고,
   Rust 100개 예약을 저장 1회로 커밋하는 테스트 구현
 - Stage D 실제 worker 하네스: 4000×3000 JPEG 100개, 동시성 4/native thread 1,
-  Ready·파생본 100/100, 만료 lease 10/10 재선점, dead-letter 0, 26.45 jobs/s,
-  p95 156ms, process tree peak RSS 323,616 KiB 통과
+  Ready 100/100·master+thumbnail 200/200, 만료 lease 10/10 재선점, dead-letter 0,
+  14.17 jobs/s, p95 274ms, process tree peak RSS 577,584 KiB 통과
 - Stage D heavy-image gate: 16,384px/100MP 초과 class를 semaphore 기본 1로 제한하고,
-  실제 25,000×4,000 JPEG를 native thread 1, 386ms, peak RSS 24,368 KiB로 처리
+  실제 25,000×4,000 JPEG를 native thread 1, 481ms, peak RSS 43,472 KiB로 처리
 - Stage D AVIF memory gate: 실제 64MP AVIF를 peak RSS 1,221,776 KiB로 처리하고, 실측
   3,635,216 KiB였던 200MP AVIF는 header probe 뒤 full-frame decode 전에 거부
 - Stage D fair/backpressure: tenant별 마지막 claim sequence로 단일 worker에서도 round-robin,
@@ -110,7 +113,7 @@ G7 모듈은 세션·게시판 권한·첨부 연결의 진실 원천이고, Rus
   SQLite 단조 revision·settings hash, enqueue 시 revision 고정과 S3/R2 worker 재검증 구현
 - Stage B sandbox egress: Linux seccomp-BPF로 socket 계열 syscall을 전 thread에서 차단하고
   FFmpeg/FFprobe child 상속 및 실제 Linux `EPERM` 테스트 구현
-- 품질 게이트: 전체 CI와 API smoke, Rust line coverage 84.67%, G7 PHP/TS unit·build 통과
+- 품질 게이트: 전체 CI와 API smoke, Rust line coverage 84.22%, G7 PHP/TS unit·build 통과
 
 남은 핵심 게이트는 실제 R2/Lightsail credential·5GiB 검증, G7 attachment resolver·게시물
 smoke와 G7 관리자 전용 watermark asset picker browser smoke입니다. 외부 저장소 하네스와

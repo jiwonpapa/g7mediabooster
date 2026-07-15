@@ -1,6 +1,6 @@
 //! SQLite WAL persistence and migration boundary for single-node deployments.
 
-use std::{str::FromStr, time::Duration};
+use std::{collections::BTreeSet, str::FromStr, time::Duration};
 
 use async_trait::async_trait;
 use g7mb_application::{
@@ -1195,16 +1195,26 @@ impl ProcessingRepository for SqliteStore {
         }
     }
 
-    async fn publish_derivative(
+    async fn publish_derivatives(
         &self,
         upload_id: UploadId,
-        derivative: &PublishedDerivative,
+        derivatives: &[PublishedDerivative],
         now: OffsetDateTime,
     ) -> Result<(), ProcessingRepositoryError> {
-        validate_derivative(derivative)?;
-        let byte_len = i64::try_from(derivative.byte_len).map_err(|_| {
-            ProcessingRepositoryError("derivative byte length exceeds SQLite range".to_owned())
-        })?;
+        if derivatives.is_empty() || derivatives.len() > 16 {
+            return Err(ProcessingRepositoryError(
+                "published derivative set size is invalid".to_owned(),
+            ));
+        }
+        let mut identities = BTreeSet::new();
+        for derivative in derivatives {
+            validate_derivative(derivative)?;
+            if !identities.insert((&derivative.preset_id, &derivative.variant)) {
+                return Err(ProcessingRepositoryError(
+                    "published derivative set contains a duplicate identity".to_owned(),
+                ));
+            }
+        }
         // Reserve SQLite's single writer before reading the current state. A deferred
         // transaction can otherwise fail with SQLITE_BUSY_SNAPSHOT when concurrent
         // workers try to upgrade their read snapshots after another worker commits.
@@ -1224,35 +1234,40 @@ impl ProcessingRepository for SqliteStore {
                 "source is not publishing from its current state".to_owned(),
             ));
         }
-        let derivative_result = sqlx::query(
-            "INSERT INTO derivatives
-                (upload_id, preset_id, variant, object_key, content_type, byte_len, sha256, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-             ON CONFLICT(upload_id, preset_id, variant) DO UPDATE SET
-                object_key = excluded.object_key,
-                content_type = excluded.content_type,
-                byte_len = excluded.byte_len,
-                sha256 = excluded.sha256
-             WHERE derivatives.object_key = excluded.object_key
-               AND derivatives.content_type = excluded.content_type
-               AND derivatives.byte_len = excluded.byte_len
-               AND derivatives.sha256 = excluded.sha256",
-        )
-        .bind(upload_id.to_string())
-        .bind(&derivative.preset_id)
-        .bind(&derivative.variant)
-        .bind(derivative.object_key.as_str())
-        .bind(&derivative.content_type)
-        .bind(byte_len)
-        .bind(&derivative.sha256)
-        .bind(now.unix_timestamp())
-        .execute(&mut *transaction)
-        .await
-        .map_err(processing_backend)?;
-        if derivative_result.rows_affected() != 1 {
-            return Err(ProcessingRepositoryError(
-                "published derivative conflicts with immutable state".to_owned(),
-            ));
+        for derivative in derivatives {
+            let byte_len = i64::try_from(derivative.byte_len).map_err(|_| {
+                ProcessingRepositoryError("derivative byte length exceeds SQLite range".to_owned())
+            })?;
+            let derivative_result = sqlx::query(
+                "INSERT INTO derivatives
+                    (upload_id, preset_id, variant, object_key, content_type, byte_len, sha256, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                 ON CONFLICT(upload_id, preset_id, variant) DO UPDATE SET
+                    object_key = excluded.object_key,
+                    content_type = excluded.content_type,
+                    byte_len = excluded.byte_len,
+                    sha256 = excluded.sha256
+                 WHERE derivatives.object_key = excluded.object_key
+                   AND derivatives.content_type = excluded.content_type
+                   AND derivatives.byte_len = excluded.byte_len
+                   AND derivatives.sha256 = excluded.sha256",
+            )
+            .bind(upload_id.to_string())
+            .bind(&derivative.preset_id)
+            .bind(&derivative.variant)
+            .bind(derivative.object_key.as_str())
+            .bind(&derivative.content_type)
+            .bind(byte_len)
+            .bind(&derivative.sha256)
+            .bind(now.unix_timestamp())
+            .execute(&mut *transaction)
+            .await
+            .map_err(processing_backend)?;
+            if derivative_result.rows_affected() != 1 {
+                return Err(ProcessingRepositoryError(
+                    "published derivative conflicts with immutable state".to_owned(),
+                ));
+            }
         }
         if state == "processing" {
             let updated = sqlx::query(
@@ -2064,28 +2079,79 @@ mod tests {
         .fetch_one(store.pool())
         .await?;
         assert_eq!(validation_count, 1);
-        let derivative_key = ObjectKey::new(format!(
+        let thumbnail_key = ObjectKey::new(format!(
             "media/tenant-a/{multipart_id}/source-v1/board-default-v1/thumbnail.jpg"
         ))?;
-        let derivative = PublishedDerivative {
-            object_key: derivative_key,
+        let thumbnail = PublishedDerivative {
+            object_key: thumbnail_key,
             preset_id: "board-default-v1".to_owned(),
             variant: "thumbnail".to_owned(),
             content_type: "image/jpeg".to_owned(),
             byte_len: 2048,
             sha256: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb".to_owned(),
         };
+        let master = PublishedDerivative {
+            object_key: ObjectKey::new(format!(
+                "media/tenant-a/{multipart_id}/source-v1/board-default-v1/master.mp4"
+            ))?,
+            preset_id: "board-default-v1".to_owned(),
+            variant: "master".to_owned(),
+            content_type: "video/mp4".to_owned(),
+            byte_len: 64 * 1024 * 1024,
+            sha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".to_owned(),
+        };
+        let derivatives = [master, thumbnail];
+        sqlx::query(
+            "INSERT INTO derivatives
+                (upload_id, preset_id, variant, object_key, content_type, byte_len, sha256, created_at)
+             VALUES (?, 'board-default-v1', 'thumbnail', ?, 'image/jpeg', 1, ?, ?)",
+        )
+        .bind(multipart_id.to_string())
+        .bind(format!(
+            "media/tenant-a/{multipart_id}/source-v1/board-default-v1/conflict.jpg"
+        ))
+        .bind("c".repeat(64))
+        .bind(1_800_000_002_i64)
+        .execute(store.pool())
+        .await?;
+        assert!(
+            store
+                .publish_derivatives(
+                    multipart_id,
+                    &derivatives,
+                    OffsetDateTime::from_unix_timestamp(1_800_000_003)?,
+                )
+                .await
+                .is_err()
+        );
+        let rollback_state =
+            sqlx::query_scalar::<_, String>("SELECT state FROM uploads WHERE id = ?")
+                .bind(multipart_id.to_string())
+                .fetch_one(store.pool())
+                .await?;
+        let rolled_back_master = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM derivatives WHERE upload_id = ? AND variant = 'master'",
+        )
+        .bind(multipart_id.to_string())
+        .fetch_one(store.pool())
+        .await?;
+        assert_eq!(rollback_state, "processing");
+        assert_eq!(rolled_back_master, 0);
+        sqlx::query("DELETE FROM derivatives WHERE upload_id = ?")
+            .bind(multipart_id.to_string())
+            .execute(store.pool())
+            .await?;
         store
-            .publish_derivative(
+            .publish_derivatives(
                 multipart_id,
-                &derivative,
+                &derivatives,
                 OffsetDateTime::from_unix_timestamp(1_800_000_003)?,
             )
             .await?;
         store
-            .publish_derivative(
+            .publish_derivatives(
                 multipart_id,
-                &derivative,
+                &derivatives,
                 OffsetDateTime::from_unix_timestamp(1_800_000_004)?,
             )
             .await?;
@@ -2095,14 +2161,15 @@ mod tests {
         .bind(multipart_id.to_string())
         .fetch_one(store.pool())
         .await?;
-        assert_eq!(ready_count, 1);
+        assert_eq!(ready_count, 2);
         let status = store
             .find_status("tenant-a", multipart_id)
             .await?
             .ok_or("ready status was not found")?;
         assert_eq!(status.state, UploadState::Ready);
-        assert_eq!(status.derivatives.len(), 1);
-        assert_eq!(status.derivatives[0].variant, "thumbnail");
+        assert_eq!(status.derivatives.len(), 2);
+        assert_eq!(status.derivatives[0].variant, "master");
+        assert_eq!(status.derivatives[1].variant, "thumbnail");
 
         store
             .mark_deleted(

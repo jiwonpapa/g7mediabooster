@@ -23,8 +23,8 @@
 | header probe | 25,000×4,000 확인 |
 | resource class | heavy |
 | derivative | 1,280px, 3-band JPEG |
-| 총 시간 | 386ms |
-| process tree peak RSS | 24,368 KiB |
+| 총 시간 | 481ms |
+| process tree peak RSS | 43,472 KiB |
 
 별도 worker 단위 테스트는 25,000×4,000 probe 두 건을 동시에 실행해도 full-pixel thumbnail
 구간의 최대 동시 실행이 1임을 검증합니다. 영상 변환도 별도 semaphore 기본값 1을 사용합니다.

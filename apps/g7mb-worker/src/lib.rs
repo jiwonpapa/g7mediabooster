@@ -23,6 +23,7 @@ use tokio::{
 
 const SOURCE_VALIDATION_PRESET: &str = "source-validation-v1";
 const DEFAULT_DERIVATIVE_PRESET: &str = "board-default-v1";
+const SANITIZED_MASTER_MAX_EDGE: u32 = 8192;
 const MAX_WATERMARK_BYTES: u64 = 16 * 1024 * 1024;
 
 /// Stable result of attempting one queue claim.
@@ -147,6 +148,14 @@ pub trait SandboxProbe: Send + Sync {
         byte_len: u64,
     ) -> Result<MediaInspection, SandboxProbeError>;
 
+    /// Produces one metadata-stripped JPEG master for a validated image.
+    async fn image_master(
+        &self,
+        source: &std::path::Path,
+        output: &std::path::Path,
+        watermark: Option<&WatermarkPolicy>,
+    ) -> Result<(), SandboxProbeError>;
+
     /// Produces one sanitized default JPEG thumbnail at a worker-owned path.
     async fn thumbnail(
         &self,
@@ -192,6 +201,78 @@ impl ProcessSandboxProbe {
             native_threads,
             max_output_bytes,
         })
+    }
+
+    async fn render_image(
+        &self,
+        source: &std::path::Path,
+        output: &std::path::Path,
+        max_edge: u32,
+        watermark: Option<&WatermarkPolicy>,
+    ) -> Result<(), SandboxProbeError> {
+        let mut args = vec![
+            "--max-edge".to_owned(),
+            max_edge.to_string(),
+            "--format".to_owned(),
+            "jpeg".to_owned(),
+        ];
+        if let Some(watermark) = watermark {
+            args.extend([
+                "--watermark".to_owned(),
+                watermark.asset_path.to_string_lossy().into_owned(),
+                "--watermark-position".to_owned(),
+                watermark_position_name(watermark.position).to_owned(),
+                "--watermark-margin-px".to_owned(),
+                watermark.margin_px.to_string(),
+                "--watermark-max-width-percent".to_owned(),
+                watermark.max_width_percent.to_string(),
+                "--watermark-opacity-percent".to_owned(),
+                watermark.opacity_percent.to_string(),
+            ]);
+        }
+        let process_output = tokio::time::timeout(
+            self.image_timeout,
+            Command::new(&self.binary)
+                .arg("image-thumbnail")
+                .arg("--input")
+                .arg(source)
+                .arg("--output")
+                .arg(output)
+                .args(args)
+                .arg("--threads")
+                .arg(self.native_threads.to_string())
+                .env_clear()
+                .env("PATH", "/usr/bin:/usr/local/bin:/opt/homebrew/bin")
+                .stdin(Stdio::null())
+                .kill_on_drop(true)
+                .output(),
+        )
+        .await
+        .map_err(|_| SandboxProbeError::Timeout)?
+        .map_err(SandboxProbeError::Spawn)?;
+        if !process_output.status.success() {
+            return Err(if watermark.is_some() {
+                SandboxProbeError::Operational
+            } else {
+                SandboxProbeError::Rejected
+            });
+        }
+        if process_output.stdout.len() > self.max_output_bytes
+            || process_output.stderr.len() > self.max_output_bytes
+        {
+            return Err(SandboxProbeError::OutputTooLarge);
+        }
+        let metadata = tokio::fs::metadata(output)
+            .await
+            .map_err(SandboxProbeError::Output)?;
+        if !metadata.is_file() || metadata.len() == 0 {
+            return Err(if watermark.is_some() {
+                SandboxProbeError::Operational
+            } else {
+                SandboxProbeError::InvalidOutput
+            });
+        }
+        Ok(())
     }
 }
 
@@ -245,6 +326,16 @@ impl SandboxProbe for ProcessSandboxProbe {
         serde_json::from_slice(&output.stdout).map_err(SandboxProbeError::InvalidJson)
     }
 
+    async fn image_master(
+        &self,
+        source: &std::path::Path,
+        output: &std::path::Path,
+        watermark: Option<&WatermarkPolicy>,
+    ) -> Result<(), SandboxProbeError> {
+        self.render_image(source, output, SANITIZED_MASTER_MAX_EDGE, watermark)
+            .await
+    }
+
     async fn thumbnail(
         &self,
         source: &std::path::Path,
@@ -256,27 +347,7 @@ impl SandboxProbe for ProcessSandboxProbe {
         let is_video = matches!(inspection, MediaInspection::Video { .. });
         let (timeout, command, extra_args) = match inspection {
             MediaInspection::Image { .. } => {
-                let mut args = vec![
-                    "--max-edge".to_owned(),
-                    "1280".to_owned(),
-                    "--format".to_owned(),
-                    "jpeg".to_owned(),
-                ];
-                if let Some(watermark) = watermark {
-                    args.extend([
-                        "--watermark".to_owned(),
-                        watermark.asset_path.to_string_lossy().into_owned(),
-                        "--watermark-position".to_owned(),
-                        watermark_position_name(watermark.position).to_owned(),
-                        "--watermark-margin-px".to_owned(),
-                        watermark.margin_px.to_string(),
-                        "--watermark-max-width-percent".to_owned(),
-                        watermark.max_width_percent.to_string(),
-                        "--watermark-opacity-percent".to_owned(),
-                        watermark.opacity_percent.to_string(),
-                    ]);
-                }
-                (self.image_timeout, "image-thumbnail", args)
+                return self.render_image(source, output, 1280, watermark).await;
             }
             MediaInspection::Video {
                 format, inspection, ..
@@ -359,6 +430,20 @@ impl SandboxProbe for ProcessSandboxProbe {
 
 fn allows_openh264_fallback(format: MediaFormat, codec: &str) -> bool {
     format == MediaFormat::Mp4 && codec == "h264"
+}
+
+const fn video_master_extension(format: MediaFormat) -> Option<&'static str> {
+    match format {
+        MediaFormat::Mp4 => Some("mp4"),
+        MediaFormat::QuickTime => Some("mov"),
+        MediaFormat::Webm => Some("webm"),
+        MediaFormat::Jpeg
+        | MediaFormat::Png
+        | MediaFormat::Gif
+        | MediaFormat::Webp
+        | MediaFormat::Avif
+        | MediaFormat::Heif => None,
+    }
 }
 
 const fn watermark_position_name(position: WatermarkPosition) -> &'static str {
@@ -597,57 +682,129 @@ impl SourceValidationWorker {
             return Err(ProcessingFailure::Permanent("SOURCE_DIGEST_CHANGED"));
         }
 
-        let thumbnail = directory.path().join("thumbnail.jpg");
         let watermark = self
             .prepare_watermark(directory.path(), &source.tenant_id, site_policy_revision)
             .await?;
-        self.sandbox
-            .thumbnail(&local_source, &inspection, &thumbnail, watermark.as_ref())
-            .await
-            .map_err(classify_sandbox_error)?;
-        let thumbnail_sha256 = sha256_file(&thumbnail)
-            .await
-            .map_err(|_| ProcessingFailure::Transient("TEMP_STORAGE_UNAVAILABLE"))?;
-        let thumbnail_length = tokio::fs::metadata(&thumbnail)
-            .await
-            .map_err(|_| ProcessingFailure::Transient("TEMP_STORAGE_UNAVAILABLE"))?
-            .len();
         let preset_id = watermark.as_ref().map_or_else(
             || DEFAULT_DERIVATIVE_PRESET.to_owned(),
             WatermarkPolicy::preset_id,
         );
-        let derivative_key = ObjectKey::new(format!(
+        let mut derivatives = Vec::with_capacity(2);
+        match &inspection {
+            MediaInspection::Image { .. } => {
+                let master = directory.path().join("master.jpg");
+                self.sandbox
+                    .image_master(&local_source, &master, watermark.as_ref())
+                    .await
+                    .map_err(classify_sandbox_error)?;
+                let master_key = ObjectKey::new(format!(
+                    "media/{}/{}/{}/{}/master.jpg",
+                    source.tenant_id, source.upload_id, digest, preset_id
+                ))
+                .map_err(|_| ProcessingFailure::Transient("DERIVATIVE_KEY_INVALID"))?;
+                derivatives.push(
+                    self.upload_generated_derivative(
+                        master,
+                        master_key,
+                        &preset_id,
+                        "master",
+                        "image/jpeg",
+                    )
+                    .await?,
+                );
+            }
+            MediaInspection::Video { format, .. } => {
+                let extension = video_master_extension(*format)
+                    .ok_or(ProcessingFailure::Permanent("VIDEO_CONTAINER_UNSUPPORTED"))?;
+                let master_key = ObjectKey::new(format!(
+                    "media/{}/{}/{}/{}/master.{extension}",
+                    source.tenant_id, source.upload_id, digest, preset_id
+                ))
+                .map_err(|_| ProcessingFailure::Transient("DERIVATIVE_KEY_INVALID"))?;
+                let stored = self
+                    .derivative_store
+                    .put_file(PutFileRequest {
+                        key: master_key.clone(),
+                        source: local_source.clone(),
+                        content_type: detected_content_type.clone(),
+                    })
+                    .await
+                    .map_err(classify_storage_error)?;
+                if stored.content_length != source.expected_size_bytes {
+                    return Err(ProcessingFailure::Transient("DERIVATIVE_LENGTH_MISMATCH"));
+                }
+                derivatives.push(PublishedDerivative {
+                    object_key: master_key,
+                    preset_id: preset_id.clone(),
+                    variant: "master".to_owned(),
+                    content_type: detected_content_type.clone(),
+                    byte_len: source.expected_size_bytes,
+                    sha256: digest.clone(),
+                });
+            }
+        }
+
+        let thumbnail = directory.path().join("thumbnail.jpg");
+        self.sandbox
+            .thumbnail(&local_source, &inspection, &thumbnail, watermark.as_ref())
+            .await
+            .map_err(classify_sandbox_error)?;
+        let thumbnail_key = ObjectKey::new(format!(
             "media/{}/{}/{}/{}/thumbnail.jpg",
             source.tenant_id, source.upload_id, digest, preset_id
         ))
         .map_err(|_| ProcessingFailure::Transient("DERIVATIVE_KEY_INVALID"))?;
+        derivatives.push(
+            self.upload_generated_derivative(
+                thumbnail,
+                thumbnail_key,
+                &preset_id,
+                "thumbnail",
+                "image/jpeg",
+            )
+            .await?,
+        );
+        self.repository
+            .publish_derivatives(source.upload_id, &derivatives, OffsetDateTime::now_utc())
+            .await
+            .map_err(|_| ProcessingFailure::Transient("DATABASE_UNAVAILABLE"))
+    }
+
+    async fn upload_generated_derivative(
+        &self,
+        source: PathBuf,
+        object_key: ObjectKey,
+        preset_id: &str,
+        variant: &str,
+        content_type: &str,
+    ) -> Result<PublishedDerivative, ProcessingFailure> {
+        let sha256 = sha256_file(&source)
+            .await
+            .map_err(|_| ProcessingFailure::Transient("TEMP_STORAGE_UNAVAILABLE"))?;
+        let byte_len = tokio::fs::metadata(&source)
+            .await
+            .map_err(|_| ProcessingFailure::Transient("TEMP_STORAGE_UNAVAILABLE"))?
+            .len();
         let stored = self
             .derivative_store
             .put_file(PutFileRequest {
-                key: derivative_key.clone(),
-                source: thumbnail,
-                content_type: "image/jpeg".to_owned(),
+                key: object_key.clone(),
+                source,
+                content_type: content_type.to_owned(),
             })
             .await
             .map_err(classify_storage_error)?;
-        if stored.content_length != thumbnail_length {
+        if stored.content_length != byte_len {
             return Err(ProcessingFailure::Transient("DERIVATIVE_LENGTH_MISMATCH"));
         }
-        self.repository
-            .publish_derivative(
-                source.upload_id,
-                &PublishedDerivative {
-                    object_key: derivative_key,
-                    preset_id,
-                    variant: "thumbnail".to_owned(),
-                    content_type: "image/jpeg".to_owned(),
-                    byte_len: thumbnail_length,
-                    sha256: thumbnail_sha256,
-                },
-                OffsetDateTime::now_utc(),
-            )
-            .await
-            .map_err(|_| ProcessingFailure::Transient("DATABASE_UNAVAILABLE"))
+        Ok(PublishedDerivative {
+            object_key,
+            preset_id: preset_id.to_owned(),
+            variant: variant.to_owned(),
+            content_type: content_type.to_owned(),
+            byte_len,
+            sha256,
+        })
     }
 
     async fn acquire_transform_permit(
@@ -906,8 +1063,8 @@ mod tests {
             StoredWatermarkPolicy,
         },
     };
-    use g7mb_domain::{ImageProbe, MediaKind, ObjectKey, UploadId};
-    use g7mb_media::{MediaFormat, MediaInspection};
+    use g7mb_domain::{ImageProbe, MediaKind, ObjectKey, UploadId, VideoProbe};
+    use g7mb_media::{MediaFormat, MediaInspection, VideoInspection};
     use g7mb_persistence_sqlite::SqliteStore;
     use sha2::{Digest as _, Sha256};
     use sqlx::Row as _;
@@ -1021,6 +1178,7 @@ mod tests {
         calls: AtomicUsize,
         watermark_calls: AtomicUsize,
         probe: Option<ImageProbe>,
+        video_format: Option<MediaFormat>,
         thumbnail_delay: Duration,
         active_thumbnails: AtomicUsize,
         max_active_thumbnails: AtomicUsize,
@@ -1035,8 +1193,30 @@ mod tests {
             byte_len: u64,
         ) -> Result<MediaInspection, SandboxProbeError> {
             self.calls.fetch_add(1, Ordering::Relaxed);
-            if declared_kind != MediaKind::Image {
-                return Err(SandboxProbeError::Rejected);
+            if declared_kind == MediaKind::Video {
+                let format = self.video_format.ok_or(SandboxProbeError::Rejected)?;
+                return Ok(MediaInspection::Video {
+                    format,
+                    content_type: match format {
+                        MediaFormat::Mp4 => "video/mp4",
+                        MediaFormat::QuickTime => "video/quicktime",
+                        MediaFormat::Webm => "video/webm",
+                        _ => return Err(SandboxProbeError::Rejected),
+                    }
+                    .to_owned(),
+                    inspection: VideoInspection {
+                        probe: VideoProbe {
+                            byte_len,
+                            duration_ms: 1_000,
+                            width: 1_920,
+                            height: 1_080,
+                            video_streams: 1,
+                            total_streams: 1,
+                        },
+                        codec: "h264".to_owned(),
+                        container: "mov,mp4,m4a,3gp,3g2,mj2".to_owned(),
+                    },
+                });
             }
             Ok(MediaInspection::Image {
                 format: MediaFormat::Jpeg,
@@ -1048,6 +1228,26 @@ mod tests {
                     frames: 1,
                 }),
             })
+        }
+
+        async fn image_master(
+            &self,
+            _source: &std::path::Path,
+            output: &std::path::Path,
+            watermark: Option<&WatermarkPolicy>,
+        ) -> Result<(), SandboxProbeError> {
+            if let Some(watermark) = watermark {
+                let bytes = tokio::fs::read(&watermark.asset_path)
+                    .await
+                    .map_err(SandboxProbeError::Output)?;
+                if bytes.is_empty() {
+                    return Err(SandboxProbeError::InvalidOutput);
+                }
+                self.watermark_calls.fetch_add(1, Ordering::Relaxed);
+            }
+            tokio::fs::write(output, b"\xff\xd8\xff\xe0master")
+                .await
+                .map_err(SandboxProbeError::Output)
         }
 
         async fn thumbnail(
@@ -1122,13 +1322,69 @@ mod tests {
         .fetch_one(database.pool())
         .await?;
         assert_eq!(completed, 1);
-        let derivatives = sqlx::query_scalar::<_, i64>(
-            "SELECT COUNT(*) FROM derivatives WHERE upload_id = ? AND preset_id = 'board-default-v1' AND variant = 'thumbnail'",
+        let derivatives = sqlx::query_scalar::<_, String>(
+            "SELECT variant FROM derivatives WHERE upload_id = ? AND preset_id = 'board-default-v1' ORDER BY variant",
         )
         .bind(upload_id.to_string())
-        .fetch_one(database.pool())
+        .fetch_all(database.pool())
         .await?;
-        assert_eq!(derivatives, 1);
+        assert_eq!(derivatives, vec!["master", "thumbnail"]);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn publishes_validated_video_master_and_poster_as_one_ready_set()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let mut bytes = 16_u32.to_be_bytes().to_vec();
+        bytes.extend_from_slice(b"ftypisom\0\0\0\0");
+        let database = Arc::new(SqliteStore::connect("sqlite::memory:", 1).await?);
+        let upload_id = insert_quarantined_video_job(&database, &bytes).await?;
+        let sandbox = Arc::new(FakeSandbox {
+            video_format: Some(MediaFormat::Mp4),
+            ..FakeSandbox::default()
+        });
+        let temp = tempfile::tempdir()?;
+        let storage = Arc::new(FakeRawStore {
+            bytes: bytes.clone(),
+        });
+        let worker = SourceValidationWorker::new(
+            storage.clone(),
+            storage,
+            database.clone(),
+            database.clone(),
+            database.clone(),
+            sandbox,
+            test_policy(temp.path().to_path_buf()),
+        )?;
+
+        assert_eq!(worker.run_one("video-worker").await?, RunOutcome::Completed);
+        let rows = sqlx::query(
+            "SELECT variant, object_key, content_type, byte_len, sha256
+             FROM derivatives WHERE upload_id = ? ORDER BY variant",
+        )
+        .bind(upload_id.to_string())
+        .fetch_all(database.pool())
+        .await?;
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].try_get::<String, _>("variant")?, "master");
+        assert!(
+            rows[0]
+                .try_get::<String, _>("object_key")?
+                .ends_with("/master.mp4")
+        );
+        assert_eq!(rows[0].try_get::<String, _>("content_type")?, "video/mp4");
+        assert_eq!(rows[0].try_get::<i64, _>("byte_len")?, bytes.len() as i64);
+        assert_eq!(
+            rows[0].try_get::<String, _>("sha256")?,
+            hex::encode(Sha256::digest(&bytes))
+        );
+        assert_eq!(rows[1].try_get::<String, _>("variant")?, "thumbnail");
+        assert!(
+            rows[1]
+                .try_get::<String, _>("object_key")?
+                .ends_with("/thumbnail.jpg")
+        );
+        assert_eq!(rows[1].try_get::<String, _>("content_type")?, "image/jpeg");
         Ok(())
     }
 
@@ -1207,17 +1463,22 @@ mod tests {
         )?;
 
         assert_eq!(worker.run_one("worker-a").await?, RunOutcome::Completed);
-        assert_eq!(sandbox.watermark_calls.load(Ordering::Relaxed), 1);
-        let row = sqlx::query("SELECT preset_id, object_key FROM derivatives WHERE upload_id = ?")
-            .bind(upload_id.to_string())
-            .fetch_one(database.pool())
-            .await?;
-        let preset_id = row.try_get::<String, _>("preset_id")?;
-        assert_eq!(
-            preset_id,
-            format!("board-default-v1-wm-site-v2-{watermark_digest}")
-        );
-        assert!(row.try_get::<String, _>("object_key")?.contains(&preset_id));
+        assert_eq!(sandbox.watermark_calls.load(Ordering::Relaxed), 2);
+        let rows = sqlx::query(
+            "SELECT preset_id, variant, object_key FROM derivatives WHERE upload_id = ? ORDER BY variant",
+        )
+        .bind(upload_id.to_string())
+        .fetch_all(database.pool())
+        .await?;
+        assert_eq!(rows.len(), 2);
+        let expected_preset = format!("board-default-v1-wm-site-v2-{watermark_digest}");
+        for row in rows {
+            assert_eq!(row.try_get::<String, _>("preset_id")?, expected_preset);
+            assert!(
+                row.try_get::<String, _>("object_key")?
+                    .contains(&expected_preset)
+            );
+        }
         Ok(())
     }
 
@@ -1286,14 +1547,20 @@ mod tests {
         )?;
 
         assert_eq!(worker.run_one("worker-a").await?, RunOutcome::Completed);
-        assert_eq!(sandbox.watermark_calls.load(Ordering::Relaxed), 1);
-        let preset_id = sqlx::query_scalar::<_, String>(
-            "SELECT preset_id FROM derivatives WHERE upload_id = ?",
+        assert_eq!(sandbox.watermark_calls.load(Ordering::Relaxed), 2);
+        let preset_ids = sqlx::query_scalar::<_, String>(
+            "SELECT preset_id FROM derivatives WHERE upload_id = ? ORDER BY variant",
         )
         .bind(upload_id.to_string())
-        .fetch_one(database.pool())
+        .fetch_all(database.pool())
         .await?;
-        assert_eq!(preset_id, format!("board-default-v1-wm-g7-r1-{digest}"));
+        assert_eq!(
+            preset_ids,
+            vec![
+                format!("board-default-v1-wm-g7-r1-{digest}"),
+                format!("board-default-v1-wm-g7-r1-{digest}"),
+            ]
+        );
         Ok(())
     }
 
@@ -1394,6 +1661,36 @@ mod tests {
                 upload_id,
                 preset_id: super::SOURCE_VALIDATION_PRESET.to_owned(),
                 site_policy_revision,
+            })
+            .await?;
+        Ok(upload_id)
+    }
+
+    async fn insert_quarantined_video_job(
+        database: &SqliteStore,
+        bytes: &[u8],
+    ) -> Result<UploadId, Box<dyn std::error::Error>> {
+        let upload_id = UploadId::new();
+        let now = OffsetDateTime::now_utc().unix_timestamp();
+        sqlx::query(
+            "INSERT INTO uploads
+                (id, tenant_id, object_key, declared_kind, state, expected_size_bytes,
+                 actual_size_bytes, content_type_hint, created_at, updated_at)
+             VALUES (?, 'site-a', ?, 'video', 'quarantined', ?, ?, 'video/mp4', ?, ?)",
+        )
+        .bind(upload_id.to_string())
+        .bind(format!("raw/site-a/{upload_id}/source"))
+        .bind(i64::try_from(bytes.len())?)
+        .bind(i64::try_from(bytes.len())?)
+        .bind(now)
+        .bind(now)
+        .execute(database.pool())
+        .await?;
+        database
+            .enqueue(ProcessingJob {
+                upload_id,
+                preset_id: super::SOURCE_VALIDATION_PRESET.to_owned(),
+                site_policy_revision: None,
             })
             .await?;
         Ok(upload_id)

@@ -1,5 +1,29 @@
 # 운영 배포 경계
 
+## 배포 설명에 게시할 공식 애플리케이션 기능
+
+배포 페이지와 릴리스 노트에는 아래 구현·자동 검증 범위만 기능으로 게시합니다.
+
+- 이미지·동영상 최대 100개 다중 선택과 bounded 병렬 직접 업로드
+- 작은 파일 single PUT, 큰 파일·영상 S3 호환 multipart 업로드와 abort
+- JPEG, PNG, GIF, WebP, AVIF, HEIC/HEIF 실제 decode 기반 검증
+- MP4/H.264 실제 runtime 검사와 FFmpeg JPEG poster
+- FFmpeg 실행 불가 시 MP4/H.264 한정 Rust demux + OpenH264 poster 폴백
+- 이미지 EXIF/GPS/XMP/IPTC 제거, 방향·sRGB 정규화, 최대 8,192px JPEG master
+- 이미지 thumbnail·영상 poster 1,280px JPEG 및 digest/revision 불변 object key
+- 이미지 master와 thumbnail/poster가 모두 기록된 뒤에만 `Ready`가 되는 원자적 발행
+- 위치·여백·비율·투명도가 제한된 revision 고정 워터마크
+- SQLite WAL 단일 노드 durable queue, lease 복구, backpressure, lifecycle cleanup
+- G7 관리자 설정·HMAC policy 동기화와 사용자 소유권이 적용된 제어 업로더
+
+다음 항목은 구현·실환경 검증 전 공식 지원 기능으로 게시하지 않습니다.
+
+- G7 기존 `attachment_ids`에 대한 원격 미디어 본문·미리보기·다운로드 연결
+- 멀티노드, PostgreSQL queue, 임의 URL query 기반 동적 리사이즈
+- MOV/WebM release fixture, 영상 트랜스코딩·metadata 제거, HEVC/AV1 Rust 폴백
+- S3의 ACL, Object Lock, replication, inventory, IAM/STS, SSE-KMS 관리 기능
+- 실계정 conformance를 아직 통과하지 않은 R2 또는 Lightsail profile
+
 ## 공식 object storage 지원 범위
 
 배포판은 S3 전체 관리 API가 아니라 다음 runtime 작업만 공식 지원합니다.
