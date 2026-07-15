@@ -25,6 +25,7 @@
 - Ready 결과의 G7 native attachment 연결·표시, 게시글 수정 후 첨부 유지
 - G7 권한 확인 뒤 private master/thumbnail 302 redirect와 저장소 200 전달
 - G7 비밀글·블라인드글·삭제글 첨부 직접 경로의 작성자·권한자 fail-closed 정책
+- G7 관리자 current-admin Ready 이미지 선택기와 워터마크 설정 저장·재로드·rollback
 - G7 soft-delete 보존 예약, lease 재검증, 복원 취소와 원격 삭제 시작 뒤 복원 차단
 - G5 5.6.24 core-free 플러그인과 게시판 쓰기·업로드 권한 및 회원/세션 소유권 확인
 - G5 실제 브라우저 single PUT·2-part multipart 동시 업로드와 native 첨부 2개 표시
@@ -33,7 +34,7 @@
 다음 항목은 구현·실환경 검증 전 공식 지원 기능으로 게시하지 않습니다.
 
 - upstream patch `0001`~`0005`를 적용하지 않은 Gnuboard7 배포
-- G7 권한 차단의 실브라우저 403 매트릭스와 보존 만료 command→실 provider 객체 삭제 종단 증거
+- 보존 만료 command→실 provider 객체 삭제 종단 증거
 - 멀티노드, PostgreSQL queue, 임의 URL query 기반 동적 리사이즈
 - MOV/WebM release fixture, 영상 트랜스코딩·metadata 제거, HEVC/AV1 Rust 폴백
 - S3의 ACL, Object Lock, replication, inventory, IAM/STS, SSE-KMS 관리 기능
@@ -43,8 +44,9 @@
 Ready→native attachment create/update 유지, private thumbnail 전달은 0.3.0 격리 browser E2E를
 통과했습니다. 0.3.1의 추가 변경인 비밀·블라인드·삭제글 권한 계약과 삭제/복원·보존 lease는
 standalone module gate와 실제 G7 DB 호스트 게이트를 통과했습니다. 이 범위는 upstream patch
-`0001`~`0005` 적용을 전제로 공식 게시합니다.
-실브라우저 거부 매트릭스와 실 provider 보존 만료 삭제는 해당 종단 게이트 통과 전 게시하지 않습니다.
+`0001`~`0005` 적용을 전제로 공식 게시합니다. 0.4.0의 관리자 워터마크 자산 선택·rollback과
+작성자·다른 회원·비회원·관리자 권한 매트릭스도 실제 G7 브라우저에서 통과했습니다. 실 provider
+보존 만료 삭제는 해당 종단 게이트 통과 전 게시하지 않습니다.
 
 G5는 5.6.24 코어 무수정 설치, MySQL 8.4·MyISAM host gate와 MinIO 기반 실제 브라우저
 single/multipart 전송, Rust 처리, 게시글 저장·첨부 표시, 비로그인 thumbnail `403`까지

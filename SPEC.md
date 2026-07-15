@@ -303,6 +303,8 @@ health/metrics를 제외한 모든 API는 인증과 tenant scope가 필요합니
   복사·SHA-256 pin, preset revision+전체 digest 기반 불변 key와 fail-closed 설정 오류 처리
 - G7 관리자가 Ready 이미지 upload ID를 선택해 HMAC 서명된 site policy revision을 발행하고,
   Rust가 tenant·상태·형식·크기·digest를 재검증한 뒤 작업 enqueue 시 정확한 revision 고정
+- G7 0.4.0 관리자 asset picker가 current-admin·최근 7일·Ready PNG/WebP/JPEG·16MiB 경계를
+  적용하고 실제 브라우저에서 선택·저장·재로드·rollback을 통과
 - 실제 4000×3000 JPEG 100개를 worker 동시성 4·native thread 1로 처리하고, 의도적으로
   유실한 lease 10개를 만료 후 재선점해 Ready·파생본 100개, dead-letter 0을 확인한
   `cargo xtask load100` 운영 하네스. 기준 장비 최종 재검증에서 26.45 jobs/s, p95 156ms,
@@ -329,8 +331,7 @@ health/metrics를 제외한 모든 API는 인증과 tenant scope가 필요합니
   MyISAM advisory-lock attachment 연결과 private delivery를 구현하고 실제 MySQL 8.4·MinIO 브라우저에서
   2개 동시 업로드→Rust 처리→게시글 첨부 표시와 비로그인 `403`을 검증했습니다.
 
-실제 AWS S3/R2 credential conformance, G7 관리자 전용 워터마크 asset picker의 실제
-브라우저 smoke,
-G7 upstream merge·실제 저장소 전송·게시물/권한/삭제·복원 smoke, 5GiB·200MP/AVIF heavy-image 운영 부하 증거는
+실제 AWS S3/R2 credential conformance, G7 upstream merge·실 provider 보존 삭제,
+5GiB 운영 부하 증거는
 아직 완료가 아니며
 `docs/IMPLEMENTATION_PLAN.md` 순서로 추진합니다.

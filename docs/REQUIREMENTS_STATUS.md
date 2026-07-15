@@ -11,7 +11,7 @@
 | 3 동영상 업로드 | PASS | MP4/H.264 직접 업로드·검사·master·poster | MOV/WebM은 release fixture 전 공식 게시 제외 |
 | 4 최신 포맷 | PASS | JPEG/PNG/GIF/WebP/AVIF/HEIC·HEIF runtime decode gate | JPEG XL, 영상 HEVC/AV1은 v1 제외 |
 | 5 진짜 파일·보안 | PASS | signature, 실제 decode/ffprobe, digest, hard limit, no-network sandbox | ClamAV·moderation은 선택 hook |
-| 6 G5/G7 연동 | PARTIAL | G5 5.6.24는 core-free module·실제 browser single/multipart·첨부 2개·private 전달 PASS. G7은 patch 5개 clean apply, 계약 28/28, 실제 browser upload/create/update/private thumbnail과 권한·보존 DB gate PASS | G7 patch 정식 반영, 실브라우저 403 매트릭스와 실 provider 보존 만료 삭제 |
+| 6 G5/G7 연동 | PARTIAL | G5 5.6.24는 core-free module·실제 browser single/multipart·첨부 2개·private 전달 PASS. G7은 patch 5개 clean apply, 계약 28/28, 실제 browser upload/create/update/private thumbnail·403 권한 매트릭스와 권한·보존 DB gate PASS | G7 patch 정식 반영과 실 provider 보존 만료 삭제 |
 | 7 다중 업로드 | PASS | 1~100개 bounded 병렬 처리, 실제 G7 브라우저에서 single PUT와 2-part multipart 동시 첨부 PASS | 실 provider 부하 재측정 |
 | 8 대용량 streaming | PARTIAL | PHP/Rust body를 거치지 않는 object storage 직접 multipart | 실계정 5GiB 중단·재개·RSS 증거 |
 | 9 EXIF 개인정보 | PASS | 이미지 orientation 적용 후 EXIF/GPS/XMP/IPTC 제거 | 영상 metadata 제거는 공식 범위 아님 |
@@ -20,7 +20,7 @@
 | 12 FFmpeg 폴백 | PASS | FFmpeg 부재 시 MP4/H.264 Rust demux+OpenH264 첫 frame | HEVC/AV1·MOV·WebM 폴백 제외 |
 | 13 CPU 제한 | PASS | worker semaphore, native thread 제한, Linux cgroup CPU/RSS/PID gate | 배포 서버별 capacity 재산정 |
 | 14 큐 | PASS | 모든 변환 SQLite WAL durable queue, lease·retry·dead-letter·backpressure | 멀티노드는 v1 제외 |
-| 15 워터마크 | PASS | 자산 SHA-256 pin, 위치·여백·비율·투명도 제한, revision key | 관리자 전용 asset picker browser smoke |
+| 15 워터마크 | PASS | 자산 SHA-256 pin, 위치·여백·비율·투명도 제한, revision key, current-admin Ready 자산 선택·저장·재로드·rollback browser smoke | 실 Rust 연결 정책 동기화는 운영 게이트 |
 | 16 G7 관리자 설정 | PASS | encrypted secret, signed monotonic policy revision, exact worker revision, 실제 G7 설치·설정 화면 smoke | 실제 Rust 연결 저장·정책 동기화 운영 smoke |
 | 17 운영 기능 | PASS | lifecycle, 365일 bounded tombstone 보존·purge, byte quota, orphan audit/prune, verified backup·restore, API rate/concurrency limit, queue·worker 단계별 metrics | 실제 배포 Prometheus·alert route 연결은 운영 설정 |
 
@@ -33,6 +33,6 @@
 
 ## 배포 게시 금지 항목
 
-upstream patch 미적용 G7, 미검증 G7 실브라우저 권한 매트릭스·실 provider 보존 삭제, 멀티노드/PostgreSQL, 임의 동적 리사이즈, 영상 트랜스코딩·metadata 제거,
+upstream patch 미적용 G7, 실 provider 보존 삭제, 멀티노드/PostgreSQL, 임의 동적 리사이즈, 영상 트랜스코딩·metadata 제거,
 MOV/WebM release 지원, S3 관리 기능 전체, 실계정 conformance 전 R2/Lightsail profile은 공식
 지원 기능으로 게시하지 않습니다.

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.0 - 2026-07-16
+
+- 관리자 설정의 수동 UUID 입력을 본인 소유 Ready JPEG·PNG·WebP 자산 선택기로 교체했습니다.
+- 워터마크 후보를 최근 7일·16MiB 이하로 제한하고 session·native attachment 소유권과 collection 메타데이터를 다시 검증합니다.
+- 타인 소유·AVIF·과대·삭제·동영상·잘못된 collection 자산 제외를 실제 G7 DB 호스트 게이트에 추가했습니다.
+- 관리자 설정 API도 catalog 밖 UUID를 422로 거부해 UI 우회를 차단합니다.
+- 실제 G7 관리자 브라우저에서 선택·저장·재로드·rollback을 확인했습니다.
+
 ## 0.3.1 - 2026-07-16
 
 - 비밀글·블라인드글·삭제글 첨부의 직접 전달 경로가 게시글 공개 정책을 우회하지 못하도록 upstream 계약과 runtime 검사를 fail-closed로 강화했습니다.

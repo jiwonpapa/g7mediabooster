@@ -1,8 +1,7 @@
 # 워터마크 계약
 
-- 상태: 이미지·영상 poster 렌더링과 G7→Rust 정책 revision 연동 구현,
-  G7 전용 asset picker 브라우저 smoke 대기
-- 기준일: 2026-07-15
+- 상태: 이미지·영상 poster 렌더링, G7→Rust 정책 revision, 관리자 asset picker 브라우저 smoke 완료
+- 기준일: 2026-07-16
 
 ## 보안·멱등 원칙
 
@@ -38,8 +37,13 @@ G7 관리자는 같은 tenant에서 안전 검사를 통과한 Ready PNG·WebP·
 현재 revision을 SQLite job에 고정하므로 정책이 변경돼도 재시도 결과가 바뀌지 않습니다.
 worker는 고정된 object key를 S3/R2에서 exact-length download하고 digest를 다시 확인합니다.
 
-남은 G7 UI 게이트는 upload ID 수동 입력을 전용 관리자 asset picker로 교체하고 실제 G7 설치
-브라우저에서 자산 선택·revision 적용·rollback을 확인하는 것입니다.
+G7 0.4.0 관리 화면은 upload ID 수동 입력을 허용하지 않습니다. 현재 관리자가 최근 7일 안에
+직접 업로드한 Ready PNG·WebP·JPEG 중 encoded 16MiB 이하 자산만 선택기로 노출합니다. 다른
+사용자, 삭제 대기, 미처리, 허용하지 않은 형식·크기는 PHP catalog 단계에서 제외됩니다.
+설정 저장 API도 catalog에 없는 UUID를 422로 거부해 UI 우회를 허용하지 않습니다.
+실제 G7 브라우저에서 선택·저장·재로드와 선택 해제·저장·재로드 rollback을 확인했습니다.
+Bearer 인증이 필요한 파생물 URL을 `<img>`로 직접 호출하지 않고 검증된 형식·파일명·크기만
+표시합니다. 증거는 `docs/evidence/G7_WATERMARK_PICKER_AUTH_MATRIX_20260716.md`입니다.
 
 ## 운영 설정 예시
 

@@ -25,6 +25,9 @@ final class BridgeContractSourceTest extends TestCase
         $retention = (string) file_get_contents($root.'/src/Services/AttachmentRetentionService.php');
         $lifecycle = (string) file_get_contents($root.'/src/Listeners/AttachmentLifecycleListener.php');
         $command = (string) file_get_contents($root.'/src/Console/Commands/ReconcileAttachmentRetentionCommand.php');
+        $catalog = (string) file_get_contents($root.'/src/Services/WatermarkAssetCatalog.php');
+        $settingsController = (string) file_get_contents($root.'/src/Http/Controllers/Admin/SettingsController.php');
+        $settingsLayout = $this->decodeExtension($root.'/resources/layouts/admin/admin_media_booster_settings.json');
 
         self::assertStringContainsString("Route::post('{uploadId}/attachment'", $routes);
         self::assertStringContainsString("'optional.sanctum'", $routes);
@@ -48,6 +51,17 @@ final class BridgeContractSourceTest extends TestCase
         self::assertStringContainsString('sirsoft-board.post.before_restore', $lifecycle);
         self::assertStringContainsString('keepInFlight:', $command);
         self::assertStringContainsString('g7mediabooster:reconcile-attachment-retention', $module);
+        self::assertStringContainsString("Route::get('watermark-assets'", $routes);
+        self::assertStringContainsString("->where('sessions.user_id', \$userId)", $catalog);
+        self::assertStringContainsString("->where('sessions.state', 'ready')", $catalog);
+        self::assertStringContainsString("->where('attachments.collection', 'post_attachments')", $catalog);
+        self::assertStringContainsString("->where('attachments.created_by', \$userId)", $catalog);
+        self::assertStringContainsString('isSelectableForUser($adminId, $watermarkAssetId)', $settingsController);
+        self::assertStringNotContainsString('Ready 상태 이미지 UUID', json_encode($settingsLayout, JSON_THROW_ON_ERROR));
+        self::assertStringContainsString(
+            'jiwonpapa-g7mediabooster.mountWatermarkPicker',
+            json_encode($settingsLayout, JSON_THROW_ON_ERROR),
+        );
         self::assertTrue(is_subclass_of(ReconcileAttachmentRetentionCommand::class, Command::class));
     }
 

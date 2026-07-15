@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { mountUploaderHandler, registerFormBridge } from './FormAttachmentBridge';
+import {
+    mountUploaderHandler,
+    mountWatermarkPickerHandler,
+    registerFormBridge,
+} from './FormAttachmentBridge';
 
 afterEach(() => {
     document.body.replaceChildren();
@@ -74,6 +78,41 @@ describe('G7 form attachment bridge', () => {
             mountUploaderHandler,
             { category: 'module', source: 'jiwonpapa-g7mediabooster' },
         );
+        expect(registerHandler).toHaveBeenCalledWith(
+            'jiwonpapa-g7mediabooster.mountWatermarkPicker',
+            mountWatermarkPickerHandler,
+            { category: 'module', source: 'jiwonpapa-g7mediabooster' },
+        );
+    });
+
+    it('mounts the watermark picker and writes only validated selections', () => {
+        document.body.innerHTML = '<div id="g7mb-admin-watermark-picker-mount"></div>';
+        const setLocal = vi.fn();
+        (window as unknown as { G7Core?: unknown }).G7Core = {
+            state: {
+                getLocal: () => ({
+                    form: { watermark_asset_upload_id: '018f47f0-4444-7444-8444-444444444444' },
+                }),
+                setLocal,
+            },
+        };
+
+        mountWatermarkPickerHandler({ params: { mountId: 'g7mb-admin-watermark-picker-mount' } });
+        const picker = document.querySelector('g7-watermark-asset-picker') as HTMLElement;
+        expect(picker.getAttribute('selected-upload-id')).toBe('018f47f0-4444-7444-8444-444444444444');
+
+        picker.dispatchEvent(new CustomEvent('g7mb:watermark-selected', {
+            detail: { uploadId: '018f47f0-5555-7555-8555-555555555555' },
+        }));
+        picker.dispatchEvent(new CustomEvent('g7mb:watermark-selected', {
+            detail: { uploadId: '../unsafe' },
+        }));
+
+        expect(setLocal).toHaveBeenCalledTimes(1);
+        expect(setLocal).toHaveBeenCalledWith({
+            'form.watermark_asset_upload_id': '018f47f0-5555-7555-8555-555555555555',
+            hasChanges: true,
+        }, { merge: 'deep', render: true });
     });
 
     it('ignores malformed completion events', () => {

@@ -93,15 +93,17 @@ MinIO 기반 실제 전송·create/update·private thumbnail 전달까지 통과
 1. `scripts/verify-gnuboard7-media-contract.sh` 28/28 — PASS
 2. board PHP 핵심 4개 파일 48 tests/73 assertions — PASS
 3. 전체 board suite 기준선 비교 — patch 전 80 failed/1102 passed, patch 후 80 failed/1108 passed, 신규 실패 0
-4. module 0.3.1 `cargo xtask g7-adapter` — PASS: PHP 55/139, TS 17, typecheck/build
+4. module 0.4.0 `cargo xtask g7-adapter` — PASS: PHP 55/148, TS 20, typecheck/build
 5. module 0.3.0 설치·활성화·세 migration·설정 및 user/admin form disabled smoke — PASS
 6. 실제 browser single PUT + 2-part multipart, Ready attachment 2개 create/update 유지 — PASS
 7. private thumbnail G7 302 → MinIO 200, JPEG 505/240,658 bytes — PASS
 8. 공개/비밀/블라인드/삭제글 첨부 권한 10 tests/10 assertions — PASS
 9. soft-delete 복원 취소, lease 재검증, 요청 시작 뒤 복원 차단 5 tests/27 assertions — PASS
-10. 실브라우저 403 매트릭스와 보존 만료 command→실 provider 객체 삭제 확인
+10. 관리자 watermark asset picker 선택·저장·재로드·rollback — PASS
+11. 작성자·다른 회원·비회원·관리자 실브라우저 403 매트릭스 — PASS
+12. 보존 만료 command→실 provider 객체 삭제 확인
 
-배포 설명에는 1~9에서 실제 통과한 범위만 게시하며 10은 통과 전 게시하지 않습니다.
+배포 설명에는 1~11에서 실제 통과한 범위만 게시하며 12는 통과 전 게시하지 않습니다.
 
 ## G5 운영 승격 게이트
 

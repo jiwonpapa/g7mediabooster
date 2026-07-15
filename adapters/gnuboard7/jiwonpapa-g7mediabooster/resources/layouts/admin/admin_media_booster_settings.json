@@ -89,15 +89,22 @@
                                     {
                                         "type": "basic", "name": "Div", "props": { "className": "space-y-2 md:col-span-2" },
                                         "children": [
-                                            { "type": "basic", "name": "Label", "text": "워터마크 이미지 Upload ID" },
+                                            { "type": "basic", "name": "Label", "text": "워터마크 이미지" },
                                             {
-                                                "type": "basic", "name": "Input",
-                                                "props": { "type": "text", "value": "{{_local.form?.watermark_asset_upload_id ?? ''}}", "placeholder": "Ready 상태 이미지 UUID", "autocomplete": "off", "className": "input w-full" },
-                                                "actions": [
-                                                    { "type": "change", "handler": "setState", "params": { "target": "local", "form.watermark_asset_upload_id": "{{$event.target.value.trim()}}", "hasChanges": true } }
-                                                ]
+                                                "id": "g7mb_admin_watermark_picker_mount",
+                                                "type": "basic",
+                                                "name": "Div",
+                                                "props": { "id": "g7mb-admin-watermark-picker-mount" },
+                                                "lifecycle": {
+                                                    "onMount": [
+                                                        {
+                                                            "handler": "jiwonpapa-g7mediabooster.mountWatermarkPicker",
+                                                            "params": { "mountId": "g7mb-admin-watermark-picker-mount" }
+                                                        }
+                                                    ]
+                                                }
                                             },
-                                            { "type": "basic", "name": "P", "props": { "className": "text-xs text-gray-500" }, "text": "PNG·WebP·JPEG, 최대 16MiB이며 동일 사이트에서 안전 검사를 통과한 Ready 업로드만 허용됩니다." }
+                                            { "type": "basic", "name": "P", "props": { "className": "text-xs text-gray-500" }, "text": "본인이 최근 7일 안에 직접 업로드한 PNG·WebP·JPEG 중, 안전 검사와 Ready 처리를 통과한 최대 16MiB 자산만 표시됩니다." }
                                         ]
                                     },
                                     {

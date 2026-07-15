@@ -92,13 +92,15 @@ npm run build
 현재 검증 범위는 PHP HMAC/config/client·삭제·Ready materialization·URL resolver 계약,
 TypeScript 100개 bounded scheduling·multipart·ETag·Ready polling·native attachment 생성,
 site policy PUT/GET, Vite production build와 G7 upstream 계약 검사입니다.
-워터마크 자산은 현재 관리자 화면에서 Ready upload UUID로 지정합니다. 설치·설정·user/admin
-form 주입·disabled fail-safe와 MinIO single/multipart→create/update→private thumbnail은 격리
-브라우저 smoke를 통과했습니다. 비밀·블라인드·삭제글 전달과 삭제/복원·보존 lease는 실제 G7
-DB host gate를 통과했습니다. 실제 R2/Lightsail·5GiB와 실 provider 만료 삭제는 별도 운영 게이트입니다.
+워터마크 자산은 관리자 화면에서 본인이 최근 7일 안에 올린 Ready PNG·WebP·JPEG 중 16MiB
+이하만 선택합니다. 수동 UUID 입력은 노출하지 않습니다. 설치·설정·user/admin form 주입·disabled
+fail-safe와 MinIO single/multipart→create/update→private thumbnail, 자산 선택·저장·재로드·rollback은
+격리 브라우저 smoke를 통과했습니다. 비밀·블라인드·삭제글 전달과 삭제/복원·보존 lease는 실제
+G7 DB host gate를 통과했고 사용자별 403 매트릭스도 실제 브라우저에서 확인했습니다. 실제
+R2/Lightsail·5GiB와 실 provider 만료 삭제는 별도 운영 게이트입니다.
 
 ## 아직 공식 지원으로 게시하지 않는 연동
 
-실 R2/Lightsail profile, 5GiB 중단·재개, 권한 차단의 실브라우저 매트릭스와 보존 만료
-command→실 provider 삭제는 각 종단 게이트 전 공식 지원으로 게시하지 않습니다. patch `0001`~`0005`가
+실 R2/Lightsail profile, 5GiB 중단·재개와 보존 만료 command→실 provider 삭제는 각 종단
+게이트 전 공식 지원으로 게시하지 않습니다. patch `0001`~`0005`가
 없는 `sirsoft-board`에서는 manifest와 runtime 계약 검사가 설치·실행을 fail-closed 합니다.

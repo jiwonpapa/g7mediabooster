@@ -1,7 +1,10 @@
 const MODULE_IDENTIFIER = 'jiwonpapa-g7mediabooster';
 const HANDLER_NAME = `${MODULE_IDENTIFIER}.mountUploader`;
+const WATERMARK_HANDLER_NAME = `${MODULE_IDENTIFIER}.mountWatermarkPicker`;
 const ELEMENT_NAME = 'g7-media-uploader';
+const WATERMARK_ELEMENT_NAME = 'g7-watermark-asset-picker';
 const MAX_ATTACHMENT_IDS = 100;
+const UUID_PATTERN = /^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[1-8][a-fA-F0-9]{3}-[89abAB][a-fA-F0-9]{3}-[a-fA-F0-9]{12}$/;
 
 interface ActionDefinition {
     params?: Record<string, unknown>;
@@ -65,14 +68,35 @@ export function mountUploaderHandler(action: ActionDefinition): void {
     mount.dataset.g7mbMounted = 'true';
 }
 
+export function mountWatermarkPickerHandler(action: ActionDefinition): void {
+    const mountId = action.params?.mountId;
+    if (typeof mountId !== 'string' || !/^[A-Za-z][A-Za-z0-9_-]{0,79}$/.test(mountId)) {
+        throw new Error('invalid G7 Media Booster watermark mount id');
+    }
+    const mount = document.getElementById(mountId);
+    if (!(mount instanceof HTMLElement)) {
+        throw new Error('G7 Media Booster watermark mount element is missing');
+    }
+    if (mount.dataset.g7mbMounted === 'true') return;
+
+    const current = currentLocalState();
+    const form = isRecord(current.form) ? current.form : {};
+    const selected = typeof form.watermark_asset_upload_id === 'string'
+        && UUID_PATTERN.test(form.watermark_asset_upload_id)
+        ? form.watermark_asset_upload_id.toLowerCase()
+        : '';
+    const picker = document.createElement(WATERMARK_ELEMENT_NAME);
+    if (selected !== '') picker.setAttribute('selected-upload-id', selected);
+    picker.addEventListener('g7mb:watermark-selected', handleWatermarkSelection);
+    mount.replaceChildren(picker);
+    mount.dataset.g7mbMounted = 'true';
+}
+
 export function registerFormBridge(retry = false): void {
     const runtime = (window as unknown as G7Window).G7Core;
     const dispatcher = runtime?.getActionDispatcher?.();
     if (dispatcher) {
-        dispatcher.registerHandler(HANDLER_NAME, mountUploaderHandler, {
-            category: 'module',
-            source: MODULE_IDENTIFIER,
-        });
+        registerHandlers(dispatcher);
         return;
     }
     if (!retry) return;
@@ -82,15 +106,37 @@ export function registerFormBridge(retry = false): void {
         attempts += 1;
         const next = (window as unknown as G7Window).G7Core?.getActionDispatcher?.();
         if (next) {
-            next.registerHandler(HANDLER_NAME, mountUploaderHandler, {
-                category: 'module',
-                source: MODULE_IDENTIFIER,
-            });
+            registerHandlers(next);
             return;
         }
         if (attempts < 50) window.setTimeout(retryRegister, 100);
     };
     window.setTimeout(retryRegister, 100);
+}
+
+function registerHandlers(dispatcher: G7ActionDispatcher): void {
+    dispatcher.registerHandler(HANDLER_NAME, mountUploaderHandler, {
+        category: 'module',
+        source: MODULE_IDENTIFIER,
+    });
+    dispatcher.registerHandler(WATERMARK_HANDLER_NAME, mountWatermarkPickerHandler, {
+        category: 'module',
+        source: MODULE_IDENTIFIER,
+    });
+}
+
+function handleWatermarkSelection(event: Event): void {
+    if (!(event instanceof CustomEvent)
+        || !isRecord(event.detail)
+        || typeof event.detail.uploadId !== 'string'
+        || (event.detail.uploadId !== '' && !UUID_PATTERN.test(event.detail.uploadId))
+    ) {
+        return;
+    }
+    updateLocalState({
+        'form.watermark_asset_upload_id': event.detail.uploadId.toLowerCase(),
+        hasChanges: true,
+    });
 }
 
 function handleUploaderState(event: Event): void {

@@ -70,7 +70,8 @@ G7 모듈은 세션·게시판 권한·첨부 연결의 진실 원천이고, Rus
 - 단계 B 미디어 보안·가공: 완료
 - 단계 C G7 모듈·썸네일·워터마크: 제어 업로더, 이미지·영상 poster 렌더링,
   서명 policy revision, form 자동 연결, Ready→native attachment bridge, 권한 viewer redirect와
-  soft-delete 보존 대조 구현; upstream merge·브라우저·전용 asset picker smoke 대기
+  soft-delete 보존 대조, 관리자 asset picker와 실브라우저 권한 매트릭스 완료; upstream merge·
+  실 provider 보존 삭제 대기
 - 단계 D 멀티업로드 큐·자원 통제: lease/heartbeat, 100 JPEG RSS·crash 복구,
   25,000px heavy semaphore, tenant fair queue·active capacity·Linux cgroup 부하 통과
 - 단계 E 운영 완성: lifecycle, quota, orphan inventory, backup·restore, API admission,
@@ -117,13 +118,17 @@ G7 모듈은 세션·게시판 권한·첨부 연결의 진실 원천이고, Rus
   등록 자산 16MiB 복사·SHA-256 pin, revision+digest 불변 key와 fail-closed worker 처리 구현
 - Stage C 정책: G7 관리자 필드, 서명된 PUT/GET site policy, tenant Ready asset 검증,
   SQLite 단조 revision·settings hash, enqueue 시 revision 고정과 S3/R2 worker 재검증 구현
+- Stage C 관리자 UI: current-admin·Ready·최근 7일·PNG/WebP/JPEG·16MiB 경계 catalog와
+  수동 UUID 없는 asset picker를 실제 G7 브라우저에서 선택·저장·재로드·rollback 검증
+- Stage C 권한 브라우저: 작성자·다른 회원·비회원·관리자의 공개·비밀·블라인드·삭제글
+  private 경로가 허용 시 upstream, 거부 시 upstream 전 403이 되는 매트릭스 검증
 - Stage B sandbox egress: Linux seccomp-BPF로 socket 계열 syscall을 전 thread에서 차단하고
   FFmpeg/FFprobe child 상속 및 실제 Linux `EPERM` 테스트 구현
 - 품질 게이트: 전체 CI와 API smoke, Rust line coverage 84.64%, G7 PHP/TS unit·build 통과
 
-남은 핵심 게이트는 실제 R2/Lightsail credential·5GiB 검증, G7 upstream merge·실브라우저 권한
-매트릭스·실 provider 보존 삭제와 G7 관리자 전용 watermark asset picker browser smoke입니다. G7 MinIO 기반 실제 저장소
-전송·create/update·private thumbnail 전달은 통과했습니다. 외부 저장소 하네스와
+남은 핵심 게이트는 실제 R2/Lightsail credential·5GiB 검증, G7 upstream merge와 실 provider
+보존 삭제입니다. G7 MinIO 기반 실제 저장소 전송·create/update·private thumbnail 전달,
+실브라우저 권한 매트릭스와 관리자 watermark asset picker는 통과했습니다. 외부 저장소 하네스와
 2026-07-16 실행 인계서는 구현됐습니다.
 
 ### 단계 0 — 계약 변경
@@ -215,7 +220,8 @@ bounded 동시성, 진행률·취소·재시도·ETag/abort, Ready polling·nati
 이는 현재 G7 기준 `sirsoft-board` 1.2.0과 patch 5개, 28항목 검증기로 고정했습니다. 설치·설정,
 user/admin form과 MinIO 기반 실제 single/multipart 전송·create/update·private thumbnail 전달은
 통과했습니다. 권한·삭제/복원·보존 lease G7 DB gate도 통과했습니다. upstream 미반영 배포와
-실브라우저/실 provider 종단은 공식 지원으로 게시하지 않습니다.
+실 provider 보존 삭제 종단은 공식 지원으로 게시하지 않습니다. 권한 차단 실브라우저 매트릭스는
+`docs/evidence/G7_WATERMARK_PICKER_AUTH_MATRIX_20260716.md`에서 통과했습니다.
 
 #### 썸네일 URL·캐시
 
@@ -237,8 +243,8 @@ digest와 설정 revision을 결과 key에 포함해 변경 전후 결과가 섞
 
 이미지 파생물의 libvips 합성, 위치·크기·투명도 hard bound, 작업별 자산 복사와 SHA-256
 검증, revision+digest 불변 key, 영상 poster 2차 합성과 G7 서명 policy snapshot·worker
-revision 고정까지 구현됐습니다. 전용 관리자 asset picker browser smoke는 아직 완료가
-아닙니다. 상세 계약은 `docs/WATERMARK.md`입니다.
+revision 고정까지 구현됐습니다. 전용 관리자 asset picker의 선택·저장·재로드·rollback
+브라우저 smoke도 완료했습니다. 상세 계약은 `docs/WATERMARK.md`입니다.
 
 ### 단계 D — 멀티업로드 큐·자원 통제
 

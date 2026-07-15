@@ -14,6 +14,7 @@ use Modules\Jiwonpapa\G7mediabooster\Exceptions\MediaBoosterUpstreamException;
 use Modules\Jiwonpapa\G7mediabooster\Http\Requests\UpdateSettingsRequest;
 use Modules\Jiwonpapa\G7mediabooster\Services\HmacRequestSigner;
 use Modules\Jiwonpapa\G7mediabooster\Services\MediaBoosterClient;
+use Modules\Jiwonpapa\G7mediabooster\Services\WatermarkAssetCatalog;
 
 final class SettingsController extends AdminBaseController
 {
@@ -23,6 +24,7 @@ final class SettingsController extends AdminBaseController
         private readonly ModuleSettingsService $settings,
         private readonly HmacRequestSigner $signer,
         private readonly Factory $http,
+        private readonly WatermarkAssetCatalog $watermarkAssets,
     ) {
         parent::__construct();
     }
@@ -60,6 +62,26 @@ final class SettingsController extends AdminBaseController
         return $this->success('미디어 처리 서버의 런타임 기능을 확인했습니다.', $capabilities);
     }
 
+    public function watermarkAssets(): JsonResponse
+    {
+        $adminId = (int) $this->getCurrentAdmin()?->getKey();
+        if ($adminId < 1) {
+            return $this->unauthorized('관리자 인증이 필요합니다.');
+        }
+        $selected = $this->allSettings()['watermark_asset_upload_id'] ?? '';
+        if (! is_string($selected) || preg_match(
+            '/^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[1-8][a-fA-F0-9]{3}-[89abAB][a-fA-F0-9]{3}-[a-fA-F0-9]{12}$/',
+            $selected,
+        ) !== 1) {
+            $selected = '';
+        }
+
+        return $this->success('워터마크 자산을 조회했습니다.', [
+            'assets' => $this->watermarkAssets->forUser($adminId),
+            'selected_upload_id' => strtolower($selected),
+        ])->header('Cache-Control', 'private, no-store');
+    }
+
     public function update(UpdateSettingsRequest $request): JsonResponse
     {
         $current = $this->allSettings();
@@ -68,6 +90,17 @@ final class SettingsController extends AdminBaseController
             $incoming['hmac_secret'] = (string) ($current['hmac_secret'] ?? '');
         }
         $candidate = array_replace($current, $incoming);
+        $watermarkAssetId = strtolower(trim((string) ($candidate['watermark_asset_upload_id'] ?? '')));
+        $adminId = (int) $this->getCurrentAdmin()?->getKey();
+        if ($watermarkAssetId !== ''
+            && ! $this->watermarkAssets->isSelectableForUser($adminId, $watermarkAssetId)
+        ) {
+            return $this->validationError(
+                ['watermark_asset_upload_id' => ['선택할 수 없는 워터마크 자산입니다.']],
+                '워터마크 자산을 다시 선택해 주세요.',
+            );
+        }
+        $candidate['watermark_asset_upload_id'] = $watermarkAssetId;
 
         try {
             $configuration = MediaBoosterConfiguration::fromArray($candidate);

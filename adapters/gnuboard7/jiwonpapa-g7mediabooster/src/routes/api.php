@@ -17,6 +17,9 @@ Route::prefix('admin')
         Route::get('capabilities', [SettingsController::class, 'capabilities'])
             ->middleware('permission:admin,jiwonpapa-g7mediabooster.settings.read')
             ->name('admin.capabilities.show');
+        Route::get('watermark-assets', [SettingsController::class, 'watermarkAssets'])
+            ->middleware('permission:admin,jiwonpapa-g7mediabooster.settings.read')
+            ->name('admin.watermark-assets.index');
         Route::put('settings', [SettingsController::class, 'update'])
             ->middleware('permission:admin,jiwonpapa-g7mediabooster.settings.update')
             ->name('admin.settings.update');

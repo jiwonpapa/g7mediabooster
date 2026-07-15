@@ -10,10 +10,13 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Modules\Jiwonpapa\G7mediabooster\Config\MediaBoosterConfiguration;
+use Modules\Jiwonpapa\G7mediabooster\Http\Controllers\Admin\SettingsController;
+use Modules\Jiwonpapa\G7mediabooster\Http\Requests\UpdateSettingsRequest;
 use Modules\Jiwonpapa\G7mediabooster\Listeners\AttachmentLifecycleListener;
 use Modules\Jiwonpapa\G7mediabooster\Services\AttachmentBridgeService;
 use Modules\Jiwonpapa\G7mediabooster\Services\AttachmentRetentionDecision;
 use Modules\Jiwonpapa\G7mediabooster\Services\AttachmentRetentionService;
+use Modules\Jiwonpapa\G7mediabooster\Services\WatermarkAssetCatalog;
 use Modules\Sirsoft\Board\Models\Post;
 use Modules\Sirsoft\Board\Tests\BoardTestCase;
 use PHPUnit\Framework\Attributes\Test;
@@ -30,6 +33,19 @@ final class AttachmentRetentionHostTest extends BoardTestCase
     protected function getTestBoardSlug(): string
     {
         return 'g7mb-retention-host';
+    }
+
+    protected function runModuleMigrationIfNeeded(): void
+    {
+        parent::runModuleMigrationIfNeeded();
+        if (Schema::hasTable('g7mb_upload_sessions')) {
+            return;
+        }
+
+        $this->artisan('migrate', [
+            '--path' => dirname(__DIR__, 2).'/database/migrations',
+            '--realpath' => true,
+        ]);
     }
 
     protected function setUp(): void
@@ -53,6 +69,95 @@ final class AttachmentRetentionHostTest extends BoardTestCase
         AttachmentBridgeService::assertSecureUpstreamContract();
 
         $this->addToAssertionCount(1);
+    }
+
+    #[Test]
+    public function watermark_catalog_only_exposes_current_admins_valid_ready_sources(): void
+    {
+        $admin = $this->createAdminUser();
+        $other = $this->createUser();
+        $validId = '018f47f0-1001-7001-8001-000000000001';
+        $this->catalogCandidate($validId, (int) $admin->getKey(), 'image/png');
+        $this->catalogCandidate('018f47f0-1002-7002-8002-000000000002', (int) $other->getKey(), 'image/webp');
+        $this->catalogCandidate('018f47f0-1003-7003-8003-000000000003', (int) $admin->getKey(), 'image/avif');
+        $this->catalogCandidate(
+            '018f47f0-1004-7004-8004-000000000004',
+            (int) $admin->getKey(),
+            'image/jpeg',
+            ['expected_size_bytes' => (16 * 1024 * 1024) + 1],
+        );
+        $this->catalogCandidate(
+            '018f47f0-1005-7005-8005-000000000005',
+            (int) $admin->getKey(),
+            'image/jpeg',
+            attachmentOverrides: ['deleted_at' => now()],
+        );
+        $this->catalogCandidate(
+            '018f47f0-1006-7006-8006-000000000006',
+            (int) $admin->getKey(),
+            'image/jpeg',
+            ['declared_kind' => 'video'],
+        );
+        $this->catalogCandidate(
+            '018f47f0-1007-7007-8007-000000000007',
+            (int) $admin->getKey(),
+            'image/jpeg',
+            attachmentOverrides: ['collection' => 'untrusted'],
+        );
+        $this->catalogCandidate(
+            '018f47f0-1008-7008-8008-000000000008',
+            (int) $admin->getKey(),
+            'image/jpeg',
+            attachmentOverrides: ['created_by' => (int) $other->getKey()],
+        );
+
+        $catalog = new WatermarkAssetCatalog;
+        $assets = $catalog->forUser((int) $admin->getKey());
+
+        self::assertCount(1, $assets);
+        self::assertSame($validId, $assets[0]['upload_id']);
+        self::assertSame('image/png', $assets[0]['detected_content_type']);
+        self::assertSame('watermark-0001.png', $assets[0]['filename']);
+        self::assertTrue($catalog->isSelectableForUser((int) $admin->getKey(), $validId));
+        self::assertFalse($catalog->isSelectableForUser(
+            (int) $admin->getKey(),
+            '018f47f0-1002-7002-8002-000000000002',
+        ));
+        self::assertFalse($catalog->isSelectableForUser((int) $admin->getKey(), 'not-a-uuid'));
+    }
+
+    #[Test]
+    public function settings_api_rejects_a_uuid_outside_the_current_admin_catalog(): void
+    {
+        $admin = $this->createAdminUser();
+        $this->actingAs($admin);
+        $request = UpdateSettingsRequest::create('/admin/settings', 'PUT', [
+            'enabled' => false,
+            'control_endpoint' => 'http://127.0.0.1:8080',
+            'key_id' => 'g7-primary',
+            'hmac_secret' => '',
+            'timeout_seconds' => 15,
+            'connect_timeout_seconds' => 3,
+            'max_parallel_files' => 8,
+            'max_parallel_parts' => 4,
+            'max_part_retries' => 3,
+            'status_poll_interval_ms' => 1500,
+            'attachment_retention_days' => 30,
+            'watermark_enabled' => false,
+            'watermark_asset_upload_id' => '018f47f0-1999-7999-8999-000000000999',
+            'watermark_position' => 'bottom_right',
+            'watermark_margin_px' => 24,
+            'watermark_max_width_percent' => 20,
+            'watermark_opacity_percent' => 80,
+        ]);
+        $request->setContainer($this->app);
+        $request->setRedirector($this->app->make('redirect'));
+        $request->validateResolved();
+
+        $response = $this->app->make(SettingsController::class)->update($request);
+
+        self::assertSame(422, $response->getStatusCode());
+        self::assertStringContainsString('watermark_asset_upload_id', (string) $response->getContent());
     }
 
     #[Test]
@@ -190,6 +295,63 @@ final class AttachmentRetentionHostTest extends BoardTestCase
         ]);
 
         return [Post::query()->findOrFail($postId), $attachmentId];
+    }
+
+    /**
+     * @param array<string, mixed> $sessionOverrides
+     * @param array<string, mixed> $attachmentOverrides
+     */
+    private function catalogCandidate(
+        string $uploadId,
+        int $userId,
+        string $detectedType,
+        array $sessionOverrides = [],
+        array $attachmentOverrides = [],
+    ): void {
+        $suffix = substr($uploadId, -4);
+        $attachmentId = DB::table('board_attachments')->insertGetId(array_replace([
+            'board_id' => $this->board->id,
+            'post_id' => null,
+            'hash' => 'catasset'.$suffix,
+            'original_filename' => 'watermark-'.$suffix.'.jpg',
+            'stored_filename' => $uploadId.'.jpg',
+            'disk' => 'g7mediabooster',
+            'path' => $uploadId,
+            'mime_type' => 'image/jpeg',
+            'size' => 2048,
+            'collection' => 'post_attachments',
+            'order' => 1,
+            'meta' => json_encode([
+                'g7mb_upload_id' => $uploadId,
+                'g7mb_preset_id' => 'image-default',
+                'g7mb_detected_content_type' => $detectedType,
+                'g7mb_thumbnail_content_type' => 'image/jpeg',
+                'g7mb_thumbnail_size' => 1024,
+            ], JSON_THROW_ON_ERROR),
+            'created_by' => $userId,
+            'created_at' => now(),
+            'updated_at' => now(),
+            'deleted_at' => null,
+        ], $attachmentOverrides));
+        DB::table('g7mb_upload_sessions')->insert(array_replace([
+            'upload_id' => $uploadId,
+            'batch_id' => '018f47f0-2000-7000-8000-'.substr($uploadId, -12),
+            'user_id' => $userId,
+            'board_slug' => $this->board->slug,
+            'client_ref' => 'watermark-'.$suffix,
+            'original_filename' => 'watermark-'.$suffix.'.png',
+            'declared_kind' => 'image',
+            'content_type_hint' => $detectedType,
+            'attachment_order' => 1,
+            'transfer_method' => 'single_put',
+            'expected_size_bytes' => 4096,
+            'state' => 'ready',
+            'attachment_id' => $attachmentId,
+            'materialized_at' => now(),
+            'ownership_expires_at' => now()->addDays(7),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ], $sessionOverrides));
     }
 
     private function sessionRow(): object

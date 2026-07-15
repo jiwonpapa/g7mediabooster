@@ -51,6 +51,16 @@ final class Module extends AbstractModule
             'max_part_retries' => ['type' => 'integer'],
             'status_poll_interval_ms' => ['type' => 'integer'],
             'attachment_retention_days' => ['type' => 'integer'],
+            'watermark_enabled' => ['type' => 'boolean'],
+            'watermark_asset_upload_id' => ['type' => 'string'],
+            'watermark_position' => ['type' => 'string'],
+            'watermark_margin_px' => ['type' => 'integer'],
+            'watermark_max_width_percent' => ['type' => 'integer'],
+            'watermark_opacity_percent' => ['type' => 'integer'],
+            'policy_revision' => ['type' => 'integer'],
+            'policy_settings_sha256' => ['type' => 'string'],
+            'policy_sync_state' => ['type' => 'string'],
+            'policy_sync_error' => ['type' => 'string'],
         ];
     }
 
