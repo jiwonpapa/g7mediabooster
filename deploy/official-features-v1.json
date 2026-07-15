@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "spec_version": "1.1.0",
+  "release_status": "candidate",
+  "module": {
+    "identifier": "jiwonpapa-g7mediabooster",
+    "version": "0.4.0",
+    "gnuboard7": ">=7.0.4",
+    "sirsoft_board": ">=1.2.0"
+  },
+  "publishable_features": [
+    {"id": "bounded_multi_upload", "title": "최대 100개 bounded 병렬 멀티업로드"},
+    {"id": "direct_multipart_5gib", "title": "PHP/Rust body를 우회하는 최대 5GiB S3 호환 직접 multipart"},
+    {"id": "verified_image_formats", "title": "JPEG, PNG, GIF, WebP, AVIF, HEIC/HEIF 실제 decode 검증"},
+    {"id": "verified_video_formats", "title": "MP4/MOV H.264 검증, 원 container master와 JPEG poster"},
+    {"id": "privacy_normalization", "title": "이미지 EXIF/GPS/XMP/IPTC 제거와 방향·sRGB 정규화"},
+    {"id": "immutable_derivatives", "title": "이미지 thumbnail·영상 poster 원자적 Ready와 불변 object key"},
+    {"id": "bounded_watermark", "title": "SHA-256·revision 고정 이미지와 영상 poster 워터마크"},
+    {"id": "single_node_durable_queue", "title": "SQLite WAL 단일 노드 durable queue, lease 복구와 backpressure"},
+    {"id": "resource_security_limits", "title": "sandbox no-network, decoder hard limit, CPU·RSS·동시성 제한"},
+    {"id": "private_delivery_lifecycle", "title": "권한 기반 private 전달, quota, lifecycle, orphan·backup·metrics"},
+    {
+      "id": "gnuboard7_module",
+      "title": "Gnuboard7 관리자 설정, 직접 업로드와 native attachment 연동",
+      "requires": [
+        "upstream patch 0001-0005",
+        "media contract 28/28 + parser validation"
+      ]
+    },
+    {"id": "gnuboard5_plugin", "title": "Gnuboard5 5.6.24 core-free 직접 업로드 플러그인"}
+  ],
+  "withheld_until_verified": [
+    {"id": "cloudflare_r2_profile", "reason": "실계정 conformance 미실행"},
+    {"id": "lightsail_object_storage_profile", "reason": "실계정 conformance 미실행"},
+    {"id": "live_provider_retention_delete", "reason": "보존 만료부터 실 provider object count 0까지 종단 미실행"},
+    {"id": "multi_node_postgresql", "reason": "v1 기본 범위 제외"},
+    {"id": "dynamic_resize_and_video_transcoding", "reason": "v1 기본 범위 제외"},
+    {"id": "webm_jpegxl_hevc_av1_fallback", "reason": "release fixture·fallback 미검증"},
+    {"id": "s3_management_apis", "reason": "ACL, Object Lock, replication, inventory, IAM/STS, SSE-KMS는 제품 runtime 범위 아님"}
+  ]
+}

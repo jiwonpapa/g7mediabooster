@@ -2,16 +2,16 @@
 
 - 기준 G7: `e64381ddb5ba02caed60933427fbb86ef72ef94e`
 - 적용 patch: `0001` → `0002` → `0003` → `0004` → `0005`
-- 격리 환경: 별도 worktree, MySQL 8.4, PHP 8.5.3
-- 원본 G7 사용자 작업 트리: 미수정
+- 격리 환경: 현재 patched checkout, 임시 MySQL 8.4, PHP 8.5.3, bundled module 0.4.0
+- 정리: 일회용 module copy, `.env.testing`, MySQL container 제거 완료
 
 ## 통과 결과
 
-- patch 5개 순차 `git apply --check`: PASS
-- 정적 upstream 계약: 28/28 PASS
-- 첨부 service·repository 전체 회귀: 39 tests/70 assertions PASS
+- patch 5개 순차 clean apply와 canonical patch 일치: PASS
+- 정적 upstream 계약: 28/28 + PHP/JSON parser PASS
+- 현재 checkout 첨부·권한 회귀: 58 tests/90 assertions PASS
 - 권한 경로: 10 tests/10 assertions PASS
-- 보존 호스트 경로: 5 tests/27 assertions PASS
+- module host 보안·watermark catalog·보존 경로: 7 tests/38 assertions PASS
 
 권한 행렬은 공개글 허용, 비밀글 작성자·`read-secret` 허용, 제3자 차단, 블라인드글
 제3자 차단, 삭제글 작성자 차단·manager 허용, 게시글 누락 fail-closed와 native preview가

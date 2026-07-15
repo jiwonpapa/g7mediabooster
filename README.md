@@ -79,6 +79,7 @@ cargo xtask supply-chain
 - [Gnuboard 7 실제 저장소 browser E2E](docs/evidence/G7_STORAGE_E2E_20260716.md)
 - [정확한 5GiB·G7 정책 종단 증거](docs/evidence/LARGE_MULTIPART_AND_G7_POLICY_20260716.md)
 - [MOV/H.264 runtime·worker 종단 증거](docs/evidence/MOV_H264_E2E_20260716.md)
+- [G7 module 0.4.0 재현 배포 산출물](docs/evidence/G7_MODULE_PACKAGE_20260716.md)
 - [Spec 1.1 요구사항 1~17 완료 감사](docs/COMPLETION_AUDIT_20260716.md)
 - [워터마크 계약](docs/WATERMARK.md)
 - [미디어 수명주기·삭제](docs/LIFECYCLE.md)

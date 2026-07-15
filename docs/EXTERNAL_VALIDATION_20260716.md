@@ -106,7 +106,7 @@ thumbnail 전달까지 통과했습니다.
 6. 실제 browser single PUT + 2-part multipart, Ready attachment 2개 create/update 유지 — PASS
 7. private thumbnail G7 302 → MinIO 200, JPEG 505/240,658 bytes — PASS
 8. 공개/비밀/블라인드/삭제글 첨부 권한 10 tests/10 assertions — PASS
-9. soft-delete 복원 취소, lease 재검증, 요청 시작 뒤 복원 차단 5 tests/27 assertions — PASS
+9. 실제 patched checkout + module 0.4.0 host 보안·catalog·보존 7 tests/38 assertions — PASS
 10. 관리자 watermark asset picker 선택·저장·재로드·rollback — PASS
 11. 작성자·다른 회원·비회원·관리자 실브라우저 403 매트릭스 — PASS
 12. 보존 만료 command→실 provider 객체 삭제 확인
