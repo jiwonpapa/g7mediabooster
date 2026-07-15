@@ -62,6 +62,12 @@ cleanup_retry_seconds = 60
 cleanup_batch_size = 100
 cleanup_max_attempts = 10
 
+[delivery]
+# The cache stores immutable object metadata only, never thumbnail bytes or signed URLs.
+signed_url_ttl_seconds = 300
+manifest_cache_ttl_seconds = 60
+manifest_cache_max_bytes = 4194304
+
 [watermark]
 # Disabled by default. When enabled the worker copies this registered local asset into each
 # private job directory, verifies the exact SHA-256, and includes revision+digest in the key.

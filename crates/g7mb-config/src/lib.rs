@@ -23,6 +23,8 @@ pub struct Settings {
     pub worker: WorkerSettings,
     /// Durable raw-object cleanup and deletion settings.
     pub lifecycle: LifecycleSettings,
+    /// Private derivative URL and in-memory manifest cache settings.
+    pub delivery: DeliverySettings,
     /// Optional fail-closed watermark rendering policy.
     pub watermark: WatermarkSettings,
 }
@@ -67,7 +69,10 @@ impl Settings {
             .set_default("lifecycle.cleanup_lease_seconds", 300_i64)?
             .set_default("lifecycle.cleanup_retry_seconds", 60_i64)?
             .set_default("lifecycle.cleanup_batch_size", 100_i64)?
-            .set_default("lifecycle.cleanup_max_attempts", 10_i64)?;
+            .set_default("lifecycle.cleanup_max_attempts", 10_i64)?
+            .set_default("delivery.signed_url_ttl_seconds", 300_i64)?
+            .set_default("delivery.manifest_cache_ttl_seconds", 60_i64)?
+            .set_default("delivery.manifest_cache_max_bytes", 4_194_304_i64)?;
         builder = builder
             .set_default("watermark.enabled", false)?
             .set_default("watermark.asset_path", "")?
@@ -184,6 +189,16 @@ impl Settings {
         {
             return Err(ConfigError::Message(
                 "lifecycle settings violate retention, lease, retry, batch, or attempt limits"
+                    .to_owned(),
+            ));
+        }
+        if !(30..=15 * 60).contains(&self.delivery.signed_url_ttl_seconds)
+            || !(1..=5 * 60).contains(&self.delivery.manifest_cache_ttl_seconds)
+            || self.delivery.manifest_cache_ttl_seconds > self.delivery.signed_url_ttl_seconds
+            || !(64 * 1024..=64 * 1024 * 1024).contains(&self.delivery.manifest_cache_max_bytes)
+        {
+            return Err(ConfigError::Message(
+                "delivery settings violate signature, manifest TTL, or cache byte limits"
                     .to_owned(),
             ));
         }
@@ -314,6 +329,17 @@ pub struct LifecycleSettings {
     pub cleanup_batch_size: usize,
     /// Attempt ceiling before manual intervention.
     pub cleanup_max_attempts: u32,
+}
+
+/// Bounded private derivative delivery settings.
+#[derive(Clone, Debug, Deserialize)]
+pub struct DeliverySettings {
+    /// Short-lived provider GET signature lifetime.
+    pub signed_url_ttl_seconds: u64,
+    /// Maximum immutable manifest age in process memory.
+    pub manifest_cache_ttl_seconds: u64,
+    /// Approximate total manifest cache weight in bytes.
+    pub manifest_cache_max_bytes: u64,
 }
 
 /// Versioned watermark settings loaded only by the Rust worker.
@@ -496,6 +522,42 @@ cleanup_batch_size = 101
             Err(error) => error,
         };
         assert!(error.to_string().contains("lifecycle settings"));
+        Ok(())
+    }
+
+    #[test]
+    fn derivative_manifest_cache_requires_bounded_bytes_and_ttl()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let file = NamedTempFile::new()?;
+        fs::write(
+            file.path(),
+            r#"
+[storage]
+raw_bucket = "raw"
+derivative_bucket = "media"
+access_key_id = "test-access"
+secret_access_key = "test-secret"
+
+[auth]
+key_id = "g7-primary"
+tenant_id = "site-a"
+hmac_secret = "0123456789abcdef0123456789abcdef"
+
+[delivery]
+manifest_cache_ttl_seconds = 600
+manifest_cache_max_bytes = 1024
+"#,
+        )?;
+        let error = match Settings::load(Some(file.path())) {
+            Ok(_) => {
+                return Err(std::io::Error::other(
+                    "unbounded derivative manifest cache was unexpectedly accepted",
+                )
+                .into());
+            }
+            Err(error) => error,
+        };
+        assert!(error.to_string().contains("delivery settings"));
         Ok(())
     }
 }

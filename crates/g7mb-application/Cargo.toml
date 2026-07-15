@@ -13,10 +13,12 @@ workspace = true
 async-trait.workspace = true
 g7mb-domain.workspace = true
 hex.workspace = true
+metrics.workspace = true
+moka.workspace = true
 secrecy.workspace = true
 sha2.workspace = true
 thiserror.workspace = true
 time.workspace = true
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["macros", "rt"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "sync", "time"] }

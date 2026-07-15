@@ -721,6 +721,32 @@ impl UploadRepository for SqliteStore {
         }))
     }
 
+    async fn is_delivery_allowed(
+        &self,
+        tenant_id: &str,
+        upload_id: UploadId,
+    ) -> Result<Option<bool>, UploadRepositoryError> {
+        let row = sqlx::query(
+            "SELECT state, delete_requested_at
+             FROM uploads WHERE tenant_id = ? AND id = ?",
+        )
+        .bind(tenant_id)
+        .bind(upload_id.to_string())
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(upload_backend)?;
+        row.map(|row| {
+            let state =
+                parse_upload_state(&row.try_get::<String, _>("state").map_err(upload_backend)?)?;
+            let deletion_pending = row
+                .try_get::<Option<i64>, _>("delete_requested_at")
+                .map_err(upload_backend)?
+                .is_some();
+            Ok(state == UploadState::Ready && !deletion_pending)
+        })
+        .transpose()
+    }
+
     async fn mark_quarantined_and_enqueue(
         &self,
         tenant_id: &str,

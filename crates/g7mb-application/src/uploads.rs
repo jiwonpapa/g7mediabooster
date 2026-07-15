@@ -143,6 +143,18 @@ pub trait UploadRepository: Send + Sync {
         upload_id: UploadId,
     ) -> Result<Option<UploadStatusSnapshot>, UploadRepositoryError>;
 
+    /// Rechecks the mutable delivery guard without reloading immutable derivative rows.
+    async fn is_delivery_allowed(
+        &self,
+        tenant_id: &str,
+        upload_id: UploadId,
+    ) -> Result<Option<bool>, UploadRepositoryError> {
+        Ok(self
+            .find_status(tenant_id, upload_id)
+            .await?
+            .map(|status| status.state == UploadState::Ready && !status.deletion_pending))
+    }
+
     /// Atomically confirms upload, enters private quarantine, and enqueues validation.
     async fn mark_quarantined_and_enqueue(
         &self,

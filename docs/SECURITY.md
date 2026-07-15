@@ -96,6 +96,9 @@ G7MB-HMAC-SHA256
   초과 요청은 provider presign 전에 안정적인 429로 차단합니다.
 - 구현: 삭제 요청은 tenant와 G7 사용자 소유권을 확인해 durable 예약하며, 처리 중 upload와
   site-policy 참조 자산을 거부합니다. 삭제 대기 상태에서는 파생 URL을 반환하지 않습니다.
+- 구현: 썸네일 bytes와 presigned URL은 캐시하지 않습니다. immutable manifest만 기본
+  4MiB·60초로 제한하고, delivery마다 SQLite의 Ready/deletion guard를 다시 확인합니다.
+  durable 삭제 요청 성공 시 해당 manifest를 즉시 invalidate합니다.
 - 구현: 만료 created multipart abort와 rejected/failed 원본 보존 정리를 최대 100개 batch,
   5분 lease, 1분 retry, 기본 10회 attempt 상한으로 실행하고 derivative→raw 성공 뒤에만
   tombstone 처리합니다.

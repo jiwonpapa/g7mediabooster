@@ -15,14 +15,14 @@
 | 7 다중 업로드 | PASS | 1~100개, 파일·part·전체 연결 bounded 병렬 처리 | 실 브라우저/provider 부하 재측정 |
 | 8 대용량 streaming | PARTIAL | PHP/Rust body를 거치지 않는 object storage 직접 multipart | 실계정 5GiB 중단·재개·RSS 증거 |
 | 9 EXIF 개인정보 | PASS | 이미지 orientation 적용 후 EXIF/GPS/XMP/IPTC 제거 | 영상 metadata 제거는 공식 범위 아님 |
-| 10 썸네일 | PARTIAL | eager 1,280px JPEG, 불변 key, 원자적 Ready, owner 기반 private signed GET | public CDN profile, manifest cache·singleflight 운영 구현 |
+| 10 썸네일 | PASS | eager 1,280px JPEG, 불변 key, 원자적 Ready, private signed GET, 4MiB/60초 weighted manifest cache·singleflight·삭제 guard | 공개 CDN profile은 선택 기능이며 v1 필수 범위 아님 |
 | 11 초고해상도 | PASS | 25,000×4,000 JPEG, 100MP, heavy lane/RSS gate | hard cap 초과는 별도 offline tier |
 | 12 FFmpeg 폴백 | PASS | FFmpeg 부재 시 MP4/H.264 Rust demux+OpenH264 첫 frame | HEVC/AV1·MOV·WebM 폴백 제외 |
 | 13 CPU 제한 | PASS | worker semaphore, native thread 제한, Linux cgroup CPU/RSS/PID gate | 배포 서버별 capacity 재산정 |
 | 14 큐 | PASS | 모든 변환 SQLite WAL durable queue, lease·retry·dead-letter·backpressure | 멀티노드는 v1 제외 |
 | 15 워터마크 | PASS | 자산 SHA-256 pin, 위치·여백·비율·투명도 제한, revision key | 관리자 전용 asset picker browser smoke |
 | 16 G7 관리자 설정 | PASS | encrypted secret, signed monotonic policy revision, exact worker revision | 실제 G7 설치 browser smoke |
-| 17 운영 기능 | PARTIAL | Rust lifecycle과 G7 soft-delete 보존 대조, multipart abort·tombstone·공정 queue·공급망 gate | provider orphan inventory, tenant byte quota, 백업·복원, 운영 관측 |
+| 17 운영 기능 | PARTIAL | Rust lifecycle과 G7 soft-delete 보존 대조, multipart abort·tombstone·공정 queue·공급망 gate, manifest cache hit/miss·weight metric | provider orphan inventory, tenant byte quota, 백업·복원, queue/worker 운영 관측 |
 
 ## 이번 마감에서 확정한 Ready 계약
 

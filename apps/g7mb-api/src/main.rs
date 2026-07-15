@@ -6,7 +6,7 @@ use anyhow::Context as _;
 use clap::Parser;
 use g7mb_api::{ApiAuth, ApiState, probe_sandbox_capabilities, router};
 use g7mb_application::{
-    delivery::DerivativeDeliveryService,
+    delivery::{DerivativeDeliveryPolicy, DerivativeDeliveryService},
     lifecycle::{LifecyclePolicy, LifecycleService},
     policies::SitePolicyService,
     uploads::{UploadCapacityPolicy, UploadIntentService},
@@ -93,7 +93,11 @@ async fn main() -> anyhow::Result<()> {
     let delivery_service = DerivativeDeliveryService::new(
         database.clone(),
         derivative_store,
-        Duration::from_secs(5 * 60),
+        DerivativeDeliveryPolicy {
+            signed_url_ttl: Duration::from_secs(settings.delivery.signed_url_ttl_seconds),
+            manifest_cache_ttl: Duration::from_secs(settings.delivery.manifest_cache_ttl_seconds),
+            manifest_cache_max_bytes: settings.delivery.manifest_cache_max_bytes,
+        },
     )
     .context("failed to initialize derivative delivery")?;
     let allowed_skew_seconds = i64::try_from(settings.auth.allowed_skew_seconds)

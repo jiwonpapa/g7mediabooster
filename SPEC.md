@@ -173,9 +173,11 @@ panorama 지원과 AVIF/HEIF 최신 포맷 지원은 유지하되 decoder별 안
 - 미완료 multipart 24시간, rejected/failed 원본 7일 정리 정책을 기본으로 합니다.
 
 썸네일 URL은 `/media/{tenant}/{asset_id}/{source_rev}/{preset_rev}/{variant}.{ext}` 형태의
-불변 versioned key를 사용합니다. 일반 preset은 eager 생성하고 allowlist에 있는 드문 preset만
-lazy 생성합니다. 실제 썸네일은 object storage/CDN에 저장하며 메모리는 byte-weighted
-W-TinyLFU/LRU manifest cache로만 제한합니다.
+불변 versioned key를 사용합니다. v1 preset은 업로드 처리 중 eager 생성하며 임의
+`width/quality` query와 요청 시 변환은 지원하지 않습니다. 실제 썸네일은 private object
+storage에 저장하고 메모리는 Moka의 frequency admission/LRU eviction을 쓰는 byte-weighted
+manifest cache로만 제한합니다. 기본 상한은 4MiB·TTL 60초이며 같은 upload의 동시 miss는
+singleflight로 합칩니다. thumbnail bytes, presigned URL, mutable 삭제 상태는 캐시하지 않습니다.
 
 워터마크는 관리자 등록 asset, 위치, 여백, 최대 비율, 투명도 preset만 허용합니다. 결과
 key에는 preset revision과 watermark digest를 포함합니다.

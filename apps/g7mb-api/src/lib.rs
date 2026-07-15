@@ -949,13 +949,17 @@ async fn request_upload_deletion(
             .map_err(|_| ApiFailure::invalid_path())?;
         let tenant_id =
             authenticate_request(&state, &headers, &body, "DELETE", path_and_query(&uri)).await?;
-        state
+        let outcome = state
             .lifecycle_service
             .as_ref()
             .ok_or_else(ApiFailure::not_ready)?
             .request_deletion(&tenant_id, upload_id)
             .await
-            .map_err(ApiFailure::from_deletion)
+            .map_err(ApiFailure::from_deletion)?;
+        if let Some(delivery) = &state.delivery_service {
+            delivery.invalidate_upload(&tenant_id, upload_id).await;
+        }
+        Ok::<_, ApiFailure>(outcome)
     }
     .await;
     match result {
@@ -1312,7 +1316,6 @@ mod tests {
             Arc,
             atomic::{AtomicU64, Ordering},
         },
-        time::Duration,
     };
 
     use async_trait::async_trait;
@@ -1325,7 +1328,7 @@ mod tests {
         DownloadObjectRequest, MultipartSession, ObjectMetadata, ObjectStore, ObjectStoreError,
         PresignGetRequest, PresignPartRequest, PresignPutRequest, PresignedDownload,
         PresignedUpload, PutFileRequest,
-        delivery::DerivativeDeliveryService,
+        delivery::{DerivativeDeliveryPolicy, DerivativeDeliveryService},
         lifecycle::{LifecyclePolicy, LifecycleService},
         policies::SitePolicyService,
         uploads::{UploadCapacityPolicy, UploadIntentService},
@@ -1773,7 +1776,7 @@ mod tests {
             .with_derivative_delivery(DerivativeDeliveryService::new(
                 database.clone(),
                 storage.clone(),
-                Duration::from_secs(300),
+                DerivativeDeliveryPolicy::default(),
             )?)
             .with_upload_control(
                 UploadIntentService::new(storage, database.clone(), UploadBatchPolicy::default()),
@@ -1848,17 +1851,24 @@ mod tests {
         .bind(now.unix_timestamp())
         .execute(database.pool())
         .await?;
-        sqlx::query(
-            "INSERT INTO derivatives
-                (upload_id, preset_id, variant, object_key, content_type, byte_len, sha256, created_at)
-             VALUES (?, 'board-v1', 'thumbnail', ?, 'image/jpeg', 512, ?, ?)",
-        )
-        .bind(upload_id.to_string())
-        .bind(format!("media/site-a/{upload_id}/thumbnail.jpg"))
-        .bind("b".repeat(64))
-        .bind(now.unix_timestamp())
-        .execute(database.pool())
-        .await?;
+        for (variant, bytes, digest) in [
+            ("master", 2048_i64, "b".repeat(64)),
+            ("thumbnail", 512_i64, "c".repeat(64)),
+        ] {
+            sqlx::query(
+                "INSERT INTO derivatives
+                    (upload_id, preset_id, variant, object_key, content_type, byte_len, sha256, created_at)
+                 VALUES (?, 'board-v1', ?, ?, 'image/jpeg', ?, ?, ?)",
+            )
+            .bind(upload_id.to_string())
+            .bind(variant)
+            .bind(format!("media/site-a/{upload_id}/{variant}.jpg"))
+            .bind(bytes)
+            .bind(digest)
+            .bind(now.unix_timestamp())
+            .execute(database.pool())
+            .await?;
+        }
         let storage = Arc::new(ApiFakeStore::default());
         let secret = SecretString::from("0123456789abcdef0123456789abcdef".to_owned());
         let state = ApiState::new(true, None)
@@ -1878,10 +1888,26 @@ mod tests {
             )
             .with_lifecycle(LifecycleService::new(
                 storage.clone(),
-                storage,
-                database,
+                storage.clone(),
+                database.clone(),
                 LifecyclePolicy::default(),
+            )?)
+            .with_derivative_delivery(DerivativeDeliveryService::new(
+                database,
+                storage,
+                DerivativeDeliveryPolicy::default(),
             )?);
+        let delivery_path = format!("/v1/uploads/{upload_id}/derivatives/thumbnail/delivery");
+        let deliverable = router(state.clone(), 1024)
+            .oneshot(signed_request(
+                "GET",
+                &delivery_path,
+                Vec::new(),
+                "7123456789abcdef0123456789abcdef",
+                &secret,
+            )?)
+            .await?;
+        assert_eq!(deliverable.status(), StatusCode::OK);
         let path = format!("/v1/uploads/{upload_id}");
         let accepted = router(state.clone(), 1024)
             .oneshot(signed_request(
@@ -1903,7 +1929,7 @@ mod tests {
             )?)
             .await?;
         assert_eq!(idempotent.status(), StatusCode::ACCEPTED);
-        let status = router(state, 1024)
+        let status = router(state.clone(), 1024)
             .oneshot(signed_request(
                 "GET",
                 &path,
@@ -1917,6 +1943,16 @@ mod tests {
         let status = serde_json::from_slice::<UploadStatusResponse>(&body)?;
         assert!(status.deletion_pending);
         assert!(status.derivatives.is_empty());
+        let revoked = router(state, 1024)
+            .oneshot(signed_request(
+                "GET",
+                &delivery_path,
+                Vec::new(),
+                "b123456789abcdef0123456789abcdef",
+                &secret,
+            )?)
+            .await?;
+        assert_eq!(revoked.status(), StatusCode::CONFLICT);
         Ok(())
     }
 
