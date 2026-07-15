@@ -17,6 +17,8 @@ cargo xtask supply-chain   # advisory, license, source 검사
 cargo xtask native-smoke   # AVIF/HEIF, MP4, FFmpeg 부재 OpenH264 폴백
 cargo xtask api-smoke      # 실제 binary health/header smoke
 cargo xtask full-stack-smoke # MinIO direct upload -> 실제 worker -> private derivative GET
+cargo xtask g7-policy-smoke # G7 PHP HMAC policy -> Rust worker watermark -> rollback
+cargo xtask large-multipart-smoke # 로컬 정확한 5GiB direct multipart + API RSS gate
 cargo xtask g7-adapter     # G7 PHP/TypeScript unit, typecheck, production build
 cargo xtask load100        # 실제 JPEG 100건, RSS 상한, 만료 lease 복구
 cargo xtask heavy-image    # 25,000px JPEG, heavy lane, RSS 상한

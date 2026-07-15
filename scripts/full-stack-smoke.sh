@@ -11,6 +11,8 @@ DERIVATIVE_BUCKET="g7mb-full-stack-media"
 API_ADDR="${G7MB_FULL_STACK_API_ADDR:-127.0.0.1:18088}"
 API_BASE="http://$API_ADDR"
 HMAC_SECRET="replace-with-at-least-32-characters"
+POLICY_SMOKE="${G7MB_FULL_STACK_POLICY_SMOKE:-false}"
+LARGE_MULTIPART_BYTES="${G7MB_FULL_STACK_LARGE_MULTIPART_BYTES:-0}"
 API_PID=""
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/g7mb-full-stack.XXXXXX")"
 API_LOG="$TMP/api.log"
@@ -33,6 +35,23 @@ command -v openssl >/dev/null
 command -v split >/dev/null
 command -v vipsheader >/dev/null
 docker info >/dev/null
+if [[ "$POLICY_SMOKE" != false && "$POLICY_SMOKE" != true ]]; then
+    echo "G7MB_FULL_STACK_POLICY_SMOKE must be true or false" >&2
+    exit 2
+fi
+if [[ ! "$LARGE_MULTIPART_BYTES" =~ ^[0-9]+$ ]] \
+    || (( LARGE_MULTIPART_BYTES != 0 \
+        && (LARGE_MULTIPART_BYTES < 5 * 1024 * 1024 \
+            || LARGE_MULTIPART_BYTES > 5 * 1024 * 1024 * 1024) )); then
+    echo "G7MB_FULL_STACK_LARGE_MULTIPART_BYTES must be 0 or between 5MiB and 5GiB" >&2
+    exit 2
+fi
+if (( LARGE_MULTIPART_BYTES > 0 )); then
+    command -v truncate >/dev/null
+fi
+if [[ "$POLICY_SMOKE" == true ]]; then
+    command -v php >/dev/null
+fi
 
 file_size() {
     if stat -f%z "$1" >/dev/null 2>&1; then
@@ -109,6 +128,33 @@ wait_for_api() {
     fi
 }
 
+upload_single_image() {
+    local source="$1"
+    local client_ref="$2"
+    local content_type="${3:-image/jpeg}"
+    local size batch instruction upload_id
+    size="$(file_size "$source")"
+    batch="$(jq -nc --arg client_ref "$client_ref" --arg content_type "$content_type" --argjson size "$size" \
+        '{files: [{client_ref: $client_ref, declared_kind: "image", content_length: $size, content_type_hint: $content_type}]}')"
+    instruction="$(signed_request POST /v1/upload-batches "$batch" | jq -ec '.uploads[0]')"
+    [[ "$(jq -r '.method' <<<"$instruction")" == "single_put" ]]
+    upload_id="$(jq -er '.upload_id' <<<"$instruction")"
+    presigned_put "$instruction" "$source"
+    signed_request POST "/v1/uploads/$upload_id/complete" '' >/dev/null
+    printf '%s\n' "$upload_id"
+}
+
+download_derivative() {
+    local upload_id="$1"
+    local variant="$2"
+    local output="$3"
+    local delivery delivery_url
+    delivery="$(signed_request GET "/v1/uploads/$upload_id/derivatives/$variant/delivery" '')"
+    [[ "$(jq -r '.variant' <<<"$delivery")" == "$variant" ]]
+    delivery_url="$(jq -er '.delivery_url' <<<"$delivery")"
+    curl --fail-with-body --silent --show-error --output "$output" "$delivery_url"
+}
+
 cd "$ROOT"
 export VIPS_CONCURRENCY=1
 
@@ -181,7 +227,11 @@ export G7MB__STORAGE__ACCESS_KEY_ID="$ACCESS_KEY"
 export G7MB__STORAGE__SECRET_ACCESS_KEY="$SECRET_KEY"
 export G7MB__STORAGE__FORCE_PATH_STYLE="true"
 export G7MB__UPLOAD__MULTIPART_THRESHOLD_BYTES="$((5 * 1024 * 1024))"
-export G7MB__UPLOAD__MULTIPART_PART_SIZE_BYTES="$((5 * 1024 * 1024))"
+if (( LARGE_MULTIPART_BYTES > 0 )); then
+    export G7MB__UPLOAD__MULTIPART_PART_SIZE_BYTES="$((32 * 1024 * 1024))"
+else
+    export G7MB__UPLOAD__MULTIPART_PART_SIZE_BYTES="$((5 * 1024 * 1024))"
+fi
 export G7MB__WORKER__SANDBOX_BINARY="$ROOT/target/debug/g7mb-sandbox"
 export G7MB__WORKER__TEMP_DIRECTORY="$TMP/worker"
 export G7MB__WORKER__NATIVE_THREADS_PER_JOB="1"
@@ -193,6 +243,65 @@ mkdir -p "$TMP/worker" "$TMP/backups"
 target/debug/g7mb-api --config config/g7mb.example.toml >"$API_LOG" 2>&1 &
 API_PID="$!"
 wait_for_api
+
+if (( LARGE_MULTIPART_BYTES > 0 )); then
+    large_batch_body="$(jq -nc --argjson size "$LARGE_MULTIPART_BYTES" \
+        '{files: [{client_ref: "large-video", declared_kind: "video", content_length: $size, content_type_hint: "video/mp4"}]}')"
+    large_instruction="$(signed_request POST /v1/upload-batches "$large_batch_body" | jq -ec '.uploads[0]')"
+    [[ "$(jq -r '.method' <<<"$large_instruction")" == "multipart" ]]
+    large_upload_id="$(jq -er '.upload_id' <<<"$large_instruction")"
+    large_part_size="$(jq -er '.part_size_bytes' <<<"$large_instruction")"
+    large_part_count="$(((LARGE_MULTIPART_BYTES + large_part_size - 1) / large_part_size))"
+    [[ "$large_part_count" -le 10000 ]]
+    large_parts='[]'
+    large_part_file="$TMP/large-part.bin"
+    api_rss_start="$(ps -o rss= -p "$API_PID" | awk '{print $1}')"
+    api_rss_peak="$api_rss_start"
+
+    for ((part_number = 1; part_number <= large_part_count; part_number += 1)); do
+        offset="$(((part_number - 1) * large_part_size))"
+        length="$((LARGE_MULTIPART_BYTES - offset))"
+        if (( length > large_part_size )); then
+            length="$large_part_size"
+        fi
+        truncate -s "$length" "$large_part_file"
+        presign_body="$(jq -nc --argjson length "$length" '{content_length: $length}')"
+        instruction="$(signed_request POST "/v1/uploads/$large_upload_id/parts/$part_number/presign" "$presign_body")"
+        headers="$TMP/large-part-$part_number.headers"
+        presigned_put "$instruction" "$large_part_file" "$headers"
+        etag="$(awk 'tolower($0) ~ /^etag:/ { sub(/^[^:]*:[[:space:]]*/, ""); sub(/\r$/, ""); print; exit }' "$headers")"
+        if [[ -z "$etag" ]]; then
+            echo "large multipart PUT returned no ETag for part $part_number" >&2
+            exit 1
+        fi
+        large_parts="$(jq -c --argjson number "$part_number" --arg etag "$etag" \
+            '. + [{part_number: $number, etag: $etag}]' <<<"$large_parts")"
+        current_rss="$(ps -o rss= -p "$API_PID" | awk '{print $1}')"
+        if (( current_rss > api_rss_peak )); then
+            api_rss_peak="$current_rss"
+        fi
+        if (( part_number % 20 == 0 || part_number == large_part_count )); then
+            printf 'large-multipart progress parts=%s/%s\n' "$part_number" "$large_part_count" >&2
+        fi
+    done
+
+    complete_body="$(jq -nc --argjson parts "$large_parts" '{parts: $parts}')"
+    signed_request POST "/v1/uploads/$large_upload_id/multipart/complete" "$complete_body" >/dev/null
+    large_status="$(signed_request GET "/v1/uploads/$large_upload_id" '')"
+    [[ "$(jq -r '.state' <<<"$large_status")" == "quarantined" ]]
+    current_rss="$(ps -o rss= -p "$API_PID" | awk '{print $1}')"
+    if (( current_rss > api_rss_peak )); then
+        api_rss_peak="$current_rss"
+    fi
+    api_rss_delta="$((api_rss_peak - api_rss_start))"
+    if (( api_rss_delta > 32768 )); then
+        echo "API RSS grew more than 32MiB during body-free multipart control: ${api_rss_delta}KiB" >&2
+        exit 1
+    fi
+    printf 'large-multipart-smoke PASS bytes=%s parts=%s api_rss_start_kib=%s api_rss_peak_kib=%s api_rss_delta_kib=%s direct_body=1 quarantined=1\n' \
+        "$LARGE_MULTIPART_BYTES" "$large_part_count" "$api_rss_start" "$api_rss_peak" "$api_rss_delta"
+    exit 0
+fi
 
 batch_body="$(jq -nc \
     --argjson single_size "$single_size" \
@@ -267,6 +376,65 @@ if [[ "$sanitized_metadata" == *"PrivateCamera"* \
     || "$sanitized_metadata" == *"exif-data"* ]]; then
     echo "full-stack derivative retained private EXIF metadata" >&2
     exit 1
+fi
+
+if [[ "$POLICY_SMOKE" == true ]]; then
+    ffmpeg -hide_banner -loglevel error -nostdin \
+        -f lavfi -i "color=c=blue:s=320x160" \
+        -frames:v 1 -threads 1 -y "$TMP/watermark.png"
+    watermark_upload_id="$(upload_single_image "$TMP/watermark.png" watermark-source image/png)"
+    target/debug/g7mb-worker --config config/g7mb.example.toml once --worker-id full-stack-watermark-source >/dev/null
+    watermark_status="$(signed_request GET "/v1/uploads/$watermark_upload_id" '')"
+    [[ "$(jq -r '.state' <<<"$watermark_status")" == "ready" ]]
+    [[ "$(jq -r '.detected_content_type' <<<"$watermark_status")" == "image/png" ]]
+
+    policy_result="$(
+        G7MB_POLICY_ENDPOINT="$API_BASE" \
+        G7MB_POLICY_HMAC_SECRET="$HMAC_SECRET" \
+        G7MB_POLICY_ASSET_UPLOAD_ID="$watermark_upload_id" \
+        G7MB_POLICY_REVISION=1 \
+        php "$ROOT/adapters/gnuboard7/jiwonpapa-g7mediabooster/tests/Live/publish-site-policy.php"
+    )"
+    [[ "$(jq -r '.revision' <<<"$policy_result")" == "1" ]]
+    [[ "$(jq -r '.watermark.asset_upload_id' <<<"$policy_result")" == "$watermark_upload_id" ]]
+    watermark_sha256="$(jq -er '.watermark.asset_sha256' <<<"$policy_result")"
+    [[ "$watermark_sha256" =~ ^[a-f0-9]{64}$ ]]
+
+    policy_upload_id="$(upload_single_image "$TMP/private-exif.jpg" policy-enabled)"
+    target/debug/g7mb-worker --config config/g7mb.example.toml once --worker-id full-stack-policy >/dev/null
+    policy_status="$(signed_request GET "/v1/uploads/$policy_upload_id" '')"
+    [[ "$(jq -r '.state' <<<"$policy_status")" == "ready" ]]
+    expected_policy_preset="board-default-v1-wm-g7-r1-$watermark_sha256"
+    [[ "$(jq -r '[.derivatives[].preset_id] | unique | join(",")' <<<"$policy_status")" == "$expected_policy_preset" ]]
+    download_derivative "$policy_upload_id" master "$TMP/policy-master.jpg"
+    download_derivative "$policy_upload_id" thumbnail "$TMP/policy-thumbnail.jpg"
+    if cmp -s "$TMP/$single_id-master.jpg" "$TMP/policy-master.jpg"; then
+        echo "watermark policy did not change the deterministic master bytes" >&2
+        exit 1
+    fi
+
+    rollback_result="$(
+        G7MB_POLICY_ENDPOINT="$API_BASE" \
+        G7MB_POLICY_HMAC_SECRET="$HMAC_SECRET" \
+        G7MB_POLICY_ASSET_UPLOAD_ID='' \
+        G7MB_POLICY_REVISION=2 \
+        php "$ROOT/adapters/gnuboard7/jiwonpapa-g7mediabooster/tests/Live/publish-site-policy.php"
+    )"
+    [[ "$(jq -r '.revision' <<<"$rollback_result")" == "2" ]]
+    [[ "$(jq -r '.watermark == null' <<<"$rollback_result")" == "true" ]]
+
+    rollback_upload_id="$(upload_single_image "$TMP/private-exif.jpg" policy-disabled)"
+    target/debug/g7mb-worker --config config/g7mb.example.toml once --worker-id full-stack-rollback >/dev/null
+    rollback_status="$(signed_request GET "/v1/uploads/$rollback_upload_id" '')"
+    [[ "$(jq -r '.state' <<<"$rollback_status")" == "ready" ]]
+    [[ "$(jq -r '[.derivatives[].preset_id] | unique | join(",")' <<<"$rollback_status")" == "board-default-v1" ]]
+    download_derivative "$rollback_upload_id" master "$TMP/rollback-master.jpg"
+    if ! cmp -s "$TMP/$single_id-master.jpg" "$TMP/rollback-master.jpg"; then
+        echo "disabled policy did not restore the deterministic unwatermarked master" >&2
+        exit 1
+    fi
+
+    printf 'g7-policy-smoke PASS php_hmac=1 applied_revision=1 rollback_revision=2 worker_pinned=1\n'
 fi
 
 printf 'full-stack-smoke PASS single_put=1 multipart_parts=%s ready=2 derivatives=4 exif_removed=1\n' "$part_number"

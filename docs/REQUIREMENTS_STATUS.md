@@ -13,15 +13,15 @@
 | 5 진짜 파일·보안 | PASS | signature, 실제 decode/ffprobe, digest, hard limit, no-network sandbox | ClamAV·moderation은 선택 hook |
 | 6 G5/G7 연동 | PARTIAL | G5 5.6.24는 core-free module·실제 browser single/multipart·첨부 2개·private 전달 PASS. G7은 patch 5개 clean apply, 계약 28/28, 실제 browser upload/create/update/private thumbnail·403 권한 매트릭스와 권한·보존 DB gate PASS | G7 patch 정식 반영과 실 provider 보존 만료 삭제 |
 | 7 다중 업로드 | PASS | 1~100개 bounded 병렬 처리, 실제 G7 브라우저에서 single PUT와 2-part multipart 동시 첨부 PASS | 실 provider 부하 재측정 |
-| 8 대용량 streaming | PARTIAL | PHP/Rust body를 거치지 않는 object storage 직접 multipart | 실계정 5GiB 중단·재개·RSS 증거 |
+| 8 대용량 streaming | PASS | 정확히 5GiB를 32MiB 160-part로 object storage에 직접 전송, API RSS 증가는 928KiB, 완료 후 Quarantined 진입 | 공급자별 처리량·재개 수치는 해당 실계정 profile 검증에서 기록 |
 | 9 EXIF 개인정보 | PASS | 이미지 orientation 적용 후 EXIF/GPS/XMP/IPTC 제거 | 영상 metadata 제거는 공식 범위 아님 |
 | 10 썸네일 | PASS | eager 1,280px JPEG, 불변 key, 원자적 Ready, private signed GET, 4MiB/60초 weighted manifest cache·singleflight·삭제 guard | 공개 CDN profile은 선택 기능이며 v1 필수 범위 아님 |
 | 11 초고해상도 | PASS | 25,000×4,000 JPEG, 100MP, heavy lane/RSS gate | hard cap 초과는 별도 offline tier |
 | 12 FFmpeg 폴백 | PASS | FFmpeg 부재 시 MP4/H.264 Rust demux+OpenH264 첫 frame | HEVC/AV1·MOV·WebM 폴백 제외 |
 | 13 CPU 제한 | PASS | worker semaphore, native thread 제한, Linux cgroup CPU/RSS/PID gate | 배포 서버별 capacity 재산정 |
 | 14 큐 | PASS | 모든 변환 SQLite WAL durable queue, lease·retry·dead-letter·backpressure | 멀티노드는 v1 제외 |
-| 15 워터마크 | PASS | 자산 SHA-256 pin, 위치·여백·비율·투명도 제한, revision key, current-admin Ready 자산 선택·저장·재로드·rollback browser smoke | 실 Rust 연결 정책 동기화는 운영 게이트 |
-| 16 G7 관리자 설정 | PASS | encrypted secret, signed monotonic policy revision, exact worker revision, 실제 G7 설치·설정 화면 smoke | 실제 Rust 연결 저장·정책 동기화 운영 smoke |
+| 15 워터마크 | PASS | 자산 SHA-256 pin, 위치·여백·비율·투명도 제한, revision key, current-admin Ready 자산 선택과 실제 PHP→Rust→worker 출력·rollback 종단 PASS | 배포별 자산·정책 변경 감시는 운영 설정 |
+| 16 G7 관리자 설정 | PASS | encrypted secret, signed monotonic policy revision, exact worker revision, 실제 G7 설치·설정 화면과 PHP HMAC PUT/GET→worker 적용 종단 PASS | production secret 주입은 배포 설정 |
 | 17 운영 기능 | PASS | lifecycle, 365일 bounded tombstone 보존·purge, byte quota, orphan audit/prune, verified backup·restore, API rate/concurrency limit, queue·worker 단계별 metrics | 실제 배포 Prometheus·alert route 연결은 운영 설정 |
 
 ## 이번 마감에서 확정한 Ready 계약

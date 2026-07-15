@@ -97,10 +97,11 @@ site policy PUT/GET, Vite production build와 G7 upstream 계약 검사입니다
 fail-safe와 MinIO single/multipart→create/update→private thumbnail, 자산 선택·저장·재로드·rollback은
 격리 브라우저 smoke를 통과했습니다. 비밀·블라인드·삭제글 전달과 삭제/복원·보존 lease는 실제
 G7 DB host gate를 통과했고 사용자별 403 매트릭스도 실제 브라우저에서 확인했습니다. 실제
-R2/Lightsail·5GiB와 실 provider 만료 삭제는 별도 운영 게이트입니다.
+PHP HMAC policy→Rust worker 워터마크 출력→rollback과 로컬 정확한 5GiB 직접 multipart도
+통과했습니다. R2/Lightsail profile과 실 provider 만료 삭제는 별도 운영 게이트입니다.
 
 ## 아직 공식 지원으로 게시하지 않는 연동
 
-실 R2/Lightsail profile, 5GiB 중단·재개와 보존 만료 command→실 provider 삭제는 각 종단
+실 R2/Lightsail profile의 5GiB·중단/재개와 보존 만료 command→실 provider 삭제는 각 종단
 게이트 전 공식 지원으로 게시하지 않습니다. patch `0001`~`0005`가
 없는 `sirsoft-board`에서는 manifest와 runtime 계약 검사가 설치·실행을 fail-closed 합니다.

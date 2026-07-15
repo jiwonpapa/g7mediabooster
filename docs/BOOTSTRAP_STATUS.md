@@ -2,7 +2,7 @@
 
 - 기준일: 2026-07-16
 - 범위: Git, Rust 워크스페이스, 기술 스펙, 개발 헌법, 필수 크레이트와 품질 하네스
-- 결론: 내부 v1과 G5/G7 격리 브라우저 범위 완료. 외부 R2/Lightsail·5GiB, G7 upstream과 실 provider 삭제 게이트만 남았습니다.
+- 결론: 내부 v1, 로컬 정확한 5GiB 직접 multipart, G5/G7 격리 브라우저와 G7 정책 종단 완료. 외부 R2/Lightsail, G7 upstream과 실 provider 삭제 게이트만 남았습니다.
 
 ## 완료 항목
 
@@ -30,6 +30,8 @@
 | G7 제어 업로더 | PASS | PHP 55 tests/148 assertions, TS 20 tests, 100개 bounded 전송 후 Ready polling·native attachment materialization, form state 연결, capability·삭제·private delivery proxy·관리자 asset picker, typecheck·Vite build 통과 |
 | 런타임 capability | PASS | 필수 image 6 input/4 output, MP4/H.264 poster, OpenH264 폴백 보고와 API startup fail-closed |
 | G7 site policy | PASS | HMAC PUT/GET, Ready asset pin, 단조 revision, job 고정·worker exact revision 적용 |
+| G7 policy 종단 | PASS | 실제 PHP HMAC client→Rust API revision 1→worker 워터마크 출력→revision 2 해제·원본 출력 복원 |
+| 정확한 5GiB 직접 multipart | PASS | 32MiB 160-part, API/PHP body 우회, HEAD 길이 검증·Quarantined 진입, API RSS 33,808→34,736KiB(증가 928KiB) |
 | lifecycle 삭제·보존 | PASS | HMAC/G7 소유권 삭제 예약, 만료 multipart abort, derivative/raw 정리, SQLite lease·retry·tombstone |
 | 운영 hardening | PASS | `/v1` rate·동시 처리 제한, O(1) queue/upload/orphan counter, worker 단계별 metrics, 기본 365일 bounded tombstone purge |
 | 저장 용량 quota | PASS | 전역·tenant retained-source byte quota, presign 전 차단, SQLite 원자 재검사, tombstone 후 반환 |
@@ -59,6 +61,8 @@
 - 64MP AVIF/200MP 거부 경계: `cargo xtask heavy-avif`
 - Linux cgroup/API 생존/100개 worker: `cargo xtask cgroup-smoke`
 - S3 호환 실연결: `cargo xtask storage-conformance`
+- G7 정책 종단: `cargo xtask g7-policy-smoke`
+- 로컬 정확한 5GiB/API RSS: `cargo xtask large-multipart-smoke`
 - 성능·강건성: `cargo xtask bench`, `cargo xtask fuzz`, `cargo xtask miri`
 - 재현성: OpenAPI drift, SBOM, native inventory, 고정 Rust toolchain과 lockfile
 
@@ -76,6 +80,7 @@ round-trip과 전체 `cargo xtask native-smoke`를 다시 통과했습니다.
 
 현재 코드는 batch intent, multipart part/complete/abort, SQLite lease/heartbeat, worker 실행
 loop, 원본 검사·master+thumbnail/poster, lifecycle cleanup과 G5/G7 브라우저 직접 업로더·첨부 표시까지 구현됐습니다. 실제 R2/Lightsail
-conformance, G7 upstream 반영과 실 provider 보존 삭제, 실제 S3/R2·5GiB와
-filesystem quota 증거는 구현 완료로 표시하지 않습니다. 멀티노드는 v1 범위가
+conformance, G7 upstream 반영과 실 provider 보존 삭제는 구현 완료로 표시하지 않습니다.
+정확한 로컬 5GiB 직접 multipart와 API RSS 독립성은 통과했지만 이 결과를 R2/Lightsail
+profile 실계정 증거로 대체하지 않습니다. 멀티노드는 v1 범위가
 아니며 각 기능은 `SPEC.md` 완료 정의를 만족한 뒤에만 완료 처리합니다.

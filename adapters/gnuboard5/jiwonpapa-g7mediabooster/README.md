@@ -99,5 +99,6 @@ attachment limit, 삭제 retry queue를 검증합니다.
 
 G5 5.6.24 코어 훅 계약, PHP/TypeScript gate, 실제 MySQL 8.4·MyISAM 연결과 격리 브라우저
 MinIO direct single/multipart → Rust 처리 → 게시글 첨부 2개 표시 → private thumbnail 전달을
-통과했습니다. 이 범위는 배포판 공식 기능으로 게시할 수 있습니다. 실 R2/Lightsail, 5 GiB와
+통과했습니다. 이 범위는 배포판 공식 기능으로 게시할 수 있습니다. 로컬 정확한 5GiB direct
+multipart는 공통 서버 gate를 통과했습니다. 실 R2/Lightsail profile의 5GiB·중단 재개와
 provider 보존 만료 삭제 종단은 계정별 별도 운영 게이트이며 통과 전 지원으로 게시하지 않습니다.

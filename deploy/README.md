@@ -6,6 +6,7 @@
 
 - 이미지·동영상 최대 100개 다중 선택과 bounded 병렬 직접 업로드
 - 작은 파일 single PUT, 큰 파일·영상 S3 호환 multipart 업로드와 abort
+- 최대 5GiB 정책 상한에서 PHP/Rust body를 우회하는 32MiB direct multipart
 - JPEG, PNG, GIF, WebP, AVIF, HEIC/HEIF 실제 decode 기반 검증
 - MP4/H.264 실제 runtime 검사와 FFmpeg JPEG poster
 - FFmpeg 실행 불가 시 MP4/H.264 한정 Rust demux + OpenH264 poster 폴백
@@ -46,7 +47,10 @@ Ready→native attachment create/update 유지, private thumbnail 전달은 0.3.
 standalone module gate와 실제 G7 DB 호스트 게이트를 통과했습니다. 이 범위는 upstream patch
 `0001`~`0005` 적용을 전제로 공식 게시합니다. 0.4.0의 관리자 워터마크 자산 선택·rollback과
 작성자·다른 회원·비회원·관리자 권한 매트릭스도 실제 G7 브라우저에서 통과했습니다. 실 provider
-보존 만료 삭제는 해당 종단 게이트 통과 전 게시하지 않습니다.
+보존 만료 삭제는 해당 종단 게이트 통과 전 게시하지 않습니다. G7 PHP HMAC 정책 게시,
+Rust worker의 digest 고정 워터마크 출력과 정책 해제 후 원본 출력 복원도 MinIO 종단에서
+통과했습니다. 정확한 5GiB direct multipart는 로컬 MinIO에서 통과했으며 이를 R2/Lightsail
+실계정 profile 검증으로 대체해 게시하지 않습니다.
 
 G5는 5.6.24 코어 무수정 설치, MySQL 8.4·MyISAM host gate와 MinIO 기반 실제 브라우저
 single/multipart 전송, Rust 처리, 게시글 저장·첨부 표시, 비로그인 thumbnail `403`까지

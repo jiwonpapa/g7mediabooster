@@ -60,6 +60,10 @@ enum Harness {
     StorageConformance,
     /// Run API, MinIO, worker, and native sandbox through real single and multipart media jobs.
     FullStackSmoke,
+    /// Publish and roll back a real watermark policy through the G7 PHP HMAC client.
+    G7PolicySmoke,
+    /// Upload an exact local 5GiB object through API-controlled direct multipart.
+    LargeMultipartSmoke,
     /// Run credential-gated conformance against an existing S3-compatible provider bucket.
     LiveStorageConformance,
     /// Prove online snapshot, SHA-256, retention, read-only verify, and isolated restore.
@@ -103,6 +107,8 @@ fn main() -> anyhow::Result<()> {
         Harness::CgroupSmoke => run("bash", ["scripts/cgroup-smoke.sh"]),
         Harness::StorageConformance => run("bash", ["scripts/storage-conformance.sh"]),
         Harness::FullStackSmoke => run("bash", ["scripts/full-stack-smoke.sh"]),
+        Harness::G7PolicySmoke => run("bash", ["scripts/g7-policy-smoke.sh"]),
+        Harness::LargeMultipartSmoke => run("bash", ["scripts/large-multipart-smoke.sh"]),
         Harness::LiveStorageConformance => run("bash", ["scripts/live-storage-conformance.sh"]),
         Harness::DatabaseRecovery => cargo([
             "test",

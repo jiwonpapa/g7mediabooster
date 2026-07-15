@@ -10,7 +10,7 @@ profile만 공식 지원으로 게시합니다.
 HMAC 인증, SQLite lease queue, 검증된 master+thumbnail/poster 원자적 발행,
 4MiB/60초 bounded manifest cache·singleflight, digest-pinned 이미지 워터마크,
 sandbox runtime capability, 삭제·보존 cleanup과 G7 0.3
-form/Ready attachment bridge·보존 삭제 대조까지 연결됐습니다. G7 격리 설치·관리자 설정과 MinIO 기반 실제 browser single/multipart 전송·create/update·private thumbnail 전달, 비밀·블라인드·삭제글 첨부 권한 및 보존 lease 실제 DB 게이트도 통과했습니다. 실제 R2/Lightsail·5GiB와 G7 upstream 정식 반영 등 남은 게이트는 구현
+form/Ready attachment bridge·보존 삭제 대조까지 연결됐습니다. G7 격리 설치·관리자 설정과 MinIO 기반 실제 browser single/multipart 전송·create/update·private thumbnail 전달, 비밀·블라인드·삭제글 첨부 권한 및 보존 lease 실제 DB 게이트도 통과했습니다. 정확한 로컬 5GiB 직접 multipart와 G7 PHP 정책→Rust worker 워터마크→rollback 종단도 통과했습니다. 실제 R2/Lightsail profile과 G7 upstream 정식 반영 등 남은 게이트는 구현
 계획에 따라 진행합니다. 배포 시에는 [검증된 공식 기능 범위](deploy/README.md)만 게시합니다.
 
 ## 확정 기술 스택
@@ -44,6 +44,8 @@ cargo xtask api-smoke
 cargo xtask g7-adapter
 cargo xtask storage-conformance
 cargo xtask full-stack-smoke
+cargo xtask g7-policy-smoke
+cargo xtask large-multipart-smoke
 cargo xtask heavy-avif
 # 실 R2/Lightsail 환경값 설정 후
 cargo xtask live-storage-conformance
@@ -75,6 +77,7 @@ cargo xtask supply-chain
 - [Gnuboard 7 연동 계약](docs/GNUBOARD7_INTEGRATION.md)
 - [Gnuboard 7 upstream 첨부 계약 patch](adapters/gnuboard7/upstream-contract/README.md)
 - [Gnuboard 7 실제 저장소 browser E2E](docs/evidence/G7_STORAGE_E2E_20260716.md)
+- [정확한 5GiB·G7 정책 종단 증거](docs/evidence/LARGE_MULTIPART_AND_G7_POLICY_20260716.md)
 - [워터마크 계약](docs/WATERMARK.md)
 - [미디어 수명주기·삭제](docs/LIFECYCLE.md)
 - [Provider orphan inventory](docs/ORPHAN_INVENTORY.md)

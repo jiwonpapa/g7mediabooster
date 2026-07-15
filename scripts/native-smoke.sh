@@ -74,6 +74,10 @@ cargo run --quiet --locked --package g7mb-sandbox --features native-vips -- \
     --watermark-opacity-percent 75
 test -s "$TMP/watermarked.jpg"
 [[ "$(vipsheader -f bands "$TMP/watermarked.jpg")" == "3" ]]
+if cmp -s "$TMP/thumb.jpg" "$TMP/watermarked.jpg"; then
+    echo "watermark did not change the rendered image bytes" >&2
+    exit 1
+fi
 
 if base64 --decode <tests/fixtures/private-exif.jpg.b64 >"$TMP/private-exif.jpg" 2>/dev/null; then
     :

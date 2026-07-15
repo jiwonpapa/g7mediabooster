@@ -82,6 +82,8 @@ G7 모듈은 세션·게시판 권한·첨부 연결의 진실 원천이고, Rus
 - Stage A: batch/single/multipart 계약, S3/R2 adapter, 정확한 크기 확인, 상태 API 구현
 - Stage A conformance: pinned MinIO에서 실제 presigned PUT, 2-part complete, abort, HEAD,
   bounded download와 derivative PUT 통과
+- Stage A 5GiB gate: API가 발급한 32MiB presigned part 160개로 정확히 5GiB를 MinIO에
+  직접 전송하고 저장 길이·Quarantined 진입을 검증. API RSS 33,808→34,736KiB(증가 928KiB)
 - Stage B: bounded download, signature, libvips/FFprobe probe, EXIF 제거 기본 썸네일 구현
 - Stage B publish: 이미지는 metadata-strip·sRGB·최대 8,192px JPEG master, 영상은 검증된
   원 container master, 공통 1,280px JPEG thumbnail/poster를 저장하고 전체 DB set이 원자적으로
@@ -118,6 +120,8 @@ G7 모듈은 세션·게시판 권한·첨부 연결의 진실 원천이고, Rus
   등록 자산 16MiB 복사·SHA-256 pin, revision+digest 불변 key와 fail-closed worker 처리 구현
 - Stage C 정책: G7 관리자 필드, 서명된 PUT/GET site policy, tenant Ready asset 검증,
   SQLite 단조 revision·settings hash, enqueue 시 revision 고정과 S3/R2 worker 재검증 구현
+- Stage C 정책 종단: 실제 G7 PHP HMAC client로 revision 1을 게시해 worker 파생물의
+  watermark digest preset과 출력 바이트 변경을 확인하고 revision 2 해제 후 원본 출력을 복원
 - Stage C 관리자 UI: current-admin·Ready·최근 7일·PNG/WebP/JPEG·16MiB 경계 catalog와
   수동 UUID 없는 asset picker를 실제 G7 브라우저에서 선택·저장·재로드·rollback 검증
 - Stage C 권한 브라우저: 작성자·다른 회원·비회원·관리자의 공개·비밀·블라인드·삭제글
@@ -126,7 +130,7 @@ G7 모듈은 세션·게시판 권한·첨부 연결의 진실 원천이고, Rus
   FFmpeg/FFprobe child 상속 및 실제 Linux `EPERM` 테스트 구현
 - 품질 게이트: 전체 CI와 API smoke, Rust line coverage 84.64%, G7 PHP/TS unit·build 통과
 
-남은 핵심 게이트는 실제 R2/Lightsail credential·5GiB 검증, G7 upstream merge와 실 provider
+남은 핵심 게이트는 실제 R2/Lightsail credential별 conformance, G7 upstream merge와 실 provider
 보존 삭제입니다. G7 MinIO 기반 실제 저장소 전송·create/update·private thumbnail 전달,
 실브라우저 권한 매트릭스와 관리자 watermark asset picker는 통과했습니다. 외부 저장소 하네스와
 2026-07-16 실행 인계서는 구현됐습니다.
