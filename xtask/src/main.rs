@@ -56,6 +56,8 @@ enum Harness {
     StorageConformance,
     /// Run credential-gated conformance against an existing S3-compatible provider bucket.
     LiveStorageConformance,
+    /// Prove online snapshot, SHA-256, retention, read-only verify, and isolated restore.
+    DatabaseRecovery,
     /// Print native package versions and FFmpeg build configuration for SBOM evidence.
     NativeInventory,
     /// Generate CycloneDX JSON files for workspace binaries.
@@ -93,6 +95,16 @@ fn main() -> anyhow::Result<()> {
         Harness::CgroupSmoke => run("bash", ["scripts/cgroup-smoke.sh"]),
         Harness::StorageConformance => run("bash", ["scripts/storage-conformance.sh"]),
         Harness::LiveStorageConformance => run("bash", ["scripts/live-storage-conformance.sh"]),
+        Harness::DatabaseRecovery => cargo([
+            "test",
+            "--package",
+            "g7mb-worker",
+            "--bin",
+            "g7mb-worker",
+            "tests::backup_rotation_hash_verification_and_restore_rehearsal_are_end_to_end",
+            "--",
+            "--exact",
+        ]),
         Harness::NativeInventory => run("bash", ["scripts/native-inventory.sh"]),
         Harness::Sbom => sbom(),
         Harness::Openapi { action } => openapi(action),

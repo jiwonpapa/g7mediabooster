@@ -1,5 +1,7 @@
 //! SQLite WAL persistence and migration boundary for single-node deployments.
 
+pub mod backup;
+
 use std::{collections::BTreeSet, str::FromStr, time::Duration};
 
 use async_trait::async_trait;

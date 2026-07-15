@@ -21,6 +21,7 @@ cargo xtask load100        # 실제 JPEG 100건, RSS 상한, 만료 lease 복구
 cargo xtask heavy-image    # 25,000px JPEG, heavy lane, RSS 상한
 cargo xtask heavy-avif     # 64MP AVIF 처리, 200MP full-decode 전 거부, RSS 상한
 cargo xtask live-storage-conformance # 환경값이 있는 실제 R2/Lightsail/AWS S3만
+cargo xtask database-recovery # online backup·hash·retention·격리 restore rehearsal
 cargo xtask cgroup-smoke   # Linux CPU/memory/PID 한도와 API 생존
 cargo xtask coverage       # line coverage 80% 하한
 cargo xtask bench --no-run # 벤치 하네스 컴파일

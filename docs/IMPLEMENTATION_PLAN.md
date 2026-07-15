@@ -269,7 +269,9 @@ lifecycle worker로 구현했습니다.
 - 완료: 전역·tenant retained source byte quota, 원자적 경합 차단, tombstone 이후 용량 반환
 - 완료: `raw/`·`media/` bounded provider inventory, durable cursor, 48시간 grace, 비파괴 audit,
   명시적 prune과 삭제 직전 ownership 재검사
-- 남음: rate limit, tombstone 장기 보존·복구 정책
+- 완료: online SQLite snapshot, SHA-256 manifest, bounded retention, read-only 검증,
+  writable rollback을 포함한 격리 restore rehearsal
+- 남음: rate limit, tombstone 장기 보존 정책
 - digest 중복 제거는 tenant 내부에서만 수행해 파일 존재 여부 oracle 방지
 - private media signed delivery, CDN purge, cache stampede 방지
 - queue wait/decode/transform/upload p95, RSS, CPU, temp disk, reject code 관측

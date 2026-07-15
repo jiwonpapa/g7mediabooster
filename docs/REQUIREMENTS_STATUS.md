@@ -22,7 +22,7 @@
 | 14 큐 | PASS | 모든 변환 SQLite WAL durable queue, lease·retry·dead-letter·backpressure | 멀티노드는 v1 제외 |
 | 15 워터마크 | PASS | 자산 SHA-256 pin, 위치·여백·비율·투명도 제한, revision key | 관리자 전용 asset picker browser smoke |
 | 16 G7 관리자 설정 | PASS | encrypted secret, signed monotonic policy revision, exact worker revision | 실제 G7 설치 browser smoke |
-| 17 운영 기능 | PARTIAL | lifecycle·G7 보존 대조, multipart abort·tombstone, bounded manifest cache metric, 전역·tenant byte quota, grace-gated provider orphan audit/prune | 백업·복원, rate limit, queue/worker 운영 관측 |
+| 17 운영 기능 | PARTIAL | lifecycle·tombstone, bounded cache metric, 전역·tenant byte quota, grace-gated orphan audit/prune, verified online backup·격리 restore rehearsal | rate limit, queue/worker 운영 관측, tombstone 장기 보존 |
 
 ## 이번 마감에서 확정한 Ready 계약
 

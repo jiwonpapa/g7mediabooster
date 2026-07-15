@@ -52,6 +52,11 @@ impl Settings {
             .set_default("storage.force_path_style", false)?
             .set_default("database.url", "sqlite://data/g7mb.db")?
             .set_default("database.max_connections", 4_i64)?
+            .set_default(
+                "database.backup_directory",
+                "/var/lib/g7mediabooster/backups",
+            )?
+            .set_default("database.backup_retention_count", 14_i64)?
             .set_default("worker.max_concurrent_jobs", 2_i64)?
             .set_default("worker.max_concurrent_heavy_images", 1_i64)?
             .set_default("worker.max_concurrent_videos", 1_i64)?
@@ -159,6 +164,15 @@ impl Settings {
         {
             return Err(ConfigError::Message(
                 "worker settings violate concurrency, lease, timeout, or output limits".to_owned(),
+            ));
+        }
+        if self.database.url.is_empty()
+            || !(1..=16).contains(&self.database.max_connections)
+            || !self.database.backup_directory.is_absolute()
+            || !(2..=365).contains(&self.database.backup_retention_count)
+        {
+            return Err(ConfigError::Message(
+                "database settings violate URL, pool, backup path, or retention limits".to_owned(),
             ));
         }
         if self.watermark.enabled
@@ -295,6 +309,10 @@ pub struct DatabaseSettings {
     pub url: String,
     /// Bounded pool size.
     pub max_connections: u32,
+    /// Absolute directory for create-new online snapshots and manifests.
+    pub backup_directory: std::path::PathBuf,
+    /// Number of verified local snapshot pairs retained after a successful backup.
+    pub backup_retention_count: usize,
 }
 
 /// Native worker resource settings.
@@ -505,6 +523,39 @@ max_reserved_bytes_per_tenant = 1024
             Err(error) => error,
         };
         assert!(error.to_string().contains("upload settings"));
+        Ok(())
+    }
+
+    #[test]
+    fn database_backup_path_and_retention_are_operator_bounded()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let file = NamedTempFile::new()?;
+        fs::write(
+            file.path(),
+            r#"
+[storage]
+raw_bucket = "raw"
+derivative_bucket = "media"
+access_key_id = "test-access"
+secret_access_key = "test-secret"
+
+[auth]
+key_id = "g7-primary"
+tenant_id = "site-a"
+hmac_secret = "0123456789abcdef0123456789abcdef"
+
+[database]
+backup_directory = "relative/backups"
+backup_retention_count = 1
+"#,
+        )?;
+        let error = match Settings::load(Some(file.path())) {
+            Ok(_) => {
+                return Err(std::io::Error::other("unsafe backup policy was accepted").into());
+            }
+            Err(error) => error,
+        };
+        assert!(error.to_string().contains("database settings"));
         Ok(())
     }
 

@@ -11,11 +11,16 @@ use g7mb_application::{
 };
 use g7mb_config::{Settings, WatermarkPositionSetting};
 use g7mb_object_store_s3::S3CompatibleStore;
-use g7mb_persistence_sqlite::SqliteStore;
+use g7mb_persistence_sqlite::{SqliteStore, backup::verify_database_file};
 use g7mb_worker::{
     ProcessSandboxProbe, RunOutcome, SourceValidationWorker, WatermarkPolicy, WorkerPolicy,
 };
-use tokio::{sync::watch, task::JoinSet};
+use sha2::{Digest as _, Sha256};
+use tokio::{
+    io::{AsyncReadExt as _, AsyncWriteExt as _},
+    sync::watch,
+    task::JoinSet,
+};
 
 #[derive(Debug, Parser)]
 #[command(version, about = "G7MediaBooster durable worker")]
@@ -55,6 +60,35 @@ enum Command {
         #[arg(long)]
         prune: bool,
     },
+    /// Creates, verifies, or rehearses restoration of SQLite snapshots.
+    Database {
+        #[command(subcommand)]
+        command: DatabaseCommand,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum DatabaseCommand {
+    /// Creates a verified online snapshot and SHA-256 manifest with bounded retention.
+    Backup,
+    /// Verifies an existing snapshot read-only against its expected SHA-256.
+    Verify {
+        /// Absolute snapshot path.
+        #[arg(long)]
+        input: PathBuf,
+        /// Lowercase SHA-256 from the separately retained manifest.
+        #[arg(long)]
+        expected_sha256: String,
+    },
+    /// Copies a snapshot into an isolated directory and proves writable rollback plus invariants.
+    RestoreRehearsal {
+        /// Absolute snapshot path.
+        #[arg(long)]
+        input: PathBuf,
+        /// Lowercase SHA-256 from the separately retained manifest.
+        #[arg(long)]
+        expected_sha256: String,
+    },
 }
 
 #[tokio::main]
@@ -67,7 +101,315 @@ async fn main() -> anyhow::Result<()> {
         Command::Once { worker_id } => once(&cli.config, &worker_id).await,
         Command::Cleanup { worker_id } => cleanup(&cli.config, &worker_id).await,
         Command::Inventory { prune } => inventory(&cli.config, prune).await,
+        Command::Database { command } => database(&cli.config, command).await,
     }
+}
+
+async fn database(path: &std::path::Path, command: DatabaseCommand) -> anyhow::Result<()> {
+    let settings = Settings::load(Some(path)).context("failed to load configuration")?;
+    match command {
+        DatabaseCommand::Backup => database_backup(&settings).await,
+        DatabaseCommand::Verify {
+            input,
+            expected_sha256,
+        } => database_verify(&input, &expected_sha256).await,
+        DatabaseCommand::RestoreRehearsal {
+            input,
+            expected_sha256,
+        } => database_restore_rehearsal(&input, &expected_sha256).await,
+    }
+}
+
+async fn database_backup(settings: &Settings) -> anyhow::Result<()> {
+    let directory = &settings.database.backup_directory;
+    tokio::fs::create_dir_all(directory)
+        .await
+        .context("failed to create backup directory")?;
+    let directory_metadata = tokio::fs::symlink_metadata(directory)
+        .await
+        .context("failed to inspect backup directory")?;
+    if !directory_metadata.is_dir() || directory_metadata.file_type().is_symlink() {
+        bail!("backup directory must be a real directory, not a symlink");
+    }
+    let created_at = time::OffsetDateTime::now_utc();
+    let stem = format!("g7mb-{}", created_at.unix_timestamp_nanos());
+    let snapshot = directory.join(format!("{stem}.db"));
+    let partial_snapshot = directory.join(format!("{stem}.db.partial"));
+    let manifest = directory.join(format!("{stem}.db.manifest.json"));
+    let partial_manifest = directory.join(format!("{stem}.db.manifest.json.partial"));
+    let store = SqliteStore::connect(&settings.database.url, settings.database.max_connections)
+        .await
+        .context("failed to initialize SQLite")?;
+    let finalized: anyhow::Result<_> = async {
+        let verification = store
+            .backup_to(&partial_snapshot)
+            .await
+            .context("failed to create verified SQLite snapshot")?;
+        secure_regular_file(&partial_snapshot).await?;
+        let sha256 = sha256_file(&partial_snapshot).await?;
+        let bytes = tokio::fs::metadata(&partial_snapshot).await?.len();
+        let body = serde_json::to_vec_pretty(&serde_json::json!({
+            "schema_version": 1,
+            "created_at_unix": created_at.unix_timestamp(),
+            "snapshot_file": snapshot.file_name().and_then(|value| value.to_str()),
+            "sha256": sha256,
+            "bytes": bytes,
+            "database_schema_version": verification.schema_version,
+            "uploads": verification.uploads,
+            "derivatives": verification.derivatives,
+            "jobs": verification.jobs,
+            "orphan_suspects": verification.orphan_suspects,
+            "reserved_source_bytes": verification.reserved_source_bytes,
+        }))?;
+        write_create_new(&partial_manifest, &body).await?;
+        tokio::fs::hard_link(&partial_snapshot, &snapshot)
+            .await
+            .context("failed to publish create-new backup snapshot")?;
+        tokio::fs::hard_link(&partial_manifest, &manifest)
+            .await
+            .context("failed to publish create-new backup manifest")?;
+        tokio::fs::remove_file(&partial_snapshot).await?;
+        tokio::fs::remove_file(&partial_manifest).await?;
+        Ok((verification, sha256, bytes))
+    }
+    .await;
+    let (verification, sha256, bytes) = match finalized {
+        Ok(value) => value,
+        Err(error) => {
+            remove_if_present(&partial_snapshot).await;
+            remove_if_present(&partial_manifest).await;
+            remove_if_present(&snapshot).await;
+            remove_if_present(&manifest).await;
+            return Err(error);
+        }
+    };
+    rotate_backups(directory, settings.database.backup_retention_count).await?;
+    tracing::info!(
+        path = %snapshot.display(),
+        manifest = %manifest.display(),
+        sha256,
+        bytes,
+        schema_version = verification.schema_version,
+        uploads = verification.uploads,
+        "verified database backup completed"
+    );
+    Ok(())
+}
+
+async fn remove_if_present(path: &std::path::Path) {
+    match tokio::fs::remove_file(path).await {
+        Ok(()) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => {
+            tracing::warn!(path = %path.display(), %error, "failed to remove partial backup output")
+        }
+    }
+}
+
+async fn database_verify(input: &std::path::Path, expected_sha256: &str) -> anyhow::Result<()> {
+    validate_snapshot_input(input, expected_sha256).await?;
+    let verification = verify_database_file(input)
+        .await
+        .context("database snapshot verification failed")?;
+    tracing::info!(
+        path = %input.display(),
+        schema_version = verification.schema_version,
+        uploads = verification.uploads,
+        derivatives = verification.derivatives,
+        jobs = verification.jobs,
+        orphan_suspects = verification.orphan_suspects,
+        reserved_source_bytes = verification.reserved_source_bytes,
+        "database snapshot verification completed"
+    );
+    Ok(())
+}
+
+async fn database_restore_rehearsal(
+    input: &std::path::Path,
+    expected_sha256: &str,
+) -> anyhow::Result<()> {
+    validate_snapshot_input(input, expected_sha256).await?;
+    let expected = verify_database_file(input)
+        .await
+        .context("restore source verification failed")?;
+    let directory = tempfile::tempdir().context("failed to create restore rehearsal directory")?;
+    let candidate = directory.path().join("restored.db");
+    copy_create_new(input, &candidate).await?;
+    let candidate_url = format!("sqlite://{}", candidate.display());
+    let restored = SqliteStore::connect(&candidate_url, 1)
+        .await
+        .context("failed to open restored candidate writable")?;
+    let mut transaction = restored.pool().begin().await?;
+    sqlx::query(
+        "CREATE TABLE restore_rehearsal_canary (
+            id INTEGER PRIMARY KEY NOT NULL,
+            created_at INTEGER NOT NULL
+         )",
+    )
+    .execute(&mut *transaction)
+    .await?;
+    transaction.rollback().await?;
+    let actual = restored.verify_database().await?;
+    restored.pool().close().await;
+    if actual != expected {
+        bail!("restored candidate counts differ from the verified snapshot");
+    }
+    tracing::info!(
+        schema_version = actual.schema_version,
+        uploads = actual.uploads,
+        reserved_source_bytes = actual.reserved_source_bytes,
+        "isolated database restore rehearsal completed"
+    );
+    Ok(())
+}
+
+async fn validate_snapshot_input(
+    input: &std::path::Path,
+    expected_sha256: &str,
+) -> anyhow::Result<()> {
+    if !input.is_absolute()
+        || expected_sha256.len() != 64
+        || !expected_sha256
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    {
+        bail!("snapshot path or expected SHA-256 is invalid");
+    }
+    let metadata = tokio::fs::symlink_metadata(input)
+        .await
+        .context("failed to inspect snapshot")?;
+    if !metadata.is_file() || metadata.file_type().is_symlink() || metadata.len() == 0 {
+        bail!("snapshot must be a non-empty regular file, not a symlink");
+    }
+    let actual = sha256_file(input).await?;
+    if actual != expected_sha256 {
+        bail!("snapshot SHA-256 does not match the expected manifest value");
+    }
+    Ok(())
+}
+
+async fn sha256_file(path: &std::path::Path) -> anyhow::Result<String> {
+    let mut file = tokio::fs::File::open(path)
+        .await
+        .context("failed to open file for SHA-256")?;
+    let mut digest = Sha256::new();
+    let mut buffer = [0_u8; 64 * 1024];
+    loop {
+        let read = file
+            .read(&mut buffer)
+            .await
+            .context("failed to hash file")?;
+        if read == 0 {
+            break;
+        }
+        digest.update(&buffer[..read]);
+    }
+    Ok(hex::encode(digest.finalize()))
+}
+
+async fn write_create_new(path: &std::path::Path, bytes: &[u8]) -> anyhow::Result<()> {
+    let mut file = tokio::fs::OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .open(path)
+        .await
+        .context("failed to create backup manifest")?;
+    file.write_all(bytes)
+        .await
+        .context("failed to write backup manifest")?;
+    file.sync_all()
+        .await
+        .context("failed to sync backup manifest")?;
+    drop(file);
+    secure_regular_file(path).await
+}
+
+async fn copy_create_new(
+    source: &std::path::Path,
+    destination: &std::path::Path,
+) -> anyhow::Result<()> {
+    let mut source = tokio::fs::File::open(source)
+        .await
+        .context("failed to open restore source")?;
+    let mut destination = tokio::fs::OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .open(destination)
+        .await
+        .context("failed to create restore candidate")?;
+    tokio::io::copy(&mut source, &mut destination)
+        .await
+        .context("failed to copy restore candidate")?;
+    destination
+        .sync_all()
+        .await
+        .context("failed to sync restore candidate")?;
+    Ok(())
+}
+
+async fn secure_regular_file(path: &std::path::Path) -> anyhow::Result<()> {
+    let metadata = tokio::fs::symlink_metadata(path)
+        .await
+        .context("failed to inspect generated backup file")?;
+    if !metadata.is_file() || metadata.file_type().is_symlink() {
+        bail!("generated backup output is not a regular file");
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+
+        tokio::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))
+            .await
+            .context("failed to restrict backup file permissions")?;
+    }
+    tokio::fs::File::open(path)
+        .await
+        .context("failed to reopen generated backup file")?
+        .sync_all()
+        .await
+        .context("failed to sync generated backup file")?;
+    Ok(())
+}
+
+async fn rotate_backups(directory: &std::path::Path, retain: usize) -> anyhow::Result<()> {
+    let mut entries = tokio::fs::read_dir(directory)
+        .await
+        .context("failed to enumerate backup retention directory")?;
+    let mut snapshots = Vec::new();
+    while let Some(entry) = entries
+        .next_entry()
+        .await
+        .context("failed to read backup retention entry")?
+    {
+        let name = entry.file_name();
+        let Some(name) = name.to_str() else {
+            continue;
+        };
+        if !name.starts_with("g7mb-") || !name.ends_with(".db") {
+            continue;
+        }
+        let file_type = entry
+            .file_type()
+            .await
+            .context("failed to inspect backup retention entry")?;
+        if file_type.is_file() && !file_type.is_symlink() {
+            snapshots.push(entry.path());
+        }
+    }
+    snapshots.sort_unstable();
+    let remove_count = snapshots.len().saturating_sub(retain);
+    for snapshot in snapshots.into_iter().take(remove_count) {
+        let manifest = snapshot.with_extension("db.manifest.json");
+        tokio::fs::remove_file(&snapshot)
+            .await
+            .context("failed to remove expired local snapshot")?;
+        match tokio::fs::remove_file(&manifest).await {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error).context("failed to remove expired backup manifest"),
+        }
+    }
+    Ok(())
 }
 
 async fn inventory(path: &std::path::Path, prune: bool) -> anyhow::Result<()> {
@@ -343,4 +685,83 @@ async fn doctor(path: &std::path::Path) -> anyhow::Result<()> {
     }
     tracing::info!("worker dependency doctor passed");
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use g7mb_config::Settings;
+    use g7mb_persistence_sqlite::SqliteStore;
+
+    use super::{database_backup, database_restore_rehearsal, database_verify};
+
+    #[tokio::test]
+    async fn backup_rotation_hash_verification_and_restore_rehearsal_are_end_to_end()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let directory = tempfile::tempdir()?;
+        let database = directory.path().join("live.db");
+        let backups = directory.path().join("backups");
+        let config = directory.path().join("g7mb.toml");
+        std::fs::write(
+            &config,
+            format!(
+                r#"
+[storage]
+raw_bucket = "raw"
+derivative_bucket = "media"
+access_key_id = "test-access"
+secret_access_key = "test-secret"
+
+[auth]
+key_id = "g7-primary"
+tenant_id = "site-a"
+hmac_secret = "0123456789abcdef0123456789abcdef"
+
+[database]
+url = "sqlite://{}"
+max_connections = 2
+backup_directory = "{}"
+backup_retention_count = 2
+"#,
+                database.display(),
+                backups.display()
+            ),
+        )?;
+        let settings = Settings::load(Some(&config))?;
+        let store = SqliteStore::connect(&settings.database.url, 2).await?;
+        store.pool().close().await;
+
+        database_backup(&settings).await?;
+        database_backup(&settings).await?;
+        database_backup(&settings).await?;
+
+        let mut snapshots = Vec::new();
+        let mut manifests = Vec::new();
+        for entry in std::fs::read_dir(&backups)? {
+            let path = entry?.path();
+            let name = path
+                .file_name()
+                .and_then(|value| value.to_str())
+                .unwrap_or_default();
+            if name.ends_with(".db") {
+                snapshots.push(path);
+            } else if name.ends_with(".db.manifest.json") {
+                manifests.push(path);
+            }
+        }
+        snapshots.sort_unstable();
+        manifests.sort_unstable();
+        assert_eq!(snapshots.len(), 2);
+        assert_eq!(manifests.len(), 2);
+
+        let manifest: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(manifests.last().ok_or("manifest missing")?)?)?;
+        let sha256 = manifest
+            .get("sha256")
+            .and_then(serde_json::Value::as_str)
+            .ok_or("manifest SHA-256 missing")?;
+        let snapshot = snapshots.last().ok_or("snapshot missing")?;
+        database_verify(snapshot, sha256).await?;
+        database_restore_rehearsal(snapshot, sha256).await?;
+        Ok(())
+    }
 }

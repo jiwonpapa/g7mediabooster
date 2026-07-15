@@ -23,6 +23,7 @@ g7mb-telemetry.workspace = true
 hex.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
+sqlx.workspace = true
 tempfile.workspace = true
 thiserror.workspace = true
 time.workspace = true
