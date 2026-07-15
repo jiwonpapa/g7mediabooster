@@ -152,6 +152,8 @@ CREATED -> UPLOADED -> QUARANTINED -> PROCESSING -> READY
 | 애니메이션 프레임 | 300 | 500 |
 | MP4 길이 | 2시간 | 6시간 |
 | 요청 JSON body | 1 MiB | 1 MiB |
+| API 요청률 | 50 req/s, burst 100 | 10,000 req/s, burst 100,000 |
+| API 동시 처리 | 64 | 1,024 |
 | sandbox 작업 시간 | 이미지 30초 / 영상 45초 | 120초 |
 | sandbox RSS | standard 512 MiB | heavy AVIF gate 1.5 GiB, worker cgroup 2 GiB |
 
@@ -205,11 +207,14 @@ key에는 preset revision과 watermark digest를 포함합니다.
 삭제 요청은 `202`로 durable state에 기록됩니다. cleanup worker가 derivative→raw 순으로
 삭제하고 모든 저장소 작업 성공 뒤 `deleted` tombstone을 남깁니다. 미완료 `created`
 multipart는 자동 abort하며, 기본 TTL 24시간·rejected/failed 원본 보존 7일·batch 100·최대
-10회 재시도를 Rust 운영 hard cap으로 둡니다. 처리 중 upload와 site-policy 참조 자산은
-경합·무결성 보호를 위해 삭제를 거부합니다.
+10회 재시도를 Rust 운영 hard cap으로 둡니다. 삭제 tombstone은 기본 365일 보존하고 한 번에
+최대 100개만 물리 삭제합니다. 처리 중 upload와 site-policy 참조 자산은 경합·무결성 보호를
+위해 삭제를 거부합니다.
 
 health/metrics를 제외한 모든 API는 인증과 tenant scope가 필요합니다. 오류 응답은
 안정된 `code`, 사용자 안전 `message`, `request_id`를 가집니다.
+`/v1`은 token bucket과 동시 처리 semaphore를 함께 적용하고 초과 시 `Retry-After`가 있는
+안정된 `429`를 반환합니다. health와 metrics는 과부하 판단을 위해 limiter를 거치지 않습니다.
 
 ## 10. PHP 어댑터 계약
 

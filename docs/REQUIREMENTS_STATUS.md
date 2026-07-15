@@ -1,6 +1,6 @@
 # 요구사항 1~17 현재 판정
 
-- 기준일: 2026-07-15
+- 기준일: 2026-07-16
 - 판정 원칙: `PASS`만 배포 기능으로 게시하고 `PARTIAL`·`PENDING`은 제한 또는 후속 게이트로 표시
 - 외부 환경값이 필요한 R2/Lightsail 실계정 검증은 2026-07-16 인계 항목
 
@@ -22,7 +22,7 @@
 | 14 큐 | PASS | 모든 변환 SQLite WAL durable queue, lease·retry·dead-letter·backpressure | 멀티노드는 v1 제외 |
 | 15 워터마크 | PASS | 자산 SHA-256 pin, 위치·여백·비율·투명도 제한, revision key | 관리자 전용 asset picker browser smoke |
 | 16 G7 관리자 설정 | PASS | encrypted secret, signed monotonic policy revision, exact worker revision | 실제 G7 설치 browser smoke |
-| 17 운영 기능 | PARTIAL | lifecycle·tombstone, bounded cache metric, 전역·tenant byte quota, grace-gated orphan audit/prune, verified online backup·격리 restore rehearsal | rate limit, queue/worker 운영 관측, tombstone 장기 보존 |
+| 17 운영 기능 | PASS | lifecycle, 365일 bounded tombstone 보존·purge, byte quota, orphan audit/prune, verified backup·restore, API rate/concurrency limit, queue·worker 단계별 metrics | 실제 배포 Prometheus·alert route 연결은 운영 설정 |
 
 ## 이번 마감에서 확정한 Ready 계약
 

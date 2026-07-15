@@ -3,6 +3,7 @@
 pub mod delivery;
 pub mod inventory;
 pub mod lifecycle;
+pub mod operations;
 pub mod policies;
 pub mod processing;
 pub mod uploads;
@@ -287,6 +288,8 @@ pub struct LeasedProcessingJob {
     pub attempts: u32,
     /// Worker lease expiration.
     pub lease_until: OffsetDateTime,
+    /// Original durable enqueue time used for queue-age observability.
+    pub enqueued_at: OffsetDateTime,
 }
 
 /// Result of recording one failed processing attempt.

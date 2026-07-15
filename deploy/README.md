@@ -17,6 +17,10 @@
 - 위치·여백·비율·투명도가 제한된 revision 고정 워터마크
 - SQLite WAL 단일 노드 durable queue, lease 복구, backpressure, lifecycle cleanup
 - 전역·tenant retained-source byte quota와 tombstone 완료 후 용량 반환
+- `/v1` token bucket·동시 처리 hard limit과 안정된 `429` backpressure
+- queue depth·oldest age·dead-letter와 worker 단계별 Prometheus 메트릭
+- provider orphan bounded audit/prune, 검증된 SQLite backup·격리 restore rehearsal
+- upload·orphan tombstone 기본 365일 보존과 bounded purge
 - G7 관리자 설정·HMAC policy 동기화, 소유권 적용 제어 API와 programmatic browser uploader
 
 다음 항목은 구현·실환경 검증 전 공식 지원 기능으로 게시하지 않습니다.
@@ -66,6 +70,10 @@ upload를 `deleted`로 tombstone 처리합니다.
 `g7mediabooster-backup.timer`는 매일 network 없이 일관된 SQLite snapshot과 SHA-256 manifest를
 생성하고 기본 14개로 회전합니다. 복원은 [backup·restore runbook](../docs/BACKUP_RESTORE.md)의
 read-only 검증·격리 rehearsal·offline cutover를 모두 따라야 합니다.
+
+API `/metrics`와 worker `127.0.0.1:9091/metrics`는 내부 Prometheus만 scrape합니다. 공개
+reverse proxy에는 연결하지 않으며 metric·초기 alert 기준은 [운영 관측 runbook](../docs/OPERATIONS.md)을
+따릅니다.
 
 worker가 S3/R2에 접근해야 하므로 worker service 자체는 네트워크를 사용합니다. Linux
 `g7mb-sandbox`는 명령 처리 전에 seccomp-BPF를 모든 runtime thread에 설치하고 socket,

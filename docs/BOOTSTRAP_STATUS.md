@@ -1,8 +1,8 @@
 # 부트스트랩 완료 보고서
 
-- 기준일: 2026-07-15
+- 기준일: 2026-07-16
 - 범위: Git, Rust 워크스페이스, 기술 스펙, 개발 헌법, 필수 크레이트와 품질 하네스
-- 결론: 기반 구성 완료. 업로드부터 검증·기본 썸네일 게시까지 worker 수직 경로를 구현했습니다.
+- 결론: 내부 v1 구현 완료. 외부 R2/Lightsail·5GiB와 G7 upstream/browser 승격 게이트만 남았습니다.
 
 ## 완료 항목
 
@@ -14,9 +14,9 @@
 | 스펙·헌법 | PASS | `SPEC.md`, `DEVELOPMENT_CONSTITUTION.md`, ADR·보안·개발 문서 |
 | 기본·전체 feature 빌드 | PASS | `cargo xtask ci` |
 | fmt/clippy/rustdoc | PASS | 경고 0 |
-| 테스트 | PASS | 공통 Rust 85개 + Linux seccomp 1개 통과, 실패 0 |
+| 테스트 | PASS | 공통 Rust 99개 + Linux seccomp 1개 통과, 실패 0 |
 | OpenAPI drift | PASS | 생성 계약과 저장본 일치 |
-| 커버리지 | PASS | 5,791/6,842 lines, 84.64%, 하한 80% |
+| 커버리지 | PASS | 7,321/8,592 lines, 85.21%, 하한 80% |
 | 공급망 | PASS | RustSec 취약점 0, deny advisories/bans/licenses/sources 통과 |
 | API 스모크 | PASS | 실제 프로세스 live/ready, HMAC capabilities, security headers 확인 |
 | S3 호환 스모크 | PASS | pinned MinIO presigned PUT·multipart complete/abort·HEAD·download·derivative PUT·private signed GET |
@@ -31,6 +31,10 @@
 | 런타임 capability | PASS | 필수 image 6 input/4 output, MP4/H.264 poster, OpenH264 폴백 보고와 API startup fail-closed |
 | G7 site policy | PASS | HMAC PUT/GET, Ready asset pin, 단조 revision, job 고정·worker exact revision 적용 |
 | lifecycle 삭제·보존 | PASS | HMAC/G7 소유권 삭제 예약, 만료 multipart abort, derivative/raw 정리, SQLite lease·retry·tombstone |
+| 운영 hardening | PASS | `/v1` rate·동시 처리 제한, O(1) queue/upload/orphan counter, worker 단계별 metrics, 기본 365일 bounded tombstone purge |
+| 저장 용량 quota | PASS | 전역·tenant retained-source byte quota, presign 전 차단, SQLite 원자 재검사, tombstone 후 반환 |
+| orphan inventory | PASS | bounded ListObjectsV2, durable cursor, 48시간 grace, audit 기본, ownership 재검사 prune |
+| SQLite 복구 | PASS | online snapshot, SHA-256 manifest, 14개 회전, read-only 검증, 격리 writable restore rehearsal |
 | 썸네일 manifest cache | PASS | Moka frequency admission/LRU, 기본 4MiB·60초 TTL, same-upload singleflight, mutable 삭제 guard·invalidation, hit/miss·weight metric |
 | 100개 worker 부하 | PASS | 4000×3000 JPEG, 동시성 4, Ready 100·master+thumbnail 200, 14.17 jobs/s, p95 274ms, peak RSS 577,584 KiB, lease 10/10 복구 |
 | 25,000px heavy image | PASS | heavy semaphore 1, native thread 1, 25,000×4,000 JPEG 481ms, peak RSS 43,472 KiB |

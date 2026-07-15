@@ -77,6 +77,7 @@ cargo xtask supply-chain
 - [미디어 수명주기·삭제](docs/LIFECYCLE.md)
 - [Provider orphan inventory](docs/ORPHAN_INVENTORY.md)
 - [SQLite backup·restore](docs/BACKUP_RESTORE.md)
+- [운영 관측·API 보호](docs/OPERATIONS.md)
 - [R2/Lightsail 외부 검증 인계서](docs/EXTERNAL_VALIDATION_20260716.md)
 - [핵심 기술 결정](docs/adr/0001-rust-libvips-ffmpeg.md)
 - [멀티업로드와 단일 서버 queue 결정](docs/adr/0002-multi-upload-single-server-queue.md)

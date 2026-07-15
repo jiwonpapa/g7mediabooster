@@ -16,6 +16,7 @@ use g7mb_application::{
         CleanupCandidate, CleanupReason, DeletionRequestError, DeletionRequestOutcome,
         LifecycleRepository, LifecycleRepositoryError,
     },
+    operations::{OperationalObserver, OperationalSnapshot, OperationalSnapshotError},
     policies::{
         PolicyAssetCandidate, PublishPolicyOutcome, SitePolicyRepository,
         SitePolicyRepositoryError, SitePolicySnapshot, StoredWatermarkPolicy,
@@ -494,6 +495,87 @@ impl InventoryRepository for SqliteStore {
 }
 
 #[async_trait]
+impl OperationalObserver for SqliteStore {
+    async fn operational_snapshot(
+        &self,
+        now: OffsetDateTime,
+    ) -> Result<OperationalSnapshot, OperationalSnapshotError> {
+        let mut transaction = self.pool.begin().await.map_err(operational_backend)?;
+        let counters = sqlx::query(
+            "SELECT queued_jobs, leased_jobs, dead_letter_jobs, processing_uploads,
+                    cleanup_pending_uploads, upload_tombstones, orphan_suspects,
+                    orphan_delete_failures
+             FROM operational_counters WHERE singleton = 1",
+        )
+        .fetch_one(&mut *transaction)
+        .await
+        .map_err(operational_backend)?;
+        let oldest_queued_at = sqlx::query_scalar::<_, Option<i64>>(
+            "SELECT MIN(created_at) FROM jobs WHERE state = 'queued'",
+        )
+        .fetch_one(&mut *transaction)
+        .await
+        .map_err(operational_backend)?;
+        let reserved_source_bytes = sqlx::query_scalar::<_, i64>(
+            "SELECT reserved_bytes FROM storage_usage_global WHERE singleton = 1",
+        )
+        .fetch_one(&mut *transaction)
+        .await
+        .map_err(operational_backend)?;
+        transaction.commit().await.map_err(operational_backend)?;
+
+        let oldest_queued_age_seconds = oldest_queued_at
+            .map(|created_at| now.unix_timestamp().saturating_sub(created_at))
+            .unwrap_or_default()
+            .max(0);
+        Ok(OperationalSnapshot {
+            queued_jobs: operational_u64(
+                counters
+                    .try_get("queued_jobs")
+                    .map_err(operational_backend)?,
+            )?,
+            leased_jobs: operational_u64(
+                counters
+                    .try_get("leased_jobs")
+                    .map_err(operational_backend)?,
+            )?,
+            dead_letter_jobs: operational_u64(
+                counters
+                    .try_get("dead_letter_jobs")
+                    .map_err(operational_backend)?,
+            )?,
+            oldest_queued_age_seconds: operational_u64(oldest_queued_age_seconds)?,
+            processing_uploads: operational_u64(
+                counters
+                    .try_get("processing_uploads")
+                    .map_err(operational_backend)?,
+            )?,
+            cleanup_pending_uploads: operational_u64(
+                counters
+                    .try_get("cleanup_pending_uploads")
+                    .map_err(operational_backend)?,
+            )?,
+            upload_tombstones: operational_u64(
+                counters
+                    .try_get("upload_tombstones")
+                    .map_err(operational_backend)?,
+            )?,
+            orphan_suspects: operational_u64(
+                counters
+                    .try_get("orphan_suspects")
+                    .map_err(operational_backend)?,
+            )?,
+            orphan_delete_failures: operational_u64(
+                counters
+                    .try_get("orphan_delete_failures")
+                    .map_err(operational_backend)?,
+            )?,
+            reserved_source_bytes: operational_u64(reserved_source_bytes)?,
+        })
+    }
+}
+
+#[async_trait]
 impl JobQueue for SqliteStore {
     async fn enqueue(&self, job: ProcessingJob) -> Result<(), JobQueueError> {
         if job.preset_id.is_empty() || job.preset_id.len() > 128 {
@@ -581,7 +663,8 @@ impl JobQueue for SqliteStore {
              SET state = 'leased', attempts = attempts + 1, lease_owner = ?,
                  lease_until = ?, updated_at = ?
              WHERE id = ?
-             RETURNING id, upload_id, preset_id, site_policy_revision, attempts, lease_until",
+             RETURNING id, upload_id, preset_id, site_policy_revision, attempts, lease_until,
+                       created_at",
         )
         .bind(worker_id)
         .bind(lease_until_timestamp)
@@ -625,6 +708,10 @@ impl JobQueue for SqliteStore {
                 .map_err(queue_backend)?,
         )
         .map_err(|_| JobQueueError("stored lease expiration is invalid".to_owned()))?;
+        let enqueued_at = OffsetDateTime::from_unix_timestamp(
+            row.try_get::<i64, _>("created_at").map_err(queue_backend)?,
+        )
+        .map_err(|_| JobQueueError("stored job creation time is invalid".to_owned()))?;
         Ok(Some(LeasedProcessingJob {
             job_id: row.try_get("id").map_err(queue_backend)?,
             job: ProcessingJob {
@@ -641,6 +728,7 @@ impl JobQueue for SqliteStore {
             },
             attempts,
             lease_until,
+            enqueued_at,
         }))
     }
 
@@ -1147,9 +1235,10 @@ impl UploadRepository for SqliteStore {
     ) -> Result<(), UploadRepositoryError> {
         let result = sqlx::query(
             "UPDATE uploads
-             SET state = 'deleted', updated_at = ?
+             SET state = 'deleted', deleted_at = ?, updated_at = ?
              WHERE tenant_id = ? AND id = ? AND state = 'created'",
         )
+        .bind(now.unix_timestamp())
         .bind(now.unix_timestamp())
         .bind(tenant_id)
         .bind(upload_id.to_string())
@@ -1460,6 +1549,73 @@ impl LifecycleRepository for SqliteStore {
             ));
         }
         Ok(())
+    }
+
+    async fn purge_tombstones(
+        &self,
+        deleted_before: OffsetDateTime,
+        limit: usize,
+    ) -> Result<usize, LifecycleRepositoryError> {
+        if limit == 0 || limit > 1000 {
+            return Err(LifecycleRepositoryError(
+                "tombstone purge limit is invalid".to_owned(),
+            ));
+        }
+        let limit_sql = i64::try_from(limit)
+            .map_err(|_| LifecycleRepositoryError("tombstone purge limit overflow".to_owned()))?;
+        let mut transaction = self
+            .pool
+            .begin_with("BEGIN IMMEDIATE")
+            .await
+            .map_err(lifecycle_backend)?;
+        let uploads = sqlx::query(
+            "DELETE FROM uploads
+             WHERE id IN (
+                SELECT id FROM uploads
+                WHERE state = 'deleted' AND deleted_at IS NOT NULL AND deleted_at <= ?
+                  AND NOT EXISTS (
+                    SELECT 1 FROM site_policy_snapshots policy
+                    WHERE policy.watermark_upload_id = uploads.id
+                  )
+                ORDER BY deleted_at, id
+                LIMIT ?
+             )",
+        )
+        .bind(deleted_before.unix_timestamp())
+        .bind(limit_sql)
+        .execute(&mut *transaction)
+        .await
+        .map_err(lifecycle_backend)?
+        .rows_affected();
+        let uploads = usize::try_from(uploads)
+            .map_err(|_| LifecycleRepositoryError("purged upload count overflow".to_owned()))?;
+        let remaining = limit.saturating_sub(uploads);
+        let mut total = uploads;
+        if remaining > 0 {
+            let remaining_sql = i64::try_from(remaining).map_err(|_| {
+                LifecycleRepositoryError("orphan tombstone purge limit overflow".to_owned())
+            })?;
+            let orphans = sqlx::query(
+                "DELETE FROM orphan_objects
+                 WHERE (namespace, object_key) IN (
+                    SELECT namespace, object_key FROM orphan_objects
+                    WHERE state = 'deleted' AND deleted_at IS NOT NULL AND deleted_at <= ?
+                    ORDER BY deleted_at, namespace, object_key
+                    LIMIT ?
+                 )",
+            )
+            .bind(deleted_before.unix_timestamp())
+            .bind(remaining_sql)
+            .execute(&mut *transaction)
+            .await
+            .map_err(lifecycle_backend)?
+            .rows_affected();
+            total = total.saturating_add(usize::try_from(orphans).map_err(|_| {
+                LifecycleRepositoryError("purged orphan count overflow".to_owned())
+            })?);
+        }
+        transaction.commit().await.map_err(lifecycle_backend)?;
+        Ok(total)
     }
 }
 
@@ -1812,6 +1968,15 @@ fn inventory_backend(error: impl std::fmt::Display) -> InventoryRepositoryError 
     InventoryRepositoryError(format!("SQLite backend: {error}"))
 }
 
+fn operational_backend(error: impl std::fmt::Display) -> OperationalSnapshotError {
+    OperationalSnapshotError(format!("SQLite backend: {error}"))
+}
+
+fn operational_u64(value: i64) -> Result<u64, OperationalSnapshotError> {
+    u64::try_from(value)
+        .map_err(|_| OperationalSnapshotError("stored operational counter is invalid".to_owned()))
+}
+
 fn policy_backend(error: impl std::fmt::Display) -> SitePolicyRepositoryError {
     SitePolicyRepositoryError::Backend(format!("SQLite backend: {error}"))
 }
@@ -2142,6 +2307,7 @@ mod tests {
         lifecycle::{
             CleanupReason, DeletionRequestError, DeletionRequestOutcome, LifecycleRepository as _,
         },
+        operations::OperationalObserver as _,
         policies::{
             PublishPolicyOutcome, SitePolicyRepository as _, SitePolicyRepositoryError,
             SitePolicySnapshot, StoredWatermarkPolicy,
@@ -2812,6 +2978,153 @@ mod tests {
             .await?;
         assert_eq!(reappeared.suspected, 1);
         assert!(reappeared.eligible.is_empty());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn operational_snapshot_reports_queue_lifecycle_inventory_and_quota_gauges()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let store = SqliteStore::connect("sqlite::memory:", 1).await?;
+        let created_at = OffsetDateTime::from_unix_timestamp(1_800_000_000)?;
+        let upload_id =
+            insert_lifecycle_upload(&store, "tenant-a", "quarantined", created_at, false).await?;
+        store
+            .enqueue(ProcessingJob {
+                upload_id,
+                preset_id: "source-validation-v1".to_owned(),
+                site_policy_revision: None,
+            })
+            .await?;
+        sqlx::query("UPDATE jobs SET created_at = ? WHERE upload_id = ?")
+            .bind(created_at.unix_timestamp())
+            .bind(upload_id.to_string())
+            .execute(store.pool())
+            .await?;
+        sqlx::query("UPDATE uploads SET delete_requested_at = ? WHERE id = ?")
+            .bind(created_at.unix_timestamp())
+            .bind(upload_id.to_string())
+            .execute(store.pool())
+            .await?;
+        let orphan = InventoryObject {
+            key: ObjectKey::new("raw/site-a/operational-orphan/source".to_owned())?,
+            content_length: 10,
+        };
+        store
+            .reconcile_inventory_page(
+                StorageNamespace::Raw,
+                std::slice::from_ref(&orphan),
+                created_at,
+                created_at - time::Duration::hours(48),
+            )
+            .await?;
+
+        let now = created_at + time::Duration::seconds(10);
+        let queued = store.operational_snapshot(now).await?;
+        assert_eq!(queued.queued_jobs, 1);
+        assert_eq!(queued.oldest_queued_age_seconds, 10);
+        assert_eq!(queued.cleanup_pending_uploads, 1);
+        assert_eq!(queued.orphan_suspects, 1);
+        assert_eq!(queued.reserved_source_bytes, 1024);
+        store
+            .fail_orphan_deletion(
+                StorageNamespace::Raw,
+                &orphan.key,
+                "PROVIDER_DELETE_FAILED",
+                now,
+            )
+            .await?;
+        assert_eq!(
+            store
+                .operational_snapshot(now)
+                .await?
+                .orphan_delete_failures,
+            1
+        );
+
+        let leased = store
+            .claim_next("metrics-worker", now, Duration::from_secs(30))
+            .await?
+            .ok_or("queued job was not leased")?;
+        assert_eq!(leased.enqueued_at, created_at);
+        let leased_snapshot = store.operational_snapshot(now).await?;
+        assert_eq!(leased_snapshot.queued_jobs, 0);
+        assert_eq!(leased_snapshot.leased_jobs, 1);
+        store
+            .fail(
+                &leased.job_id,
+                "metrics-worker",
+                now,
+                now,
+                1,
+                "TEST_FAILURE",
+            )
+            .await?;
+        let dead_letter = store.operational_snapshot(now).await?;
+        assert_eq!(dead_letter.dead_letter_jobs, 1);
+        sqlx::query("UPDATE uploads SET state = 'processing' WHERE id = ?")
+            .bind(upload_id.to_string())
+            .execute(store.pool())
+            .await?;
+        assert_eq!(store.operational_snapshot(now).await?.processing_uploads, 1);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn tombstone_purge_is_retention_aware_and_globally_bounded()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let store = SqliteStore::connect("sqlite::memory:", 1).await?;
+        let old = OffsetDateTime::from_unix_timestamp(1_700_000_000)?;
+        let cutoff = OffsetDateTime::from_unix_timestamp(1_800_000_000)?;
+        let recent = OffsetDateTime::from_unix_timestamp(1_900_000_000)?;
+
+        for deleted_at in [old, old, recent] {
+            let upload_id =
+                insert_lifecycle_upload(&store, "tenant-a", "deleted", deleted_at, false).await?;
+            sqlx::query("UPDATE uploads SET deleted_at = ? WHERE id = ?")
+                .bind(deleted_at.unix_timestamp())
+                .bind(upload_id.to_string())
+                .execute(store.pool())
+                .await?;
+        }
+        for (key, deleted_at) in [("old", old), ("recent", recent)] {
+            sqlx::query(
+                "INSERT INTO orphan_objects
+                    (namespace, object_key, content_length, first_seen_at, last_seen_at,
+                     state, delete_attempts, deleted_at)
+                 VALUES ('raw', ?, 1, ?, ?, 'deleted', 1, ?)",
+            )
+            .bind(format!("raw/tenant-a/{key}/source"))
+            .bind(deleted_at.unix_timestamp())
+            .bind(deleted_at.unix_timestamp())
+            .bind(deleted_at.unix_timestamp())
+            .execute(store.pool())
+            .await?;
+        }
+
+        assert_eq!(
+            store.operational_snapshot(cutoff).await?.upload_tombstones,
+            3
+        );
+        assert_eq!(store.purge_tombstones(cutoff, 2).await?, 2);
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM uploads WHERE state = 'deleted'")
+                .fetch_one(store.pool())
+                .await?,
+            1
+        );
+        assert_eq!(
+            store.operational_snapshot(cutoff).await?.upload_tombstones,
+            1
+        );
+        assert_eq!(store.purge_tombstones(cutoff, 1).await?, 1);
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM orphan_objects")
+                .fetch_one(store.pool())
+                .await?,
+            1
+        );
+        assert_eq!(store.purge_tombstones(cutoff, 10).await?, 0);
+        assert!(store.purge_tombstones(cutoff, 0).await.is_err());
         Ok(())
     }
 

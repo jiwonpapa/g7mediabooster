@@ -1,15 +1,21 @@
 //! HTTP control-plane router and generated OpenAPI contract.
 
 use std::{
-    collections::BTreeMap, fmt, path::Path as FilePath, process::Stdio, sync::Arc, time::Duration,
+    collections::BTreeMap,
+    fmt,
+    path::Path as FilePath,
+    process::Stdio,
+    sync::Arc,
+    time::{Duration, Instant},
 };
 
 use anyhow::{Context as _, bail};
 use axum::{
     Json, Router,
     body::Bytes,
-    extract::{DefaultBodyLimit, OriginalUri, Path, State},
+    extract::{DefaultBodyLimit, OriginalUri, Path, Request, State},
     http::{HeaderMap, HeaderName, HeaderValue, StatusCode, header},
+    middleware::{self, Next},
     response::{IntoResponse as _, Response},
     routing::{delete, get, post},
 };
@@ -17,6 +23,7 @@ use g7mb_application::{
     CompletedPart, NonceStore, NonceStoreError, WatermarkPosition,
     delivery::{DerivativeDeliveryError, DerivativeDeliveryService},
     lifecycle::{DeletionRequestError, DeletionRequestOutcome, LifecycleService},
+    operations::{OperationalObserver, OperationalSnapshot},
     policies::{
         PublishPolicyOutcome, PublishSitePolicy, PublishSitePolicyError, RequestedWatermarkPolicy,
         SitePolicyService, SitePolicySnapshot,
@@ -36,9 +43,11 @@ use g7mb_contracts::{
     UploadStatusValue,
 };
 use g7mb_domain::{MediaKind, UploadId, UploadTransfer};
+use metrics::{counter, gauge, histogram};
 use metrics_exporter_prometheus::PrometheusHandle;
 use secrecy::{ExposeSecret as _, SecretString};
 use time::OffsetDateTime;
+use tokio::sync::{Mutex, Semaphore};
 use tower_http::{
     catch_panic::CatchPanicLayer,
     request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer},
@@ -62,12 +71,14 @@ pub struct ApiState {
     capabilities: Option<CapabilitiesResponse>,
     lifecycle_service: Option<LifecycleService>,
     delivery_service: Option<DerivativeDeliveryService>,
+    rate_limiter: ApiRateLimiter,
+    operational_observer: Option<Arc<dyn OperationalObserver>>,
 }
 
 impl ApiState {
     /// Creates router state after dependency startup checks.
     #[must_use]
-    pub const fn new(ready: bool, metrics: Option<PrometheusHandle>) -> Self {
+    pub fn new(ready: bool, metrics: Option<PrometheusHandle>) -> Self {
         Self {
             ready,
             metrics,
@@ -78,7 +89,18 @@ impl ApiState {
             capabilities: None,
             lifecycle_service: None,
             delivery_service: None,
+            rate_limiter: ApiRateLimiter::new(ApiRateLimitPolicy::default()),
+            operational_observer: None,
         }
+    }
+
+    /// Replaces secure rate defaults with validated operator-owned bounds.
+    pub fn with_rate_limit_policy(mut self, policy: ApiRateLimitPolicy) -> anyhow::Result<Self> {
+        if !policy.is_valid() {
+            bail!("API rate limit policy is invalid");
+        }
+        self.rate_limiter = ApiRateLimiter::new(policy);
+        Ok(self)
     }
 
     /// Adds authenticated upload control dependencies after startup validation.
@@ -122,6 +144,13 @@ impl ApiState {
         self.delivery_service = Some(delivery_service);
         self
     }
+
+    /// Adds scrape-time durable queue, lifecycle, inventory, and quota gauges.
+    #[must_use]
+    pub fn with_operational_observer(mut self, observer: Arc<dyn OperationalObserver>) -> Self {
+        self.operational_observer = Some(observer);
+        self
+    }
 }
 
 impl fmt::Debug for ApiState {
@@ -137,7 +166,105 @@ impl fmt::Debug for ApiState {
             .field("capabilities", &self.capabilities.is_some())
             .field("lifecycle_service", &self.lifecycle_service.is_some())
             .field("delivery_service", &self.delivery_service.is_some())
+            .field("rate_limit_policy", &self.rate_limiter.policy)
+            .field("operational_observer", &self.operational_observer.is_some())
             .finish()
+    }
+}
+
+/// Bounded token-bucket and concurrent-handler policy for `/v1` control requests.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ApiRateLimitPolicy {
+    /// Sustained requests replenished per second.
+    pub requests_per_second: u32,
+    /// Short token-bucket burst capacity.
+    pub burst: u32,
+    /// Maximum protected handlers simultaneously in flight.
+    pub max_in_flight: usize,
+}
+
+impl Default for ApiRateLimitPolicy {
+    fn default() -> Self {
+        Self {
+            requests_per_second: 50,
+            burst: 100,
+            max_in_flight: 64,
+        }
+    }
+}
+
+impl ApiRateLimitPolicy {
+    const fn is_valid(self) -> bool {
+        self.requests_per_second > 0
+            && self.requests_per_second <= 10_000
+            && self.burst >= self.requests_per_second
+            && self.burst <= 100_000
+            && self.max_in_flight > 0
+            && self.max_in_flight <= 1024
+    }
+}
+
+#[derive(Clone)]
+struct ApiRateLimiter {
+    policy: ApiRateLimitPolicy,
+    bucket: Arc<Mutex<TokenBucket>>,
+    in_flight: Arc<Semaphore>,
+}
+
+impl ApiRateLimiter {
+    fn new(policy: ApiRateLimitPolicy) -> Self {
+        debug_assert!(policy.is_valid());
+        Self {
+            policy,
+            bucket: Arc::new(Mutex::new(TokenBucket {
+                tokens: u64::from(policy.burst),
+                refilled_at: Instant::now(),
+            })),
+            in_flight: Arc::new(Semaphore::new(policy.max_in_flight)),
+        }
+    }
+
+    async fn admit_token(&self) -> bool {
+        let mut bucket = self.bucket.lock().await;
+        let now = Instant::now();
+        let refill = bucket
+            .refilled_at
+            .elapsed()
+            .as_nanos()
+            .saturating_mul(u128::from(self.policy.requests_per_second))
+            / 1_000_000_000_u128;
+        if refill > 0 {
+            bucket.tokens = bucket
+                .tokens
+                .saturating_add(u64::try_from(refill).unwrap_or(u64::MAX))
+                .min(u64::from(self.policy.burst));
+            bucket.refilled_at = now;
+        }
+        if bucket.tokens == 0 {
+            return false;
+        }
+        bucket.tokens -= 1;
+        true
+    }
+}
+
+struct TokenBucket {
+    tokens: u64,
+    refilled_at: Instant,
+}
+
+struct ApiInFlightMetric;
+
+impl ApiInFlightMetric {
+    fn new() -> Self {
+        gauge!("g7mb_api_in_flight_requests").increment(1.0);
+        Self
+    }
+}
+
+impl Drop for ApiInFlightMetric {
+    fn drop(&mut self) {
+        gauge!("g7mb_api_in_flight_requests").decrement(1.0);
     }
 }
 
@@ -171,6 +298,7 @@ impl ApiAuth {
 /// Builds the complete HTTP router with conservative API security headers.
 pub fn router(state: ApiState, body_limit_bytes: usize) -> Router {
     let request_id = HeaderName::from_static("x-request-id");
+    let rate_limiter = state.rate_limiter.clone();
     Router::new()
         .route("/health/live", get(liveness))
         .route("/health/ready", get(readiness))
@@ -206,6 +334,10 @@ pub fn router(state: ApiState, body_limit_bytes: usize) -> Router {
             get(get_derivative_delivery),
         )
         .with_state(state)
+        .layer(middleware::from_fn_with_state(
+            rate_limiter,
+            enforce_api_limits,
+        ))
         .layer(DefaultBodyLimit::max(body_limit_bytes))
         .layer(SetResponseHeaderLayer::if_not_present(
             header::CONTENT_SECURITY_POLICY,
@@ -227,6 +359,68 @@ pub fn router(state: ApiState, body_limit_bytes: usize) -> Router {
         ))
         .layer(CatchPanicLayer::new())
         .layer(TraceLayer::new_for_http())
+}
+
+async fn enforce_api_limits(
+    State(limiter): State<ApiRateLimiter>,
+    request: Request,
+    next: Next,
+) -> Response {
+    if !request.uri().path().starts_with("/v1/") {
+        return next.run(request).await;
+    }
+    if !limiter.admit_token().await {
+        counter!("g7mb_api_admission_rejections_total", "reason" => "rate").increment(1);
+        return admission_rejected(
+            "API_RATE_LIMIT_EXCEEDED",
+            "Control request rate is exhausted. Retry later.",
+        );
+    }
+    let Ok(permit) = limiter.in_flight.clone().try_acquire_owned() else {
+        counter!("g7mb_api_admission_rejections_total", "reason" => "concurrency").increment(1);
+        return admission_rejected(
+            "API_CONCURRENCY_EXHAUSTED",
+            "Too many control requests are in flight. Retry later.",
+        );
+    };
+    let _in_flight_metric = ApiInFlightMetric::new();
+    let started = Instant::now();
+    let response = next.run(request).await;
+    drop(permit);
+    histogram!(
+        "g7mb_api_request_duration_seconds",
+        "status_class" => status_class(response.status())
+    )
+    .record(started.elapsed().as_secs_f64());
+    response
+}
+
+fn admission_rejected(code: &'static str, message: &'static str) -> Response {
+    let mut response = (
+        StatusCode::TOO_MANY_REQUESTS,
+        Json(ErrorResponse {
+            code: code.to_owned(),
+            message: message.to_owned(),
+            request_id: uuid::Uuid::now_v7().to_string(),
+        }),
+    )
+        .into_response();
+    response
+        .headers_mut()
+        .insert(header::RETRY_AFTER, HeaderValue::from_static("1"));
+    response
+}
+
+fn status_class(status: StatusCode) -> &'static str {
+    if status.is_success() {
+        "2xx"
+    } else if status.is_client_error() {
+        "4xx"
+    } else if status.is_server_error() {
+        "5xx"
+    } else {
+        "other"
+    }
 }
 
 /// Returns the generated OpenAPI document.
@@ -277,10 +471,38 @@ async fn readiness(State(state): State<ApiState>) -> (StatusCode, Json<HealthRes
     responses((status = 200, description = "Prometheus text exposition"))
 )]
 async fn metrics(State(state): State<ApiState>) -> (StatusCode, String) {
-    match state.metrics {
-        Some(handle) => (StatusCode::OK, handle.render()),
-        None => (StatusCode::SERVICE_UNAVAILABLE, String::new()),
+    let Some(handle) = state.metrics else {
+        return (StatusCode::SERVICE_UNAVAILABLE, String::new());
+    };
+    if let Some(observer) = state.operational_observer {
+        match observer
+            .operational_snapshot(OffsetDateTime::now_utc())
+            .await
+        {
+            Ok(snapshot) => {
+                record_operational_snapshot(snapshot);
+                counter!("g7mb_operational_snapshot_total", "result" => "success").increment(1);
+            }
+            Err(_) => {
+                counter!("g7mb_operational_snapshot_total", "result" => "error").increment(1);
+                return (StatusCode::SERVICE_UNAVAILABLE, handle.render());
+            }
+        }
     }
+    (StatusCode::OK, handle.render())
+}
+
+fn record_operational_snapshot(snapshot: OperationalSnapshot) {
+    gauge!("g7mb_queue_jobs", "state" => "queued").set(snapshot.queued_jobs as f64);
+    gauge!("g7mb_queue_jobs", "state" => "leased").set(snapshot.leased_jobs as f64);
+    gauge!("g7mb_queue_jobs", "state" => "dead_letter").set(snapshot.dead_letter_jobs as f64);
+    gauge!("g7mb_queue_oldest_queued_age_seconds").set(snapshot.oldest_queued_age_seconds as f64);
+    gauge!("g7mb_processing_uploads").set(snapshot.processing_uploads as f64);
+    gauge!("g7mb_cleanup_pending_uploads").set(snapshot.cleanup_pending_uploads as f64);
+    gauge!("g7mb_upload_tombstones").set(snapshot.upload_tombstones as f64);
+    gauge!("g7mb_orphan_objects", "state" => "suspected").set(snapshot.orphan_suspects as f64);
+    gauge!("g7mb_orphan_delete_failures").set(snapshot.orphan_delete_failures as f64);
+    gauge!("g7mb_reserved_source_bytes").set(snapshot.reserved_source_bytes as f64);
 }
 
 #[utoipa::path(
@@ -1316,6 +1538,7 @@ mod tests {
             Arc,
             atomic::{AtomicU64, Ordering},
         },
+        time::Instant,
     };
 
     use async_trait::async_trait;
@@ -1345,12 +1568,85 @@ mod tests {
     use time::OffsetDateTime;
     use tower::ServiceExt as _;
 
-    use super::{ApiAuth, ApiState, router};
+    use super::{ApiAuth, ApiRateLimitPolicy, ApiState, router};
 
     #[derive(Default)]
     struct ApiFakeStore {
         head_length: AtomicU64,
         puts: AtomicU64,
+    }
+
+    #[tokio::test]
+    async fn v1_admission_returns_stable_429_without_throttling_health()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let state = ApiState::new(false, None).with_rate_limit_policy(ApiRateLimitPolicy {
+            requests_per_second: 1,
+            burst: 2,
+            max_in_flight: 1,
+        })?;
+        let limiter = state.rate_limiter.clone();
+        let app = router(state, 1024);
+        for _ in 0..2 {
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .uri("/v1/capabilities")
+                        .body(Body::empty())?,
+                )
+                .await?;
+            assert_ne!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+        }
+        {
+            let mut bucket = limiter.bucket.lock().await;
+            bucket.tokens = 0;
+            bucket.refilled_at = Instant::now();
+        }
+        let limited = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/capabilities")
+                    .body(Body::empty())?,
+            )
+            .await?;
+        assert_eq!(limited.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(
+            limited
+                .headers()
+                .get(header::RETRY_AFTER)
+                .and_then(|value| value.to_str().ok()),
+            Some("1")
+        );
+        let body = limited.into_body().collect().await?.to_bytes();
+        let error = serde_json::from_slice::<g7mb_contracts::ErrorResponse>(&body)?;
+        assert_eq!(error.code, "API_RATE_LIMIT_EXCEEDED");
+
+        {
+            let mut bucket = limiter.bucket.lock().await;
+            bucket.tokens = 1;
+            bucket.refilled_at = Instant::now();
+        }
+        let held = limiter.in_flight.clone().acquire_owned().await?;
+        let concurrency_limited = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/capabilities")
+                    .body(Body::empty())?,
+            )
+            .await?;
+        drop(held);
+        assert_eq!(concurrency_limited.status(), StatusCode::TOO_MANY_REQUESTS);
+        let body = concurrency_limited.into_body().collect().await?.to_bytes();
+        let error = serde_json::from_slice::<g7mb_contracts::ErrorResponse>(&body)?;
+        assert_eq!(error.code, "API_CONCURRENCY_EXHAUSTED");
+
+        let health = app
+            .oneshot(Request::builder().uri("/health/live").body(Body::empty())?)
+            .await?;
+        assert_eq!(health.status(), StatusCode::OK);
+        Ok(())
     }
 
     #[async_trait]

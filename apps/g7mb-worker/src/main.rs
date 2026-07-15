@@ -515,6 +515,8 @@ fn lifecycle_policy(settings: &Settings) -> LifecyclePolicy {
         retry_delay: Duration::from_secs(settings.lifecycle.cleanup_retry_seconds),
         batch_size: settings.lifecycle.cleanup_batch_size,
         max_attempts: settings.lifecycle.cleanup_max_attempts,
+        tombstone_retention: Duration::from_secs(settings.lifecycle.tombstone_retention_seconds),
+        tombstone_purge_batch_size: settings.lifecycle.tombstone_purge_batch_size,
     }
 }
 
@@ -534,6 +536,8 @@ async fn run(path: &std::path::Path, worker_id: &str) -> anyhow::Result<()> {
         bail!("worker_id must contain 1..=112 characters");
     }
     let settings = Settings::load(Some(path)).context("failed to load configuration")?;
+    g7mb_telemetry::install_metrics_http(settings.worker.metrics_bind_addr)
+        .context("failed to start worker metrics listener")?;
     let worker = build_worker(&settings).await?;
     let (shutdown_tx, shutdown_rx) = watch::channel(false);
     let mut slots = JoinSet::new();

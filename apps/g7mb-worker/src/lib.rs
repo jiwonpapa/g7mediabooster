@@ -1,6 +1,11 @@
 //! Bounded durable source-validation worker orchestration.
 
-use std::{path::PathBuf, process::Stdio, sync::Arc, time::Duration};
+use std::{
+    path::PathBuf,
+    process::Stdio,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use async_trait::async_trait;
 use g7mb_application::{
@@ -11,6 +16,7 @@ use g7mb_application::{
 };
 use g7mb_domain::{ImageWorkClass, MediaKind, ObjectKey, UploadState};
 use g7mb_media::{MediaFormat, MediaInspection, detect_file};
+use metrics::{counter, gauge, histogram};
 use sha2::{Digest as _, Sha256};
 use thiserror::Error;
 use time::OffsetDateTime;
@@ -474,6 +480,55 @@ struct ResourceGates {
     videos: Arc<Semaphore>,
 }
 
+struct ActiveJobMetric;
+
+impl ActiveJobMetric {
+    fn new() -> Self {
+        gauge!("g7mb_worker_active_jobs").increment(1.0);
+        Self
+    }
+}
+
+impl Drop for ActiveJobMetric {
+    fn drop(&mut self) {
+        gauge!("g7mb_worker_active_jobs").decrement(1.0);
+    }
+}
+
+struct WorkerStageMetric {
+    stage: &'static str,
+    started: Instant,
+}
+
+impl WorkerStageMetric {
+    fn new(stage: &'static str) -> Self {
+        Self {
+            stage,
+            started: Instant::now(),
+        }
+    }
+}
+
+impl Drop for WorkerStageMetric {
+    fn drop(&mut self) {
+        histogram!("g7mb_worker_stage_duration_seconds", "stage" => self.stage)
+            .record(self.started.elapsed().as_secs_f64());
+    }
+}
+
+fn observe_worker_outcome(outcome: RunOutcome, elapsed: Duration) {
+    let outcome = match outcome {
+        RunOutcome::Idle => "idle",
+        RunOutcome::Completed => "completed",
+        RunOutcome::Rejected => "rejected",
+        RunOutcome::RetryScheduled => "retry_scheduled",
+        RunOutcome::DeadLetter => "dead_letter",
+    };
+    counter!("g7mb_worker_jobs_total", "outcome" => outcome).increment(1);
+    histogram!("g7mb_worker_job_duration_seconds", "outcome" => outcome)
+        .record(elapsed.as_secs_f64());
+}
+
 impl SourceValidationWorker {
     /// Creates a worker after validating all resource limits.
     pub fn new(
@@ -504,14 +559,29 @@ impl SourceValidationWorker {
 
     /// Claims and processes at most one source-validation job.
     pub async fn run_one(&self, worker_id: &str) -> Result<RunOutcome, WorkerError> {
-        let leased = self
+        let leased = match self
             .queue
             .claim_next(worker_id, OffsetDateTime::now_utc(), self.policy.lease_for)
             .await
-            .map_err(WorkerError::queue)?;
+        {
+            Ok(leased) => leased,
+            Err(error) => {
+                counter!("g7mb_worker_claims_total", "result" => "error").increment(1);
+                return Err(WorkerError::queue(error));
+            }
+        };
         let Some(leased) = leased else {
+            counter!("g7mb_worker_claims_total", "result" => "idle").increment(1);
             return Ok(RunOutcome::Idle);
         };
+        counter!("g7mb_worker_claims_total", "result" => "leased").increment(1);
+        histogram!("g7mb_worker_job_attempts").record(f64::from(leased.attempts));
+        let queue_age = (OffsetDateTime::now_utc() - leased.enqueued_at)
+            .as_seconds_f64()
+            .max(0.0);
+        histogram!("g7mb_worker_job_age_at_claim_seconds").record(queue_age);
+        let _active_job = ActiveJobMetric::new();
+        let job_started = Instant::now();
         if leased.job.preset_id != SOURCE_VALIDATION_PRESET {
             let disposition = self
                 .queue
@@ -525,7 +595,9 @@ impl SourceValidationWorker {
                 )
                 .await
                 .map_err(WorkerError::queue)?;
-            return Ok(disposition.into());
+            let outcome = disposition.into();
+            observe_worker_outcome(outcome, job_started.elapsed());
+            return Ok(outcome);
         }
 
         let process = self.validate_source(leased.job.upload_id, leased.job.site_policy_revision);
@@ -550,7 +622,7 @@ impl SourceValidationWorker {
             }
         };
 
-        match result {
+        let outcome = match result {
             Ok(()) => {
                 self.queue
                     .complete(&leased.job_id, worker_id, OffsetDateTime::now_utc())
@@ -559,6 +631,12 @@ impl SourceValidationWorker {
                 Ok(RunOutcome::Completed)
             }
             Err(ProcessingFailure::Permanent(code)) => {
+                counter!(
+                    "g7mb_worker_processing_failures_total",
+                    "class" => "permanent",
+                    "code" => code
+                )
+                .increment(1);
                 self.repository
                     .mark_rejected(leased.job.upload_id, code, OffsetDateTime::now_utc())
                     .await
@@ -570,6 +648,12 @@ impl SourceValidationWorker {
                 Ok(RunOutcome::Rejected)
             }
             Err(ProcessingFailure::Transient(code)) => {
+                counter!(
+                    "g7mb_worker_processing_failures_total",
+                    "class" => "transient",
+                    "code" => code
+                )
+                .increment(1);
                 if leased.attempts >= self.policy.max_attempts {
                     self.repository
                         .mark_rejected(leased.job.upload_id, code, OffsetDateTime::now_utc())
@@ -592,7 +676,30 @@ impl SourceValidationWorker {
                     .map_err(WorkerError::queue)?;
                 Ok(disposition.into())
             }
-            Err(ProcessingFailure::Operational(code)) => Err(WorkerError::Operational(code)),
+            Err(ProcessingFailure::Operational(code)) => {
+                counter!(
+                    "g7mb_worker_processing_failures_total",
+                    "class" => "operational",
+                    "code" => code
+                )
+                .increment(1);
+                Err(WorkerError::Operational(code))
+            }
+        };
+        match outcome {
+            Ok(value) => {
+                observe_worker_outcome(value, job_started.elapsed());
+                Ok(value)
+            }
+            Err(error) => {
+                counter!("g7mb_worker_jobs_total", "outcome" => "error").increment(1);
+                histogram!(
+                    "g7mb_worker_job_duration_seconds",
+                    "outcome" => "error"
+                )
+                .record(job_started.elapsed().as_secs_f64());
+                Err(error)
+            }
         }
     }
 
@@ -637,15 +744,19 @@ impl SourceValidationWorker {
             MediaKind::Image => self.policy.max_image_bytes,
             MediaKind::Video => self.policy.max_video_bytes,
         };
-        self.raw_store
-            .download_to(DownloadObjectRequest {
-                key: source.object_key.clone(),
-                destination: local_source.clone(),
-                expected_length: source.expected_size_bytes,
-                max_length,
-            })
-            .await
-            .map_err(classify_storage_error)?;
+        {
+            let _metric = WorkerStageMetric::new("download");
+            self.raw_store
+                .download_to(DownloadObjectRequest {
+                    key: source.object_key.clone(),
+                    destination: local_source.clone(),
+                    expected_length: source.expected_size_bytes,
+                    max_length,
+                })
+                .await
+                .map_err(classify_storage_error)?;
+        }
+        let _inspection_metric = WorkerStageMetric::new("inspect");
         detect_file(&local_source, source.declared_kind)
             .await
             .map_err(|_| ProcessingFailure::Permanent("MEDIA_SIGNATURE_REJECTED"))?;
@@ -661,6 +772,7 @@ impl SourceValidationWorker {
             )
             .await
             .map_err(classify_sandbox_error)?;
+        drop(_inspection_metric);
         let detected_content_type = match &inspection {
             MediaInspection::Image { content_type, .. }
             | MediaInspection::Video { content_type, .. } => content_type.clone(),
@@ -693,10 +805,13 @@ impl SourceValidationWorker {
         match &inspection {
             MediaInspection::Image { .. } => {
                 let master = directory.path().join("master.jpg");
-                self.sandbox
-                    .image_master(&local_source, &master, watermark.as_ref())
-                    .await
-                    .map_err(classify_sandbox_error)?;
+                {
+                    let _metric = WorkerStageMetric::new("transform");
+                    self.sandbox
+                        .image_master(&local_source, &master, watermark.as_ref())
+                        .await
+                        .map_err(classify_sandbox_error)?;
+                }
                 let master_key = ObjectKey::new(format!(
                     "media/{}/{}/{}/{}/master.jpg",
                     source.tenant_id, source.upload_id, digest, preset_id
@@ -721,15 +836,17 @@ impl SourceValidationWorker {
                     source.tenant_id, source.upload_id, digest, preset_id
                 ))
                 .map_err(|_| ProcessingFailure::Transient("DERIVATIVE_KEY_INVALID"))?;
-                let stored = self
-                    .derivative_store
-                    .put_file(PutFileRequest {
-                        key: master_key.clone(),
-                        source: local_source.clone(),
-                        content_type: detected_content_type.clone(),
-                    })
-                    .await
-                    .map_err(classify_storage_error)?;
+                let stored = {
+                    let _metric = WorkerStageMetric::new("upload");
+                    self.derivative_store
+                        .put_file(PutFileRequest {
+                            key: master_key.clone(),
+                            source: local_source.clone(),
+                            content_type: detected_content_type.clone(),
+                        })
+                        .await
+                        .map_err(classify_storage_error)?
+                };
                 if stored.content_length != source.expected_size_bytes {
                     return Err(ProcessingFailure::Transient("DERIVATIVE_LENGTH_MISMATCH"));
                 }
@@ -745,10 +862,13 @@ impl SourceValidationWorker {
         }
 
         let thumbnail = directory.path().join("thumbnail.jpg");
-        self.sandbox
-            .thumbnail(&local_source, &inspection, &thumbnail, watermark.as_ref())
-            .await
-            .map_err(classify_sandbox_error)?;
+        {
+            let _metric = WorkerStageMetric::new("transform");
+            self.sandbox
+                .thumbnail(&local_source, &inspection, &thumbnail, watermark.as_ref())
+                .await
+                .map_err(classify_sandbox_error)?;
+        }
         let thumbnail_key = ObjectKey::new(format!(
             "media/{}/{}/{}/{}/thumbnail.jpg",
             source.tenant_id, source.upload_id, digest, preset_id
@@ -764,6 +884,7 @@ impl SourceValidationWorker {
             )
             .await?,
         );
+        let _metric = WorkerStageMetric::new("commit");
         self.repository
             .publish_derivatives(source.upload_id, &derivatives, OffsetDateTime::now_utc())
             .await
@@ -785,15 +906,17 @@ impl SourceValidationWorker {
             .await
             .map_err(|_| ProcessingFailure::Transient("TEMP_STORAGE_UNAVAILABLE"))?
             .len();
-        let stored = self
-            .derivative_store
-            .put_file(PutFileRequest {
-                key: object_key.clone(),
-                source,
-                content_type: content_type.to_owned(),
-            })
-            .await
-            .map_err(classify_storage_error)?;
+        let stored = {
+            let _metric = WorkerStageMetric::new("upload");
+            self.derivative_store
+                .put_file(PutFileRequest {
+                    key: object_key.clone(),
+                    source,
+                    content_type: content_type.to_owned(),
+                })
+                .await
+                .map_err(classify_storage_error)?
+        };
         if stored.content_length != byte_len {
             return Err(ProcessingFailure::Transient("DERIVATIVE_LENGTH_MISMATCH"));
         }
@@ -813,17 +936,23 @@ impl SourceValidationWorker {
     ) -> Result<Option<OwnedSemaphorePermit>, ProcessingFailure> {
         let gate = match inspection {
             MediaInspection::Image { probe, .. } if probe.work_class() == ImageWorkClass::Heavy => {
-                Some(self.resource_gates.heavy_images.clone())
+                Some(("heavy_image", self.resource_gates.heavy_images.clone()))
             }
-            MediaInspection::Video { .. } => Some(self.resource_gates.videos.clone()),
+            MediaInspection::Video { .. } => Some(("video", self.resource_gates.videos.clone())),
             MediaInspection::Image { .. } => None,
         };
         match gate {
-            Some(gate) => gate
-                .acquire_owned()
-                .await
-                .map(Some)
-                .map_err(|_| ProcessingFailure::Operational("RESOURCE_GATE_CLOSED")),
+            Some((lane, gate)) => {
+                let started = Instant::now();
+                let permit = gate
+                    .acquire_owned()
+                    .await
+                    .map(Some)
+                    .map_err(|_| ProcessingFailure::Operational("RESOURCE_GATE_CLOSED"));
+                histogram!("g7mb_worker_resource_wait_seconds", "lane" => lane)
+                    .record(started.elapsed().as_secs_f64());
+                permit
+            }
             None => Ok(None),
         }
     }

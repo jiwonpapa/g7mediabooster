@@ -1,5 +1,7 @@
 //! Structured logging and Prometheus recorder setup.
 
+use std::net::SocketAddr;
+
 use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
 use thiserror::Error;
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt as _, util::SubscriberInitExt as _};
@@ -36,5 +38,18 @@ pub fn init_tracing() -> Result<(), TelemetryError> {
 pub fn install_metrics() -> Result<PrometheusHandle, TelemetryError> {
     PrometheusBuilder::new()
         .install_recorder()
+        .map_err(|error| TelemetryError::Metrics(error.to_string()))
+}
+
+/// Installs a loopback HTTP Prometheus exporter for a long-running worker process.
+pub fn install_metrics_http(bind_addr: SocketAddr) -> Result<(), TelemetryError> {
+    if !bind_addr.ip().is_loopback() {
+        return Err(TelemetryError::Metrics(
+            "worker metrics listener must be loopback-only".to_owned(),
+        ));
+    }
+    PrometheusBuilder::new()
+        .with_http_listener(bind_addr)
+        .install()
         .map_err(|error| TelemetryError::Metrics(error.to_string()))
 }

@@ -4,7 +4,7 @@ use std::{path::PathBuf, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use clap::Parser;
-use g7mb_api::{ApiAuth, ApiState, probe_sandbox_capabilities, router};
+use g7mb_api::{ApiAuth, ApiRateLimitPolicy, ApiState, probe_sandbox_capabilities, router};
 use g7mb_application::{
     delivery::{DerivativeDeliveryPolicy, DerivativeDeliveryService},
     lifecycle::{LifecyclePolicy, LifecycleService},
@@ -89,6 +89,10 @@ async fn main() -> anyhow::Result<()> {
             retry_delay: Duration::from_secs(settings.lifecycle.cleanup_retry_seconds),
             batch_size: settings.lifecycle.cleanup_batch_size,
             max_attempts: settings.lifecycle.cleanup_max_attempts,
+            tombstone_retention: Duration::from_secs(
+                settings.lifecycle.tombstone_retention_seconds,
+            ),
+            tombstone_purge_batch_size: settings.lifecycle.tombstone_purge_batch_size,
         },
     )
     .context("failed to initialize lifecycle service")?;
@@ -119,6 +123,13 @@ async fn main() -> anyhow::Result<()> {
         listener,
         router(
             ApiState::new(true, Some(metrics))
+                .with_rate_limit_policy(ApiRateLimitPolicy {
+                    requests_per_second: settings.server.rate_limit_requests_per_second,
+                    burst: settings.server.rate_limit_burst,
+                    max_in_flight: settings.server.max_in_flight_requests,
+                })
+                .context("failed to initialize API rate limits")?
+                .with_operational_observer(database.clone())
                 .with_capabilities(capabilities)
                 .with_derivative_delivery(delivery_service)
                 .with_lifecycle(lifecycle_service)

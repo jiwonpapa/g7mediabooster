@@ -41,7 +41,7 @@ http-body-util = "0.1.4"
 libvips = "2.3.0"
 libc = "0.2.186"
 metrics = "0.24.6"
-metrics-exporter-prometheus = { version = "0.18.3", default-features = false }
+metrics-exporter-prometheus = { version = "0.18.3", default-features = false, features = ["http-listener"] }
 moka = { version = "0.12.15", default-features = false, features = ["future"] }
 mp4 = "0.14.0"
 openh264 = "0.9.7"

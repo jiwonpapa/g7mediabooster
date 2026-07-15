@@ -121,6 +121,16 @@ pub trait LifecycleRepository: Send + Sync {
         retry_at: OffsetDateTime,
         error_code: &str,
     ) -> Result<(), LifecycleRepositoryError>;
+
+    /// Purges a bounded batch of old upload and orphan audit tombstones.
+    async fn purge_tombstones(
+        &self,
+        deleted_before: OffsetDateTime,
+        limit: usize,
+    ) -> Result<usize, LifecycleRepositoryError> {
+        let _ = (deleted_before, limit);
+        Ok(0)
+    }
 }
 
 /// Hard cleanup limits owned by the Rust deployment rather than G5/G7 settings.
@@ -138,6 +148,10 @@ pub struct LifecyclePolicy {
     pub batch_size: usize,
     /// Maximum durable attempts before operator intervention is required.
     pub max_attempts: u32,
+    /// Audit tombstone retention before bounded physical row removal.
+    pub tombstone_retention: Duration,
+    /// Maximum old tombstones physically removed per maintenance run.
+    pub tombstone_purge_batch_size: usize,
 }
 
 impl Default for LifecyclePolicy {
@@ -149,6 +163,8 @@ impl Default for LifecyclePolicy {
             retry_delay: Duration::from_secs(60),
             batch_size: 100,
             max_attempts: 10,
+            tombstone_retention: Duration::from_secs(365 * 24 * 60 * 60),
+            tombstone_purge_batch_size: 100,
         }
     }
 }
@@ -165,6 +181,9 @@ impl LifecyclePolicy {
             && self.retry_delay <= Duration::from_secs(24 * 60 * 60)
             && (1..=100).contains(&self.batch_size)
             && (1..=100).contains(&self.max_attempts)
+            && self.tombstone_retention >= Duration::from_secs(30 * 24 * 60 * 60)
+            && self.tombstone_retention <= Duration::from_secs(10 * 365 * 24 * 60 * 60)
+            && (1..=1000).contains(&self.tombstone_purge_batch_size)
     }
 }
 
@@ -179,6 +198,8 @@ pub struct LifecycleRunSummary {
     pub failed: usize,
     /// Failures that reached the configured attempt ceiling.
     pub dead_lettered: usize,
+    /// Old audit tombstones physically purged after retention.
+    pub tombstones_purged: usize,
 }
 
 /// Single-node lifecycle orchestrator using idempotent object operations and durable leases.
@@ -300,6 +321,15 @@ impl LifecycleService {
                 }
             }
         }
+        let tombstone_retention = time::Duration::try_from(self.policy.tombstone_retention)
+            .map_err(|_| LifecycleRunError::InvalidDuration)?;
+        summary.tombstones_purged = self
+            .repository
+            .purge_tombstones(
+                OffsetDateTime::now_utc() - tombstone_retention,
+                self.policy.tombstone_purge_batch_size,
+            )
+            .await?;
         Ok(summary)
     }
 

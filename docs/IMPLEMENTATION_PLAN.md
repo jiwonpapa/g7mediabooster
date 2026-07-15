@@ -1,7 +1,7 @@
 # 요구사항 1~17 구현 계획
 
-- 상태: In Progress
-- 기준일: 2026-07-15
+- 상태: Internal implementation complete; external validation pending
+- 기준일: 2026-07-16
 - 대상: G7MediaBooster v0.3 이후
 - 원칙: 이 문서는 구현 순서와 인수 조건이며 기능 완료를 뜻하지 않습니다.
 
@@ -73,7 +73,8 @@ G7 모듈은 세션·게시판 권한·첨부 연결의 진실 원천이고, Rus
   soft-delete 보존 대조 구현; upstream merge·브라우저·전용 asset picker smoke 대기
 - 단계 D 멀티업로드 큐·자원 통제: lease/heartbeat, 100 JPEG RSS·crash 복구,
   25,000px heavy semaphore, tenant fair queue·active capacity·Linux cgroup 부하 통과
-- 단계 E 운영 완성: lifecycle 삭제·보존 cleanup 구현, quota·관측·백업 등 후속 대기
+- 단계 E 운영 완성: lifecycle, quota, orphan inventory, backup·restore, API admission,
+  queue·worker 관측, 장기 tombstone 보존 구현 완료
 
 현재 코드 증거:
 
@@ -271,12 +272,12 @@ lifecycle worker로 구현했습니다.
   명시적 prune과 삭제 직전 ownership 재검사
 - 완료: online SQLite snapshot, SHA-256 manifest, bounded retention, read-only 검증,
   writable rollback을 포함한 격리 restore rehearsal
-- 남음: rate limit, tombstone 장기 보존 정책
-- digest 중복 제거는 tenant 내부에서만 수행해 파일 존재 여부 oracle 방지
-- private media signed delivery, CDN purge, cache stampede 방지
-- queue wait/decode/transform/upload p95, RSS, CPU, temp disk, reject code 관측
-- 백업·복원, key rotation, policy rollback, codec capability 변경 감지
-- ClamAV/콘텐츠 검사 hook, moderation hook, 영상 metadata 제거/remux는 선택 정책
+- 완료: `/v1` token bucket·동시 처리 제한과 안정된 429, health/metrics 우회
+- 완료: queue depth·oldest age·dead-letter·worker outcome과 download/inspect/transform/upload/
+  commit 단계별 latency, resource wait, reject code의 low-cardinality Prometheus 관측
+- 완료: upload·orphan tombstone 기본 365일 보존과 한 실행 최대 100개 bounded purge
+- 선택 후속: tenant 내부 digest 중복 제거, CDN purge, ClamAV/moderation hook,
+  영상 metadata 제거/remux. v1 공식 기능에는 포함하지 않음
 
 ## 5. G7 관리자 설정 소유권
 

@@ -22,11 +22,12 @@ g7mb-object-store-s3.workspace = true
 g7mb-persistence-sqlite.workspace = true
 g7mb-telemetry.workspace = true
 metrics-exporter-prometheus.workspace = true
+metrics.workspace = true
 secrecy.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 time.workspace = true
-tokio = { workspace = true, features = ["io-util", "macros", "net", "process", "rt-multi-thread", "signal", "time"] }
+tokio = { workspace = true, features = ["io-util", "macros", "net", "process", "rt-multi-thread", "signal", "sync", "time"] }
 tower-http.workspace = true
 tracing.workspace = true
 utoipa.workspace = true

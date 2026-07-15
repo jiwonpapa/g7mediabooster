@@ -11,7 +11,7 @@ use thiserror::Error;
 use crate::SqliteStore;
 
 /// Latest embedded SQLx migration required by this binary.
-pub const LATEST_SCHEMA_VERSION: i64 = 10;
+pub const LATEST_SCHEMA_VERSION: i64 = 11;
 
 /// Integrity and application invariants proven for one database snapshot.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -157,6 +157,33 @@ async fn verify_pool(pool: &SqlitePool) -> Result<DatabaseVerification, Database
     if tenant_counter_mismatches != 0 {
         return Err(DatabaseBackupError::Integrity(
             "tenant reserved byte counters disagree with uploads",
+        ));
+    }
+    let operational_counters_match = sqlx::query_scalar::<_, i64>(
+        "SELECT
+            queued_jobs = (SELECT COUNT(*) FROM jobs WHERE state = 'queued')
+            AND leased_jobs = (SELECT COUNT(*) FROM jobs WHERE state = 'leased')
+            AND dead_letter_jobs = (SELECT COUNT(*) FROM jobs WHERE state = 'dead_letter')
+            AND processing_uploads = (SELECT COUNT(*) FROM uploads WHERE state = 'processing')
+            AND cleanup_pending_uploads = (
+                SELECT COUNT(*) FROM uploads
+                WHERE state <> 'deleted' AND delete_requested_at IS NOT NULL
+            )
+            AND upload_tombstones = (SELECT COUNT(*) FROM uploads WHERE state = 'deleted')
+            AND orphan_suspects = (
+                SELECT COUNT(*) FROM orphan_objects WHERE state = 'suspected'
+            )
+            AND orphan_delete_failures = (
+                SELECT COUNT(*) FROM orphan_objects
+                WHERE state = 'suspected' AND last_error_code IS NOT NULL
+            )
+         FROM operational_counters WHERE singleton = 1",
+    )
+    .fetch_one(pool)
+    .await?;
+    if operational_counters_match != 1 {
+        return Err(DatabaseBackupError::Integrity(
+            "operational counters disagree with durable rows",
         ));
     }
 

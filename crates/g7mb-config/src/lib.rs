@@ -35,6 +35,9 @@ impl Settings {
         let mut builder = Config::builder()
             .set_default("server.bind_addr", "127.0.0.1:8088")?
             .set_default("server.request_body_limit_bytes", 1_048_576_i64)?
+            .set_default("server.rate_limit_requests_per_second", 50_i64)?
+            .set_default("server.rate_limit_burst", 100_i64)?
+            .set_default("server.max_in_flight_requests", 64_i64)?
             .set_default("auth.allowed_skew_seconds", 300_i64)?
             .set_default("upload.max_batch_files", 100_i64)?
             .set_default("upload.max_batch_bytes", 21_474_836_480_i64)?
@@ -71,6 +74,7 @@ impl Settings {
             .set_default("worker.retry_delay_seconds", 10_i64)?
             .set_default("worker.max_attempts", 3_i64)?
             .set_default("worker.max_sandbox_output_bytes", 65_536_i64)?
+            .set_default("worker.metrics_bind_addr", "127.0.0.1:9091")?
             .set_default("lifecycle.created_reservation_ttl_seconds", 86_400_i64)?
             .set_default("lifecycle.rejected_source_retention_seconds", 604_800_i64)?
             .set_default("lifecycle.cleanup_lease_seconds", 300_i64)?
@@ -80,6 +84,8 @@ impl Settings {
             .set_default("lifecycle.orphan_grace_period_seconds", 172_800_i64)?
             .set_default("lifecycle.inventory_page_size", 1_000_i64)?
             .set_default("lifecycle.inventory_max_pages_per_run", 10_i64)?
+            .set_default("lifecycle.tombstone_retention_seconds", 31_536_000_i64)?
+            .set_default("lifecycle.tombstone_purge_batch_size", 100_i64)?
             .set_default("delivery.signed_url_ttl_seconds", 300_i64)?
             .set_default("delivery.manifest_cache_ttl_seconds", 60_i64)?
             .set_default("delivery.manifest_cache_max_bytes", 4_194_304_i64)?;
@@ -111,6 +117,17 @@ impl Settings {
     }
 
     fn validate(&self) -> Result<(), ConfigError> {
+        if self.server.request_body_limit_bytes == 0
+            || self.server.request_body_limit_bytes > 16 * 1024 * 1024
+            || !(1..=10_000).contains(&self.server.rate_limit_requests_per_second)
+            || self.server.rate_limit_burst < self.server.rate_limit_requests_per_second
+            || self.server.rate_limit_burst > 100_000
+            || !(1..=1024).contains(&self.server.max_in_flight_requests)
+        {
+            return Err(ConfigError::Message(
+                "server settings violate body, rate, burst, or in-flight limits".to_owned(),
+            ));
+        }
         if self.auth.key_id.is_empty()
             || self.auth.key_id.len() > 128
             || self.auth.tenant_id.is_empty()
@@ -159,6 +176,7 @@ impl Settings {
             || self.worker.retry_delay_seconds == 0
             || self.worker.max_attempts == 0
             || !(1024..=1_048_576).contains(&self.worker.max_sandbox_output_bytes)
+            || !self.worker.metrics_bind_addr.ip().is_loopback()
             || self.worker.sandbox_binary.as_os_str().is_empty()
             || self.worker.temp_directory.as_os_str().is_empty()
         {
@@ -212,6 +230,9 @@ impl Settings {
             || !(60 * 60..=30 * 24 * 60 * 60).contains(&self.lifecycle.orphan_grace_period_seconds)
             || !(1..=1000).contains(&self.lifecycle.inventory_page_size)
             || !(1..=100).contains(&self.lifecycle.inventory_max_pages_per_run)
+            || !(30 * 24 * 60 * 60..=10 * 365 * 24 * 60 * 60)
+                .contains(&self.lifecycle.tombstone_retention_seconds)
+            || !(1..=1000).contains(&self.lifecycle.tombstone_purge_batch_size)
         {
             return Err(ConfigError::Message(
                 "lifecycle settings violate retention, lease, retry, batch, or attempt limits"
@@ -239,6 +260,12 @@ pub struct ServerSettings {
     pub bind_addr: SocketAddr,
     /// Maximum JSON request body.
     pub request_body_limit_bytes: usize,
+    /// Sustained `/v1` control requests admitted per second.
+    pub rate_limit_requests_per_second: u32,
+    /// Short `/v1` token-bucket burst capacity.
+    pub rate_limit_burst: u32,
+    /// Maximum `/v1` handlers simultaneously in flight.
+    pub max_in_flight_requests: usize,
 }
 
 /// One authenticated PHP control client for the initial single-site deployment.
@@ -346,6 +373,8 @@ pub struct WorkerSettings {
     pub max_attempts: u32,
     /// Maximum JSON bytes accepted from the sandbox process.
     pub max_sandbox_output_bytes: usize,
+    /// Loopback-only Prometheus listener for the long-running worker process.
+    pub metrics_bind_addr: SocketAddr,
 }
 
 /// Single-node durable storage cleanup limits.
@@ -369,6 +398,10 @@ pub struct LifecycleSettings {
     pub inventory_page_size: u16,
     /// Pages scanned per namespace and inventory invocation.
     pub inventory_max_pages_per_run: usize,
+    /// Audit tombstone retention before physical row removal.
+    pub tombstone_retention_seconds: u64,
+    /// Maximum old tombstones purged per cleanup invocation.
+    pub tombstone_purge_batch_size: usize,
 }
 
 /// Bounded private derivative delivery settings.
@@ -556,6 +589,42 @@ backup_retention_count = 1
             Err(error) => error,
         };
         assert!(error.to_string().contains("database settings"));
+        Ok(())
+    }
+
+    #[test]
+    fn api_rate_burst_and_concurrency_cannot_be_unbounded() -> Result<(), Box<dyn std::error::Error>>
+    {
+        let file = NamedTempFile::new()?;
+        fs::write(
+            file.path(),
+            r#"
+[storage]
+raw_bucket = "raw"
+derivative_bucket = "media"
+access_key_id = "test-access"
+secret_access_key = "test-secret"
+
+[auth]
+key_id = "g7-primary"
+tenant_id = "site-a"
+hmac_secret = "0123456789abcdef0123456789abcdef"
+
+[server]
+rate_limit_requests_per_second = 100
+rate_limit_burst = 10
+max_in_flight_requests = 0
+"#,
+        )?;
+        let error = match Settings::load(Some(file.path())) {
+            Ok(_) => {
+                return Err(
+                    std::io::Error::other("unsafe API admission policy was accepted").into(),
+                );
+            }
+            Err(error) => error,
+        };
+        assert!(error.to_string().contains("server settings"));
         Ok(())
     }
 

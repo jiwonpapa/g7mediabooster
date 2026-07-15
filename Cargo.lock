@@ -1157,6 +1157,7 @@ dependencies = [
  "g7mb-persistence-sqlite",
  "g7mb-telemetry",
  "http-body-util",
+ "metrics",
  "metrics-exporter-prometheus",
  "secrecy",
  "serde",
@@ -1334,6 +1335,8 @@ dependencies = [
  "g7mb-persistence-sqlite",
  "g7mb-telemetry",
  "hex",
+ "metrics",
+ "metrics-exporter-prometheus",
  "serde_json",
  "sha2 0.11.0",
  "sqlx",
@@ -1932,11 +1935,17 @@ checksum = "1db0d8f1fc9e62caebd0319e11eaec5822b0186c171568f0480b46a0137f9108"
 dependencies = [
  "base64",
  "evmap",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
  "indexmap",
+ "ipnet",
  "metrics",
  "metrics-util",
  "quanta",
  "thiserror 2.0.18",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
