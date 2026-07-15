@@ -45,6 +45,8 @@ pub struct CapabilitiesResponse {
     pub image_inputs: Vec<String>,
     /// Formats the native runtime can encode in this deployment.
     pub image_outputs: Vec<String>,
+    /// Video containers that passed probe and poster extraction fixtures.
+    pub video_inputs: Vec<String>,
     /// Whether FFprobe and FFmpeg passed the embedded MP4/H.264 runtime fixture.
     pub mp4_thumbnail: bool,
     /// Whether the narrow MP4/H.264 OpenH264 fallback is compiled into the sandbox.
@@ -59,12 +61,16 @@ impl CapabilitiesResponse {
     pub fn satisfies_v1(&self) -> bool {
         const REQUIRED_INPUTS: [&str; 6] = ["jpeg", "png", "gif", "webp", "avif", "heif"];
         const REQUIRED_OUTPUTS: [&str; 4] = ["jpeg", "webp", "avif", "png"];
+        const REQUIRED_VIDEO_INPUTS: [&str; 2] = ["mp4", "mov"];
         REQUIRED_INPUTS
             .iter()
             .all(|required| self.image_inputs.iter().any(|format| format == required))
             && REQUIRED_OUTPUTS
                 .iter()
                 .all(|required| self.image_outputs.iter().any(|format| format == required))
+            && REQUIRED_VIDEO_INPUTS
+                .iter()
+                .all(|required| self.video_inputs.iter().any(|format| format == required))
             && self.mp4_thumbnail
             && self.mp4_h264_fallback
             && ["vips", "ffmpeg", "ffprobe"].iter().all(|tool| {

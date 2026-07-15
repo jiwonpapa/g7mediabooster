@@ -14,24 +14,24 @@
 | 스펙·헌법 | PASS | `SPEC.md`, `DEVELOPMENT_CONSTITUTION.md`, ADR·보안·개발 문서 |
 | 기본·전체 feature 빌드 | PASS | `cargo xtask ci` |
 | fmt/clippy/rustdoc | PASS | 경고 0 |
-| 테스트 | PASS | 공통 Rust 100개 + Linux seccomp 1개 통과, 실패 0 |
+| 테스트 | PASS | 공통 Rust 101개 + Linux seccomp 1개 통과, 실패 0 |
 | OpenAPI drift | PASS | 생성 계약과 저장본 일치 |
-| 커버리지 | PASS | 7,321/8,592 lines, 85.21%, 하한 80% |
+| 커버리지 | PASS | 7,350/8,622 lines, 85.25%, 하한 80% |
 | 공급망 | PASS | RustSec 취약점 0, deny advisories/bans/licenses/sources 통과 |
 | API 스모크 | PASS | 실제 프로세스 live/ready, HMAC capabilities, security headers 확인 |
 | S3 호환 스모크 | PASS | pinned MinIO presigned PUT·multipart complete/abort·HEAD·download·derivative PUT·private signed GET |
 | worker 수직 경로 | PASS | bounded 원본 stream, 진위 검사, digest, master+thumbnail/poster 원자적 Ready 게시 |
-| FFmpeg MP4 썸네일 | PASS | 실제 fixture probe·프레임 추출, fast seek 실패 시 bounded exact seek 재시도 |
+| FFmpeg MP4/MOV 썸네일 | PASS | 실제 fixture probe·원 container master·프레임 추출, fast seek 실패 시 bounded exact seek 재시도 |
 | OpenH264 영상 폴백 | PASS | FFmpeg 실행 파일 부재 주입, MP4/H.264 첫 frame→libvips JPEG, 160px 제한·임시 PPM 제거 |
 | AVIF/HEIF native runtime | PASS | AVIF encode/decode, HEIC signature·decoder probe·JPEG 파생 실제 smoke |
 | EXIF/GPS 제거 | PASS | 개인정보 fixture를 libvips로 가공 후 metadata 부재 확인 |
 | 이미지·영상 poster 워터마크 | PASS | bounded 합성, SHA-256 pin, revision+digest key, fail-closed worker와 실제 MP4 경로 |
 | sandbox egress | PASS | Linux seccomp socket 계열 차단, native child 상속, 컨테이너 EPERM 테스트 |
-| G7 제어 업로더 | PASS | PHP 55 tests/148 assertions, TS 20 tests, 100개 bounded 전송 후 Ready polling·native attachment materialization, form state 연결, capability·삭제·private delivery proxy·관리자 asset picker, typecheck·Vite build 통과 |
-| 런타임 capability | PASS | 필수 image 6 input/4 output, MP4/H.264 poster, OpenH264 폴백 보고와 API startup fail-closed |
+| G7 제어 업로더 | PASS | PHP 57 tests/153 assertions, TS 21 tests, 100개 bounded 전송 후 Ready polling·native attachment materialization, MP4/MOV 계약, form state 연결, capability·삭제·private delivery proxy·관리자 asset picker, typecheck·Vite build 통과 |
+| 런타임 capability | PASS | 필수 image 6 input/4 output, MP4/MOV H.264 poster, OpenH264 폴백 보고와 API startup fail-closed |
 | G7 site policy | PASS | HMAC PUT/GET, Ready asset pin, 단조 revision, job 고정·worker exact revision 적용 |
 | G7 policy 종단 | PASS | 실제 PHP HMAC client→Rust API revision 1→worker 워터마크 출력→revision 2 해제·원본 출력 복원 |
-| 정확한 5GiB 직접 multipart | PASS | 32MiB 160-part, API/PHP body 우회, HEAD 길이 검증·Quarantined 진입, API RSS 33,808→34,736KiB(증가 928KiB) |
+| 정확한 5GiB 직접 multipart | PASS | 32MiB 160-part, 80-part 뒤 API 재기동·재개, complete 2회 멱등, HEAD 길이·Quarantined 진입, API RSS 33,840→34,304KiB(증가 464KiB) |
 | lifecycle 삭제·보존 | PASS | HMAC/G7 소유권 삭제 예약, 만료 multipart abort, derivative/raw 정리, SQLite lease·retry·tombstone |
 | 운영 hardening | PASS | `/v1` rate·동시 처리 제한, O(1) queue/upload/orphan counter, worker 단계별 metrics, 기본 365일 bounded tombstone purge |
 | 저장 용량 quota | PASS | 전역·tenant retained-source byte quota, presign 전 차단, SQLite 원자 재검사, tombstone 후 반환 |
@@ -44,7 +44,7 @@
 | tenant fair queue·backpressure | PASS | 영속 round-robin claim, global 1,000/tenant 200 활성 cap, presign 전 차단, 429 계약 |
 | Linux cgroup 부하 | PASS | CPU 2 core, memory 2GiB, PID 64, network none, API health 267/267, worker 100/100 |
 | G7 게시물 첨부 표시 | PARTIAL | G7 `e64381dd` 기준 patch 5개 clean apply, 계약 28/28, 실제 browser upload/create/update/private thumbnail·권한 403 매트릭스·asset picker와 권한·보존 G7 DB gate PASS; upstream 반영·실 provider 삭제 필요 |
-| G5 게시물 첨부 표시 | PASS | G5 5.6.24 계약 21/21, PHP 14/25, TS 5, MySQL 8.4·MyISAM 11/11, 실제 browser single PUT+2-part multipart→첨부 2개·private thumbnail PASS |
+| G5 게시물 첨부 표시 | PASS | G5 5.6.24 계약 21/21, PHP 17/31, TS 5, MySQL 8.4·MyISAM 11/11, 실제 browser single PUT+2-part multipart→첨부 2개·private thumbnail PASS |
 
 ## 준비된 하네스
 

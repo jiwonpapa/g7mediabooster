@@ -22,6 +22,7 @@ cargo run --quiet --locked --package g7mb-sandbox --features native-vips -- doct
 runtime_capabilities="$(cargo run --quiet --locked --package g7mb-sandbox --features native-vips -- capabilities)"
 [[ "$runtime_capabilities" == *'"image_inputs":["avif","gif","heif","jpeg","png","webp"]'* ]]
 [[ "$runtime_capabilities" == *'"image_outputs":["avif","jpeg","png","webp"]'* ]]
+[[ "$runtime_capabilities" == *'"video_inputs":["mov","mp4"]'* ]]
 [[ "$runtime_capabilities" == *'"mp4_thumbnail":true'* ]]
 [[ "$runtime_capabilities" == *'"mp4_h264_fallback":true'* ]]
 

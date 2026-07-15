@@ -14,7 +14,7 @@
 cargo xtask quick          # fmt, check, clippy, test, doc
 cargo xtask ci             # quick + OpenAPI drift + bench compile
 cargo xtask supply-chain   # advisory, license, source 검사
-cargo xtask native-smoke   # AVIF/HEIF, MP4, FFmpeg 부재 OpenH264 폴백
+cargo xtask native-smoke   # AVIF/HEIF, MP4/MOV, FFmpeg 부재 OpenH264 폴백
 cargo xtask api-smoke      # 실제 binary health/header smoke
 cargo xtask full-stack-smoke # MinIO direct upload -> 실제 worker -> private derivative GET
 cargo xtask g7-policy-smoke # G7 PHP HMAC policy -> Rust worker watermark -> rollback
@@ -46,7 +46,7 @@ nextest 대상이 아니므로 하네스가 별도 `cargo test --doc`도 함께 
 - persistence: migration, unique idempotency, lease 복구
 - API: health, body limit, security headers, OpenAPI snapshot
 - storage: S3/R2 custom endpoint와 presign 계약
-- native: JPEG/WebP/AVIF/HEIF 실제 왕복, MP4 FFmpeg와 FFmpeg 부재 OpenH264 frame 추출
+- native: JPEG/WebP/AVIF/HEIF 실제 왕복, MP4/MOV FFmpeg와 FFmpeg 부재 OpenH264 frame 추출
 - failure: timeout kill/reap, 손상 입력, disk full, 중복 complete
 
 ## Coverage

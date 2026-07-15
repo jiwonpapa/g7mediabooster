@@ -76,7 +76,7 @@ export class G5MediaControlClient implements MediaControlClient {
             || !/^[a-f0-9]{12}$/.test(attachment.hash)
             || typeof attachment.original_filename !== 'string'
             || typeof attachment.stored_filename !== 'string'
-            || !['image/jpeg', 'video/mp4'].includes(attachment.mime_type)
+            || !['image/jpeg', 'video/mp4', 'video/quicktime'].includes(attachment.mime_type)
             || !Number.isSafeInteger(attachment.size)
             || attachment.size < 1
         ) {

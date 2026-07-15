@@ -337,13 +337,13 @@ function classifyFile(file: File): 'image' | 'video' {
     if (['image/avif', 'image/gif', 'image/heic', 'image/heif', 'image/jpeg', 'image/png', 'image/webp'].includes(normalizedType)) {
         return 'image';
     }
-    if (normalizedType === 'video/mp4') return 'video';
+    if (['video/mp4', 'video/quicktime'].includes(normalizedType)) return 'video';
     if (normalizedType !== '' && normalizedType !== 'application/octet-stream') {
         throw new TypeError(`unsupported media type: ${file.name}`);
     }
     const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
     if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'heic', 'heif'].includes(extension)) return 'image';
-    if (extension === 'mp4') return 'video';
+    if (['mp4', 'mov'].includes(extension)) return 'video';
     throw new TypeError(`unsupported media type: ${file.name}`);
 }
 

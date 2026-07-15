@@ -7,6 +7,7 @@ Gnuboard 5.6.24용 core-free 어댑터입니다. PHP는 G5 세션·게시판 권
 
 - 최대 100개 파일의 bounded 동시 업로드
 - single PUT, multipart, part 재시도·중단
+- MP4/MOV H.264 업로드, 원 container master와 JPEG poster private delivery
 - 회원 ID 또는 비회원 session HMAC에 묶인 upload 소유권
 - 원본 파일명은 G5 DB에만 저장하고 Rust/S3 object key에는 전달하지 않는 경계
 - Ready master·thumbnail 검증 뒤 `g5_board_file` remote row 연결
@@ -99,6 +100,7 @@ attachment limit, 삭제 retry queue를 검증합니다.
 
 G5 5.6.24 코어 훅 계약, PHP/TypeScript gate, 실제 MySQL 8.4·MyISAM 연결과 격리 브라우저
 MinIO direct single/multipart → Rust 처리 → 게시글 첨부 2개 표시 → private thumbnail 전달을
-통과했습니다. 이 범위는 배포판 공식 기능으로 게시할 수 있습니다. 로컬 정확한 5GiB direct
+통과했고 MP4/MOV H.264 intent·Ready·private delivery 계약도 검증했습니다. 이 범위는
+배포판 공식 기능으로 게시할 수 있습니다. 로컬 정확한 5GiB direct
 multipart는 공통 서버 gate를 통과했습니다. 실 R2/Lightsail profile의 5GiB·중단 재개와
 provider 보존 만료 삭제 종단은 계정별 별도 운영 게이트이며 통과 전 지원으로 게시하지 않습니다.

@@ -40,4 +40,19 @@ final class DeliveryValidatorTest extends TestCase
             'delivery_url' => "https://objects.example.com/file\r\nX-Evil: 1",
         ], '018f47f0-2222-7222-8222-222222222222', 'master');
     }
+
+    #[Test]
+    public function accepts_quicktime_master_delivery(): void
+    {
+        $url = (new DeliveryValidator)->validate([
+            'upload_id' => '018f47f0-2222-7222-8222-222222222222',
+            'variant' => 'master',
+            'content_type' => 'video/quicktime',
+            'byte_len' => 4096,
+            'expires_at' => gmdate(DATE_RFC3339, time() + 300),
+            'delivery_url' => 'https://objects.example.com/media/master.mov?signature=redacted',
+        ], '018f47f0-2222-7222-8222-222222222222', 'master');
+
+        self::assertStringContainsString('master.mov', $url);
+    }
 }

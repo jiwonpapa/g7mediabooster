@@ -6,7 +6,7 @@
 ## 결정
 
 G7MediaBooster의 API, 상태, 저장소, 인증, 작업 orchestration은 Rust 2024로 구현합니다.
-이미지 decode/resize/encode는 libvips, MP4 frame 추출은 FFmpeg CLI가 주로 담당합니다.
+이미지 decode/resize/encode는 libvips, MP4/MOV frame 추출은 FFmpeg CLI가 주로 담당합니다.
 FFmpeg 프로세스를 시작할 수 없는 MP4/H.264는 Rust `mp4` demux와 OpenH264 첫 frame
 decode로만 제한 폴백합니다. 네이티브 엔진은 API가 아니라 자격 증명 없는 별도 sandbox
 프로세스에서 실행합니다.

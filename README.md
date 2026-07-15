@@ -1,7 +1,7 @@
 # G7MediaBooster
 
 Gnuboard 5/7용 고성능 미디어 업로드·가공 서버입니다. Rust가 제어 계층을 맡고,
-이미지는 libvips, MP4 썸네일은 FFmpeg가 별도 샌드박스 프로세스에서 처리합니다. FFmpeg를
+이미지는 libvips, MP4/MOV 썸네일은 FFmpeg가 별도 샌드박스 프로세스에서 처리합니다. FFmpeg를
 시작할 수 없는 MP4/H.264만 Rust `mp4` + OpenH264 첫 프레임 폴백을 사용합니다.
 S3와 Cloudflare R2는 같은 S3 호환 포트로 구현하며, 공급자별 실계정 conformance를 통과한
 profile만 공식 지원으로 게시합니다.
@@ -10,7 +10,7 @@ profile만 공식 지원으로 게시합니다.
 HMAC 인증, SQLite lease queue, 검증된 master+thumbnail/poster 원자적 발행,
 4MiB/60초 bounded manifest cache·singleflight, digest-pinned 이미지 워터마크,
 sandbox runtime capability, 삭제·보존 cleanup과 G7 0.3
-form/Ready attachment bridge·보존 삭제 대조까지 연결됐습니다. G7 격리 설치·관리자 설정과 MinIO 기반 실제 browser single/multipart 전송·create/update·private thumbnail 전달, 비밀·블라인드·삭제글 첨부 권한 및 보존 lease 실제 DB 게이트도 통과했습니다. 정확한 로컬 5GiB 직접 multipart와 G7 PHP 정책→Rust worker 워터마크→rollback 종단도 통과했습니다. 실제 R2/Lightsail profile과 G7 upstream 정식 반영 등 남은 게이트는 구현
+form/Ready attachment bridge·보존 삭제 대조까지 연결됐습니다. G7 격리 설치·관리자 설정과 MinIO 기반 실제 browser single/multipart 전송·create/update·private thumbnail 전달, 비밀·블라인드·삭제글 첨부 권한 및 보존 lease 실제 DB 게이트도 통과했습니다. MP4/MOV H.264의 실제 worker master·poster, API 재기동을 포함한 로컬 5GiB 직접 multipart 재개와 G7 PHP 정책→Rust worker 워터마크→rollback 종단도 통과했습니다. 실제 R2/Lightsail profile과 G7 upstream 정식 반영 등 남은 게이트는 구현
 계획에 따라 진행합니다. 배포 시에는 [검증된 공식 기능 범위](deploy/README.md)만 게시합니다.
 
 ## 확정 기술 스택
@@ -61,7 +61,7 @@ cargo xtask supply-chain
 ```
 
 네이티브 스모크와 sandbox startup capability는 버전 문자열만 확인하지 않고 필수 이미지
-6개 입력·4개 출력과 MP4/H.264 썸네일 추출을 실제로 수행합니다.
+6개 입력·4개 출력과 MP4/MOV H.264 썸네일 추출을 실제로 수행합니다.
 
 ## 문서
 
@@ -78,6 +78,8 @@ cargo xtask supply-chain
 - [Gnuboard 7 upstream 첨부 계약 patch](adapters/gnuboard7/upstream-contract/README.md)
 - [Gnuboard 7 실제 저장소 browser E2E](docs/evidence/G7_STORAGE_E2E_20260716.md)
 - [정확한 5GiB·G7 정책 종단 증거](docs/evidence/LARGE_MULTIPART_AND_G7_POLICY_20260716.md)
+- [MOV/H.264 runtime·worker 종단 증거](docs/evidence/MOV_H264_E2E_20260716.md)
+- [Spec 1.1 요구사항 1~17 완료 감사](docs/COMPLETION_AUDIT_20260716.md)
 - [워터마크 계약](docs/WATERMARK.md)
 - [미디어 수명주기·삭제](docs/LIFECYCLE.md)
 - [Provider orphan inventory](docs/ORPHAN_INVENTORY.md)

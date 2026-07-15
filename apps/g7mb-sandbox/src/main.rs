@@ -1,8 +1,6 @@
 //! Credential-free native media sandbox entrypoint.
 
-#[cfg(feature = "native-vips")]
-use std::process::Stdio;
-use std::{collections::BTreeMap, path::PathBuf, time::Duration};
+use std::{collections::BTreeMap, path::PathBuf, process::Stdio, time::Duration};
 
 use anyhow::{Context as _, bail};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
@@ -54,7 +52,7 @@ enum Command {
         #[arg(long, default_value_t = 1)]
         threads: i32,
     },
-    /// Extract one JPEG frame from a trusted local MP4.
+    /// Extract one JPEG frame from a trusted local MP4 or MOV video.
     VideoThumbnail {
         /// Trusted local input path.
         #[arg(long)]
@@ -461,10 +459,12 @@ async fn runtime_capabilities() -> anyhow::Result<CapabilitiesResponse> {
         .map(|report| (report.tool, report.version))
         .collect::<BTreeMap<_, _>>();
     let (image_inputs, image_outputs) = image_capabilities().await?;
-    let mp4_thumbnail = video_thumbnail_capability().await.is_ok();
+    let video_inputs = video_capabilities().await?;
+    let mp4_thumbnail = video_inputs.iter().any(|format| format == "mp4");
     Ok(CapabilitiesResponse {
         image_inputs,
         image_outputs,
+        video_inputs,
         mp4_thumbnail,
         mp4_h264_fallback: cfg!(feature = "native-vips"),
         native_versions,
@@ -556,28 +556,70 @@ async fn image_capabilities() -> anyhow::Result<(Vec<String>, Vec<String>)> {
     Ok((Vec::new(), Vec::new()))
 }
 
-async fn video_thumbnail_capability() -> anyhow::Result<()> {
+async fn video_capabilities() -> anyhow::Result<Vec<String>> {
     let temp = tempfile::tempdir().context("failed to create video capability directory")?;
-    let input = temp.path().join("tiny-h264.mp4");
-    let output = temp.path().join("poster.jpg");
+    let mp4_input = temp.path().join("tiny-h264.mp4");
     let fixture = STANDARD
         .decode(include_str!("../../../tests/fixtures/tiny-h264.mp4.b64").trim())
         .context("embedded MP4 capability fixture is invalid")?;
-    tokio::fs::write(&input, &fixture)
+    tokio::fs::write(&mp4_input, &fixture)
         .await
         .context("failed to write MP4 capability fixture")?;
-    let format = detect_file(&input, MediaKind::Video).await?;
+    verify_video_capability(&mp4_input, &temp.path().join("mp4-poster.jpg"), "MP4").await?;
+
+    let mov_input = temp.path().join("tiny-h264.mov");
+    let remux = tokio::process::Command::new("ffmpeg")
+        .args(["-hide_banner", "-loglevel", "error", "-nostdin", "-i"])
+        .arg(&mp4_input)
+        .args([
+            "-map",
+            "0:v:0",
+            "-c:v",
+            "copy",
+            "-map_metadata",
+            "-1",
+            "-f",
+            "mov",
+            "-y",
+        ])
+        .arg(&mov_input)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .kill_on_drop(true)
+        .status();
+    let remux_status = tokio::time::timeout(Duration::from_secs(5), remux)
+        .await
+        .context("MOV capability remux timed out")?
+        .context("failed to start MOV capability remux")?;
+    if !remux_status.success() {
+        bail!("MOV capability fixture remux failed");
+    }
+    verify_video_capability(&mov_input, &temp.path().join("mov-poster.jpg"), "MOV").await?;
+    Ok(vec!["mov".to_owned(), "mp4".to_owned()])
+}
+
+async fn verify_video_capability(
+    input: &std::path::Path,
+    output: &std::path::Path,
+    label: &str,
+) -> anyhow::Result<()> {
+    let byte_len = tokio::fs::metadata(input)
+        .await
+        .with_context(|| format!("failed to inspect {label} capability fixture"))?
+        .len();
+    let format = detect_file(input, MediaKind::Video).await?;
     let inspection = FfprobeInspector::new(PathBuf::from("ffprobe"), Duration::from_secs(5))?
         .inspect(&VideoProbeRequest {
-            input: input.clone(),
-            byte_len: u64::try_from(fixture.len()).context("MP4 fixture length overflow")?,
+            input: input.to_path_buf(),
+            byte_len,
             format,
         })
         .await?;
     FfmpegThumbnailer::new(PathBuf::from("ffmpeg"), Duration::from_secs(6), 1)?
         .extract(&VideoThumbnailRequest {
-            input,
-            output: output.clone(),
+            input: input.to_path_buf(),
+            output: output.to_path_buf(),
             timestamp_ms: 1,
             duration_ms: inspection.probe.duration_ms,
             max_width: 64,
@@ -585,9 +627,9 @@ async fn video_thumbnail_capability() -> anyhow::Result<()> {
         .await?;
     let metadata = tokio::fs::metadata(output)
         .await
-        .context("failed to inspect MP4 capability output")?;
+        .with_context(|| format!("failed to inspect {label} capability output"))?;
     if metadata.len() == 0 {
-        bail!("MP4 capability fixture produced an empty poster");
+        bail!("{label} capability fixture produced an empty poster");
     }
     Ok(())
 }

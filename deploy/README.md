@@ -2,13 +2,14 @@
 
 ## 배포 설명에 게시할 공식 애플리케이션 기능
 
-배포 페이지와 릴리스 노트에는 아래 구현·자동 검증 범위만 기능으로 게시합니다.
+배포 페이지와 릴리스 노트에는 아래 구현·자동 검증 범위만 기능으로 게시합니다. G7 기능은
+upstream patch `0001`~`0005`와 계약 28/28을 모두 충족한 설치에서만 공식 지원입니다.
 
 - 이미지·동영상 최대 100개 다중 선택과 bounded 병렬 직접 업로드
 - 작은 파일 single PUT, 큰 파일·영상 S3 호환 multipart 업로드와 abort
 - 최대 5GiB 정책 상한에서 PHP/Rust body를 우회하는 32MiB direct multipart
 - JPEG, PNG, GIF, WebP, AVIF, HEIC/HEIF 실제 decode 기반 검증
-- MP4/H.264 실제 runtime 검사와 FFmpeg JPEG poster
+- MP4/MOV H.264 실제 runtime 검사, 원 container master와 FFmpeg JPEG poster
 - FFmpeg 실행 불가 시 MP4/H.264 한정 Rust demux + OpenH264 poster 폴백
 - 이미지 EXIF/GPS/XMP/IPTC 제거, 방향·sRGB 정규화, 최대 8,192px JPEG master
 - 이미지 thumbnail·영상 poster 1,280px JPEG 및 digest/revision 불변 object key
@@ -37,7 +38,7 @@
 - upstream patch `0001`~`0005`를 적용하지 않은 Gnuboard7 배포
 - 보존 만료 command→실 provider 객체 삭제 종단 증거
 - 멀티노드, PostgreSQL queue, 임의 URL query 기반 동적 리사이즈
-- MOV/WebM release fixture, 영상 트랜스코딩·metadata 제거, HEVC/AV1 Rust 폴백
+- WebM release fixture, 영상 트랜스코딩·metadata 제거, HEVC/AV1 Rust 폴백
 - S3의 ACL, Object Lock, replication, inventory, IAM/STS, SSE-KMS 관리 기능
 - 실계정 conformance를 아직 통과하지 않은 R2 또는 Lightsail profile
 

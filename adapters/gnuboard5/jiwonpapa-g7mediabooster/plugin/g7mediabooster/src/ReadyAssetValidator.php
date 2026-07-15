@@ -43,7 +43,7 @@ final class ReadyAssetValidator
         $detectedType = $status['detected_content_type'] ?? null;
         $allowedDetectedTypes = $kind === 'image'
             ? ['image/avif', 'image/gif', 'image/heic', 'image/heif', 'image/jpeg', 'image/png', 'image/webp']
-            : ['video/mp4'];
+            : ['video/mp4', 'video/quicktime'];
         if (! is_string($detectedType) || ! in_array($detectedType, $allowedDetectedTypes, true)) {
             throw new UnexpectedValueException('detected media type is not release-supported');
         }
@@ -64,7 +64,7 @@ final class ReadyAssetValidator
             ) {
                 throw new UnexpectedValueException('invalid derivative set');
             }
-            $this->validateDerivative($derivative, $variant, $kind, $expectedSize);
+            $this->validateDerivative($derivative, $variant, $kind, $detectedType, $expectedSize);
             $byVariant[$variant] = $derivative;
         }
         if (! isset($byVariant['master'], $byVariant['thumbnail'])
@@ -73,7 +73,12 @@ final class ReadyAssetValidator
             throw new UnexpectedValueException('derivative preset mismatch');
         }
 
-        $extension = $kind === 'image' ? 'jpg' : 'mp4';
+        $extension = match ($byVariant['master']['content_type']) {
+            'image/jpeg' => 'jpg',
+            'video/mp4' => 'mp4',
+            'video/quicktime' => 'mov',
+            default => throw new UnexpectedValueException('invalid master derivative type'),
+        };
         $filename = $this->normalizedFilename($session['original_filename'] ?? null, $extension);
 
         return [
@@ -90,7 +95,13 @@ final class ReadyAssetValidator
     }
 
     /** @param array<string, mixed> $derivative */
-    private function validateDerivative(array $derivative, string $variant, string $kind, int $expectedSize): void
+    private function validateDerivative(
+        array $derivative,
+        string $variant,
+        string $kind,
+        string $detectedType,
+        int $expectedSize,
+    ): void
     {
         $presetId = $derivative['preset_id'] ?? null;
         $urlPath = $derivative['url_path'] ?? null;
@@ -114,7 +125,7 @@ final class ReadyAssetValidator
 
             return;
         }
-        $expectedType = $kind === 'image' ? 'image/jpeg' : 'video/mp4';
+        $expectedType = $kind === 'image' ? 'image/jpeg' : $detectedType;
         $maxBytes = $kind === 'image' ? self::IMAGE_MAX_BYTES : self::VIDEO_MAX_BYTES;
         if ($contentType !== $expectedType || $byteLen > $maxBytes) {
             throw new UnexpectedValueException('invalid master derivative');

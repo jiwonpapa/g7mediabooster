@@ -152,7 +152,7 @@ final class SessionStore
             if ($row === null
                 || ($row['state'] ?? null) !== 'ready'
                 || ($row['wr_id'] ?? null) !== null
-                || ! in_array($row['ready_mime_type'] ?? null, ['image/jpeg', 'video/mp4'], true)
+                || ! in_array($row['ready_mime_type'] ?? null, ['image/jpeg', 'video/mp4', 'video/quicktime'], true)
                 || filter_var($row['ready_master_bytes'] ?? null, FILTER_VALIDATE_INT) === false
                 || ! is_string($row['ready_preset_id'] ?? null)
             ) {

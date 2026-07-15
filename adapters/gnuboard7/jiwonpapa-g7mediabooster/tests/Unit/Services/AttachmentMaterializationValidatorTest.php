@@ -51,6 +51,37 @@ final class AttachmentMaterializationValidatorTest extends TestCase
         self::assertSame('video/mp4', $descriptor['mime_type']);
     }
 
+    public function testBuildsAnExactQuickTimeMasterDescriptor(): void
+    {
+        $status = $this->readyStatus();
+        $status['detected_content_type'] = 'video/quicktime';
+        $status['derivatives'][0]['content_type'] = 'video/quicktime';
+        $status['derivatives'][0]['byte_len'] = 10_000_000;
+        $session = $this->session();
+        $session['declared_kind'] = 'video';
+        $session['expected_size_bytes'] = 10_000_000;
+        $session['original_filename'] = 'clip.mp4';
+
+        $descriptor = (new AttachmentMaterializationValidator)->validate($status, $session);
+
+        self::assertSame('clip.mov', $descriptor['original_filename']);
+        self::assertSame(self::UPLOAD_ID.'.mov', $descriptor['stored_filename']);
+        self::assertSame('video/quicktime', $descriptor['mime_type']);
+    }
+
+    public function testRejectsVideoMasterThatDoesNotMatchDetectedContainer(): void
+    {
+        $status = $this->readyStatus();
+        $status['detected_content_type'] = 'video/quicktime';
+        $status['derivatives'][0]['content_type'] = 'video/mp4';
+        $status['derivatives'][0]['byte_len'] = 1_000_000;
+        $session = $this->session();
+        $session['declared_kind'] = 'video';
+
+        $this->expectException(UnexpectedValueException::class);
+        (new AttachmentMaterializationValidator)->validate($status, $session);
+    }
+
     /** @return iterable<string, array{callable(array<string,mixed>,array<string,mixed>):void}> */
     public static function invalidCases(): iterable
     {

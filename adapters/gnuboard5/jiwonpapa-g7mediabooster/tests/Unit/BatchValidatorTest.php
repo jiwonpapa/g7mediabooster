@@ -63,6 +63,20 @@ final class BatchValidatorTest extends TestCase
     }
 
     #[Test]
+    public function request_accepts_release_supported_quicktime_video(): void
+    {
+        $files = (new BatchValidator)->validateRequest([[
+            'client_ref' => 'mov_1',
+            'original_filename' => 'clip.mov',
+            'declared_kind' => 'video',
+            'content_length' => 1024,
+            'content_type_hint' => 'video/quicktime',
+        ]], 10, 2048);
+
+        self::assertSame('video/quicktime', $files[0]['content_type_hint']);
+    }
+
+    #[Test]
     public function multipart_response_accepts_the_empty_header_object_from_the_control_api(): void
     {
         $validator = new BatchValidator;

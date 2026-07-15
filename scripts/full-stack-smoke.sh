@@ -128,6 +128,12 @@ wait_for_api() {
     fi
 }
 
+start_api() {
+    target/debug/g7mb-api --config config/g7mb.example.toml >>"$API_LOG" 2>&1 &
+    API_PID="$!"
+    wait_for_api
+}
+
 upload_single_image() {
     local source="$1"
     local client_ref="$2"
@@ -201,9 +207,13 @@ fi
 ffmpeg -hide_banner -loglevel error -nostdin \
     -f lavfi -i "nullsrc=s=4000x3000,noise=alls=100:allf=t" \
     -frames:v 1 -c:v mjpeg -q:v 1 -threads 1 -y "$TMP/multipart.jpg"
+ffmpeg -hide_banner -loglevel error -nostdin \
+    -f lavfi -i "color=c=blue:s=320x180:r=10" \
+    -t 1 -c:v libx264 -pix_fmt yuv420p -threads 1 -map_metadata -1 -f mov -y "$TMP/video.mov"
 
 single_size="$(file_size "$TMP/private-exif.jpg")"
 multipart_size="$(file_size "$TMP/multipart.jpg")"
+mov_size="$(file_size "$TMP/video.mov")"
 if (( single_size < 1 || single_size >= 5 * 1024 * 1024 )); then
     echo "single fixture is outside the single-PUT policy" >&2
     exit 1
@@ -240,9 +250,7 @@ export G7MB__WORKER__MAX_CONCURRENT_HEAVY_IMAGES="1"
 export G7MB__WORKER__MAX_CONCURRENT_VIDEOS="1"
 
 mkdir -p "$TMP/worker" "$TMP/backups"
-target/debug/g7mb-api --config config/g7mb.example.toml >"$API_LOG" 2>&1 &
-API_PID="$!"
-wait_for_api
+start_api
 
 if (( LARGE_MULTIPART_BYTES > 0 )); then
     large_batch_body="$(jq -nc --argjson size "$LARGE_MULTIPART_BYTES" \
@@ -257,6 +265,7 @@ if (( LARGE_MULTIPART_BYTES > 0 )); then
     large_part_file="$TMP/large-part.bin"
     api_rss_start="$(ps -o rss= -p "$API_PID" | awk '{print $1}')"
     api_rss_peak="$api_rss_start"
+    api_restarts=0
 
     for ((part_number = 1; part_number <= large_part_count; part_number += 1)); do
         offset="$(((part_number - 1) * large_part_size))"
@@ -280,12 +289,24 @@ if (( LARGE_MULTIPART_BYTES > 0 )); then
         if (( current_rss > api_rss_peak )); then
             api_rss_peak="$current_rss"
         fi
+        if (( part_number == large_part_count / 2 )); then
+            kill "$API_PID"
+            wait "$API_PID" || true
+            API_PID=""
+            start_api
+            api_restarts=$((api_restarts + 1))
+            current_rss="$(ps -o rss= -p "$API_PID" | awk '{print $1}')"
+            if (( current_rss > api_rss_peak )); then
+                api_rss_peak="$current_rss"
+            fi
+        fi
         if (( part_number % 20 == 0 || part_number == large_part_count )); then
             printf 'large-multipart progress parts=%s/%s\n' "$part_number" "$large_part_count" >&2
         fi
     done
 
     complete_body="$(jq -nc --argjson parts "$large_parts" '{parts: $parts}')"
+    signed_request POST "/v1/uploads/$large_upload_id/multipart/complete" "$complete_body" >/dev/null
     signed_request POST "/v1/uploads/$large_upload_id/multipart/complete" "$complete_body" >/dev/null
     large_status="$(signed_request GET "/v1/uploads/$large_upload_id" '')"
     [[ "$(jq -r '.state' <<<"$large_status")" == "quarantined" ]]
@@ -298,28 +319,34 @@ if (( LARGE_MULTIPART_BYTES > 0 )); then
         echo "API RSS grew more than 32MiB during body-free multipart control: ${api_rss_delta}KiB" >&2
         exit 1
     fi
-    printf 'large-multipart-smoke PASS bytes=%s parts=%s api_rss_start_kib=%s api_rss_peak_kib=%s api_rss_delta_kib=%s direct_body=1 quarantined=1\n' \
-        "$LARGE_MULTIPART_BYTES" "$large_part_count" "$api_rss_start" "$api_rss_peak" "$api_rss_delta"
+    [[ "$api_restarts" == "1" ]]
+    printf 'large-multipart-smoke PASS bytes=%s parts=%s api_rss_start_kib=%s api_rss_peak_kib=%s api_rss_delta_kib=%s direct_body=1 api_restarts=%s duplicate_complete=1 quarantined=1\n' \
+        "$LARGE_MULTIPART_BYTES" "$large_part_count" "$api_rss_start" "$api_rss_peak" "$api_rss_delta" "$api_restarts"
     exit 0
 fi
 
 batch_body="$(jq -nc \
     --argjson single_size "$single_size" \
     --argjson multipart_size "$multipart_size" \
+    --argjson mov_size "$mov_size" \
     '{files: [
         {client_ref: "single-exif", declared_kind: "image", content_length: $single_size, content_type_hint: "image/jpeg"},
-        {client_ref: "multipart-large", declared_kind: "image", content_length: $multipart_size, content_type_hint: "image/jpeg"}
+        {client_ref: "multipart-large", declared_kind: "image", content_length: $multipart_size, content_type_hint: "image/jpeg"},
+        {client_ref: "mov-video", declared_kind: "video", content_length: $mov_size, content_type_hint: "video/quicktime"}
     ]}')"
 batch="$(signed_request POST /v1/upload-batches "$batch_body")"
-[[ "$(jq -r '.uploads | length' <<<"$batch")" == "2" ]]
+[[ "$(jq -r '.uploads | length' <<<"$batch")" == "3" ]]
 [[ "$(jq -r '[.uploads[].expires_at | type] | unique | join(",")' <<<"$batch")" == "string" ]]
 
 single="$(jq -c '.uploads[] | select(.client_ref == "single-exif")' <<<"$batch")"
 multipart="$(jq -c '.uploads[] | select(.client_ref == "multipart-large")' <<<"$batch")"
+mov="$(jq -c '.uploads[] | select(.client_ref == "mov-video")' <<<"$batch")"
 [[ "$(jq -r '.method' <<<"$single")" == "single_put" ]]
 [[ "$(jq -r '.method' <<<"$multipart")" == "multipart" ]]
+[[ "$(jq -r '.method' <<<"$mov")" == "multipart" ]]
 single_id="$(jq -er '.upload_id' <<<"$single")"
 multipart_id="$(jq -er '.upload_id' <<<"$multipart")"
+mov_id="$(jq -er '.upload_id' <<<"$mov")"
 
 presigned_put "$single" "$TMP/private-exif.jpg"
 signed_request POST "/v1/uploads/$single_id/complete" '' >/dev/null
@@ -351,8 +378,21 @@ fi
 complete_body="$(jq -nc --argjson parts "$parts" '{parts: $parts}')"
 signed_request POST "/v1/uploads/$multipart_id/multipart/complete" "$complete_body" >/dev/null
 
+mov_presign_body="$(jq -nc --argjson length "$mov_size" '{content_length: $length}')"
+mov_instruction="$(signed_request POST "/v1/uploads/$mov_id/parts/1/presign" "$mov_presign_body")"
+mov_headers="$TMP/mov-part.headers"
+presigned_put "$mov_instruction" "$TMP/video.mov" "$mov_headers"
+mov_etag="$(awk 'tolower($0) ~ /^etag:/ { sub(/^[^:]*:[[:space:]]*/, ""); sub(/\r$/, ""); print; exit }' "$mov_headers")"
+if [[ -z "$mov_etag" ]]; then
+    echo "MOV multipart PUT returned no ETag" >&2
+    exit 1
+fi
+mov_complete_body="$(jq -nc --arg etag "$mov_etag" '{parts: [{part_number: 1, etag: $etag}]}')"
+signed_request POST "/v1/uploads/$mov_id/multipart/complete" "$mov_complete_body" >/dev/null
+
 target/debug/g7mb-worker --config config/g7mb.example.toml once --worker-id full-stack-1 >/dev/null
 target/debug/g7mb-worker --config config/g7mb.example.toml once --worker-id full-stack-2 >/dev/null
+target/debug/g7mb-worker --config config/g7mb.example.toml once --worker-id full-stack-3 >/dev/null
 
 for upload_id in "$single_id" "$multipart_id"; do
     status="$(signed_request GET "/v1/uploads/$upload_id" '')"
@@ -369,6 +409,18 @@ for upload_id in "$single_id" "$multipart_id"; do
         [[ "$(vipsheader -f format "$TMP/$upload_id-$variant.jpg")" == "uchar" ]]
     done
 done
+
+mov_status="$(signed_request GET "/v1/uploads/$mov_id" '')"
+[[ "$(jq -r '.state' <<<"$mov_status")" == "ready" ]]
+[[ "$(jq -r '.detected_content_type' <<<"$mov_status")" == "video/quicktime" ]]
+[[ "$(jq -r '[.derivatives[].variant] | sort | join(",")' <<<"$mov_status")" == "master,thumbnail" ]]
+[[ "$(jq -r '.derivatives[] | select(.variant == "master") | .content_type' <<<"$mov_status")" == "video/quicktime" ]]
+download_derivative "$mov_id" master "$TMP/mov-master.mov"
+download_derivative "$mov_id" thumbnail "$TMP/mov-thumbnail.jpg"
+cmp -s "$TMP/video.mov" "$TMP/mov-master.mov"
+[[ "$(vipsheader -f format "$TMP/mov-thumbnail.jpg")" == "uchar" ]]
+mov_format="$(ffprobe -v error -show_entries format=format_name -of default=nw=1:nk=1 "$TMP/mov-master.mov")"
+[[ "$mov_format" == *"mov"* ]]
 
 sanitized_metadata="$(vipsheader -a "$TMP/$single_id-master.jpg" 2>/dev/null)"
 if [[ "$sanitized_metadata" == *"PrivateCamera"* \
@@ -437,4 +489,4 @@ if [[ "$POLICY_SMOKE" == true ]]; then
     printf 'g7-policy-smoke PASS php_hmac=1 applied_revision=1 rollback_revision=2 worker_pinned=1\n'
 fi
 
-printf 'full-stack-smoke PASS single_put=1 multipart_parts=%s ready=2 derivatives=4 exif_removed=1\n' "$part_number"
+printf 'full-stack-smoke PASS single_put=1 multipart_parts=%s ready=3 derivatives=6 mov_h264=1 exif_removed=1\n' "$part_number"

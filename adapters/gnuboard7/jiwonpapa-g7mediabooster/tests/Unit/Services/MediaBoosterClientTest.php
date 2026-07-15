@@ -108,6 +108,7 @@ final class MediaBoosterClientTest extends TestCase
             'https://media.example.com/v1/capabilities' => $http->response([
                 'image_inputs' => ['avif', 'gif', 'heif', 'jpeg', 'png', 'webp'],
                 'image_outputs' => ['avif', 'jpeg', 'png', 'webp'],
+                'video_inputs' => ['mov', 'mp4'],
                 'mp4_thumbnail' => true,
                 'mp4_h264_fallback' => true,
                 'native_versions' => ['vips' => 'vips-8.18.3'],
@@ -117,6 +118,7 @@ final class MediaBoosterClientTest extends TestCase
         $capabilities = $this->client($http)->capabilities();
 
         self::assertTrue($capabilities['mp4_thumbnail']);
+        self::assertSame(['mov', 'mp4'], $capabilities['video_inputs']);
         $http->assertSent(fn (Request $request): bool => $request->method() === 'GET'
             && $request->url() === 'https://media.example.com/v1/capabilities'
             && $request->body() === ''

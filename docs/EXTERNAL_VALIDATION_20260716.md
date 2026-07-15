@@ -1,7 +1,7 @@
 # R2/Lightsail 외부 저장소 검증 인계서
 
 - 예정일: 2026-07-16
-- 현재 상태: 구현·로컬 MinIO conformance와 정확한 5GiB/API RSS gate 완료, `G7MB_LIVE_S3_*` 실계정 환경값 미설정
+- 현재 상태: 구현·로컬 MinIO conformance와 API 재기동을 포함한 정확한 5GiB/API RSS gate 완료, `G7MB_LIVE_S3_*` 실계정 환경값 미설정
 - 원칙: secret과 bucket 값은 문서·Git·명령 이력에 저장하지 않습니다.
 - 보유 계정 기준: 2026-07-16에는 R2와 Lightsail profile을 실행합니다. 일반 AWS S3 profile은
   별도 자격 증명이 생길 때까지 `UNVERIFIED`로 남깁니다.
@@ -93,7 +93,7 @@ MinIO 기반 실제 전송·create/update·private thumbnail 전달까지 통과
 1. `scripts/verify-gnuboard7-media-contract.sh` 28/28 — PASS
 2. board PHP 핵심 4개 파일 48 tests/73 assertions — PASS
 3. 전체 board suite 기준선 비교 — patch 전 80 failed/1102 passed, patch 후 80 failed/1108 passed, 신규 실패 0
-4. module 0.4.0 `cargo xtask g7-adapter` — PASS: PHP 55/148, TS 20, typecheck/build
+4. module 0.4.0 `cargo xtask g7-adapter` — PASS: PHP 57/153, TS 21, typecheck/build
 5. module 0.3.0 설치·활성화·세 migration·설정 및 user/admin form disabled smoke — PASS
 6. 실제 browser single PUT + 2-part multipart, Ready attachment 2개 create/update 유지 — PASS
 7. private thumbnail G7 302 → MinIO 200, JPEG 505/240,658 bytes — PASS
@@ -110,7 +110,7 @@ MinIO 기반 실제 전송·create/update·private thumbnail 전달까지 통과
 G5 5.6.24는 core-free adapter를 실제 MySQL 8.4·MyISAM과 MinIO 격리 브라우저에서 검증했습니다.
 
 1. G5 source contract 21/21 — PASS
-2. PHP 14 tests/25 assertions, TypeScript 5 tests, typecheck/build — PASS
+2. PHP 17 tests/31 assertions, TypeScript 5 tests, typecheck/build — PASS
 3. MyISAM attachment advisory lock·부분 실패 복구·삭제 retry 11/11 — PASS
 4. 실제 browser single PUT + 2-part multipart 동시 업로드, Rust Ready 2/2 — PASS
 5. G5 게시글 `wr_file=2`, remote attachment row 2개, thumbnail decode 2/2 — PASS

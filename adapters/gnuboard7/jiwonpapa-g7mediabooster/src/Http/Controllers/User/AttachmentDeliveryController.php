@@ -127,7 +127,7 @@ final class AttachmentDeliveryController extends PublicBaseController
         if (! is_int($size)
             || $size < 1
             || ! is_string($contentType)
-            || ! in_array($contentType, ['image/jpeg', 'video/mp4'], true)
+            || ! in_array($contentType, ['image/jpeg', 'video/mp4', 'video/quicktime'], true)
             || ($variant === 'thumbnail' && $contentType !== 'image/jpeg')
         ) {
             throw new UnexpectedValueException('native derivative metadata is invalid');

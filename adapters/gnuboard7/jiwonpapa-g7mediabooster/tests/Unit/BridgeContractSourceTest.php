@@ -42,7 +42,7 @@ final class BridgeContractSourceTest extends TestCase
         self::assertStringContainsString('authorizeDelivery(', $delivery);
         self::assertStringContainsString("unset(\$file['original_filename'])", $upload);
         self::assertStringNotContainsString('video/webm', $batchRequest);
-        self::assertStringNotContainsString('video/quicktime', $batchRequest);
+        self::assertStringContainsString('video/quicktime', $batchRequest);
         self::assertStringContainsString('AttachmentUrlListener::class', $module);
         self::assertStringContainsString('nullOnDelete()', $migration);
         self::assertStringContainsString('retention_request_started_at', $retentionMigration);

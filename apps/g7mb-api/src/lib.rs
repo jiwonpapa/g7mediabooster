@@ -1788,6 +1788,7 @@ mod tests {
                 "png".to_owned(),
                 "webp".to_owned(),
             ],
+            video_inputs: vec!["mov".to_owned(), "mp4".to_owned()],
             mp4_thumbnail: true,
             mp4_h264_fallback: true,
             native_versions: BTreeMap::from([

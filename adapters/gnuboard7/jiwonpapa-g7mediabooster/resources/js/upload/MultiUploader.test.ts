@@ -205,6 +205,19 @@ describe('MultiUploader', () => {
         expect(control.batchRequests).toBe(0);
     });
 
+    it('accepts QuickTime MOV as a release video container', async () => {
+        const control = new FakeControl();
+        const uploader = new MultiUploader(control, new TrackingTransport());
+
+        const result = await uploader.upload([
+            fileOfSize(1024, 'clip.mov', 'video/quicktime'),
+        ]);
+
+        expect(control.requestedFiles[0]?.declared_kind).toBe('video');
+        expect(control.requestedFiles[0]?.content_type_hint).toBe('video/quicktime');
+        expect(result.files[0]?.state).toBe('accepted');
+    });
+
     it('caps direct PUT connections across multiple files', async () => {
         const control = new FakeControl();
         const transport = new TrackingTransport();

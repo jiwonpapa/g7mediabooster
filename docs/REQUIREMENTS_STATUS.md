@@ -8,12 +8,12 @@
 |---:|---|---|---|
 | 1 이미지 업로드 | PASS | 최대 100개 batch, single/multipart 직접 업로드 | 실 R2/Lightsail profile 재검증 |
 | 2 S3 호환 | PARTIAL | MinIO에서 필요한 object 작업 conformance PASS | R2·Lightsail 각각 실계정 PASS 후 profile별 공식화 |
-| 3 동영상 업로드 | PASS | MP4/H.264 직접 업로드·검사·master·poster | MOV/WebM은 release fixture 전 공식 게시 제외 |
+| 3 동영상 업로드 | PASS | MP4/MOV H.264 직접 multipart·실제 FFprobe/FFmpeg 검사·원 container master·JPEG poster·private delivery 종단 PASS | WebM은 release fixture 전 공식 게시 제외 |
 | 4 최신 포맷 | PASS | JPEG/PNG/GIF/WebP/AVIF/HEIC·HEIF runtime decode gate | JPEG XL, 영상 HEVC/AV1은 v1 제외 |
 | 5 진짜 파일·보안 | PASS | signature, 실제 decode/ffprobe, digest, hard limit, no-network sandbox | ClamAV·moderation은 선택 hook |
 | 6 G5/G7 연동 | PARTIAL | G5 5.6.24는 core-free module·실제 browser single/multipart·첨부 2개·private 전달 PASS. G7은 patch 5개 clean apply, 계약 28/28, 실제 browser upload/create/update/private thumbnail·403 권한 매트릭스와 권한·보존 DB gate PASS | G7 patch 정식 반영과 실 provider 보존 만료 삭제 |
 | 7 다중 업로드 | PASS | 1~100개 bounded 병렬 처리, 실제 G7 브라우저에서 single PUT와 2-part multipart 동시 첨부 PASS | 실 provider 부하 재측정 |
-| 8 대용량 streaming | PASS | 정확히 5GiB를 32MiB 160-part로 object storage에 직접 전송, API RSS 증가는 928KiB, 완료 후 Quarantined 진입 | 공급자별 처리량·재개 수치는 해당 실계정 profile 검증에서 기록 |
+| 8 대용량 streaming | PASS | 정확히 5GiB를 32MiB 160-part로 직접 전송, 80-part 뒤 API 재기동·재개, complete 2회 멱등, API RSS 증가 464KiB, Quarantined 진입 | 공급자별 처리량·재개 수치는 해당 실계정 profile 검증에서 기록 |
 | 9 EXIF 개인정보 | PASS | 이미지 orientation 적용 후 EXIF/GPS/XMP/IPTC 제거 | 영상 metadata 제거는 공식 범위 아님 |
 | 10 썸네일 | PASS | eager 1,280px JPEG, 불변 key, 원자적 Ready, private signed GET, 4MiB/60초 weighted manifest cache·singleflight·삭제 guard | 공개 CDN profile은 선택 기능이며 v1 필수 범위 아님 |
 | 11 초고해상도 | PASS | 25,000×4,000 JPEG, 100MP, heavy lane/RSS gate | hard cap 초과는 별도 offline tier |
@@ -27,12 +27,12 @@
 ## 이번 마감에서 확정한 Ready 계약
 
 이미지는 metadata를 제거하고 sRGB로 정규화한 최대 8,192px JPEG `master`와 1,280px JPEG
-`thumbnail`을 생성합니다. 영상은 검증된 MP4 원 container `master`와 1,280px JPEG `thumbnail`
+`thumbnail`을 생성합니다. 영상은 검증된 MP4/MOV 원 container `master`와 1,280px JPEG `thumbnail`
 (poster)을 생성합니다. 두 object upload와 두 derivative DB 행이 모두 성공한 경우에만 upload를
 `Ready`로 바꿉니다. DB 충돌 시 전체 derivative transaction을 rollback해 부분 Ready를 막습니다.
 
 ## 배포 게시 금지 항목
 
 upstream patch 미적용 G7, 실 provider 보존 삭제, 멀티노드/PostgreSQL, 임의 동적 리사이즈, 영상 트랜스코딩·metadata 제거,
-MOV/WebM release 지원, S3 관리 기능 전체, 실계정 conformance 전 R2/Lightsail profile은 공식
+WebM release 지원, S3 관리 기능 전체, 실계정 conformance 전 R2/Lightsail profile은 공식
 지원 기능으로 게시하지 않습니다.

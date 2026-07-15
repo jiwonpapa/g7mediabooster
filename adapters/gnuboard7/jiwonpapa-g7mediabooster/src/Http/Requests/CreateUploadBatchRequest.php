@@ -24,6 +24,7 @@ final class CreateUploadBatchRequest extends FormRequest
         'image/png',
         'image/webp',
         'video/mp4',
+        'video/quicktime',
     ];
 
     public function authorize(): bool

@@ -206,9 +206,11 @@ final class SettingsController extends AdminBaseController
     {
         $inputs = $this->validatedStringList($capabilities['image_inputs'] ?? null, 16, 32);
         $outputs = $this->validatedStringList($capabilities['image_outputs'] ?? null, 16, 32);
+        $videoInputs = $this->validatedStringList($capabilities['video_inputs'] ?? null, 16, 32);
         $versions = $capabilities['native_versions'] ?? null;
         if ($inputs === null
             || $outputs === null
+            || $videoInputs === null
             || ! is_bool($capabilities['mp4_thumbnail'] ?? null)
             || ! is_bool($capabilities['mp4_h264_fallback'] ?? null)
             || ! is_array($versions)
@@ -229,6 +231,7 @@ final class SettingsController extends AdminBaseController
         return [
             'image_inputs' => $inputs,
             'image_outputs' => $outputs,
+            'video_inputs' => $videoInputs,
             'mp4_thumbnail' => $capabilities['mp4_thumbnail'],
             'mp4_h264_fallback' => $capabilities['mp4_h264_fallback'],
             'native_versions' => $versions,

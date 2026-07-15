@@ -256,7 +256,10 @@ impl DerivativeManifest {
                     && preset == Some(derivative.preset_id.as_str())
                     && match derivative.variant.as_str() {
                         "master" => {
-                            matches!(derivative.content_type.as_str(), "image/jpeg" | "video/mp4")
+                            matches!(
+                                derivative.content_type.as_str(),
+                                "image/jpeg" | "video/mp4" | "video/quicktime"
+                            )
                         }
                         "thumbnail" => derivative.content_type == "image/jpeg",
                         _ => false,
@@ -349,7 +352,10 @@ mod tests {
     use time::OffsetDateTime;
     use tokio::{sync::Barrier, task::JoinSet};
 
-    use super::{DerivativeDeliveryError, DerivativeDeliveryPolicy, DerivativeDeliveryService};
+    use super::{
+        DerivativeDeliveryError, DerivativeDeliveryPolicy, DerivativeDeliveryService,
+        DerivativeManifest,
+    };
     use crate::{
         AbortMultipartRequest, CompleteMultipartRequest, CreateMultipartRequest,
         DownloadObjectRequest, MultipartSession, ObjectMetadata, ObjectStore, ObjectStoreError,
@@ -416,6 +422,43 @@ mod tests {
                 derivatives,
             })
         }
+    }
+
+    #[test]
+    fn quicktime_master_is_a_deliverable_immutable_video_derivative()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let upload_id = UploadId::new();
+        let manifest = DerivativeManifest::from_status(UploadStatusSnapshot {
+            upload_id,
+            state: UploadState::Ready,
+            detected_content_type: Some("video/quicktime".to_owned()),
+            error_code: None,
+            deletion_pending: false,
+            derivatives: vec![
+                StoredDerivative {
+                    preset_id: "board-v1".to_owned(),
+                    variant: "master".to_owned(),
+                    object_key: ObjectKey::new(format!("media/site-a/{upload_id}/master.mov"))?,
+                    content_type: "video/quicktime".to_owned(),
+                    byte_len: 4096,
+                },
+                StoredDerivative {
+                    preset_id: "board-v1".to_owned(),
+                    variant: "thumbnail".to_owned(),
+                    object_key: ObjectKey::new(format!("media/site-a/{upload_id}/thumbnail.jpg"))?,
+                    content_type: "image/jpeg".to_owned(),
+                    byte_len: 512,
+                },
+            ],
+        })?;
+
+        assert_eq!(
+            manifest
+                .derivative("master")
+                .map(|item| item.content_type.as_str()),
+            Some("video/quicktime")
+        );
+        Ok(())
     }
 
     #[async_trait]

@@ -64,7 +64,7 @@ export interface NativeAttachment {
     hash: string;
     original_filename: string;
     stored_filename: string;
-    mime_type: 'image/jpeg' | 'video/mp4';
+    mime_type: 'image/jpeg' | 'video/mp4' | 'video/quicktime';
     size: number;
     url: string;
     preview_url: string | null;

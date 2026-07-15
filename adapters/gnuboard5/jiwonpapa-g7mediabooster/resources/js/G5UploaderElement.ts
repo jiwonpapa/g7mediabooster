@@ -7,7 +7,7 @@ import { MultiUploader } from '../../../../gnuboard7/jiwonpapa-g7mediabooster/re
 import { XhrUploadTransport } from '../../../../gnuboard7/jiwonpapa-g7mediabooster/resources/js/upload/XhrUploadTransport';
 import { G5MediaControlClient } from './controlClient';
 
-const ACCEPTED_TYPES = '.jpg,.jpeg,.png,.gif,.webp,.avif,.heic,.heif,.mp4';
+const ACCEPTED_TYPES = '.jpg,.jpeg,.png,.gif,.webp,.avif,.heic,.heif,.mp4,.mov';
 
 export class G5UploaderElement extends HTMLElement {
     private readonly root = this.attachShadow({ mode: 'open' });
@@ -223,6 +223,6 @@ function template(): string {
         .actions{display:flex;align-items:center;gap:10px;padding:16px 18px}.actions p{flex:1;color:#64748b}.actions p[data-error=true]{color:#b42318}
         button{min-height:38px;padding:7px 14px;border:1px solid #2255d6;background:#2255d6;color:#fff}button.secondary{background:#fff;color:#263248;border-color:#9aa6b6}button:disabled{opacity:.5}
     </style><section class="shell"><header><h2>미디어 직접 업로드</h2><p>파일 바이트는 PHP 서버를 거치지 않습니다.</p></header>
-    <label class="pick">이미지·MP4 선택<br><br><input type="file" disabled></label><ul data-role="list"></ul>
+    <label class="pick">이미지·MP4·MOV 선택<br><br><input type="file" disabled></label><ul data-role="list"></ul>
     <div class="actions"><p data-role="status" aria-live="polite">설정을 확인하고 있습니다.</p><button type="button" class="secondary" data-role="cancel" hidden>취소</button><button type="button" data-role="start" disabled>업로드 시작</button></div></section>`;
 }

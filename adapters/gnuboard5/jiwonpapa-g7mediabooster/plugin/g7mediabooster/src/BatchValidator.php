@@ -63,7 +63,9 @@ final class BatchValidator
             ) {
                 throw new UnexpectedValueException('invalid upload file intent');
             }
-            $allowedTypes = $kind === 'image' ? self::IMAGE_TYPES : ['application/octet-stream', 'video/mp4'];
+            $allowedTypes = $kind === 'image'
+                ? self::IMAGE_TYPES
+                : ['application/octet-stream', 'video/mp4', 'video/quicktime'];
             if (! in_array(strtolower($contentType), $allowedTypes, true)) {
                 throw new UnexpectedValueException('media type is not release-supported');
             }

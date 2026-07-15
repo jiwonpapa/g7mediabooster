@@ -36,7 +36,7 @@ ADR로만 도입합니다.
 | 언어 | Rust 2024, toolchain 1.96.0 |
 | HTTP | Axum 0.8 + Tokio 1.x |
 | 이미지 | libvips 8.15+ 빌드 기준, 운영 참조 이미지 8.18.x 고정, sandbox 프로세스 내부 |
-| MP4 썸네일 | FFmpeg 8 계열 CLI 주 경로 + Rust `mp4`/OpenH264 제한 폴백 |
+| MP4/MOV 썸네일 | FFmpeg 8 계열 CLI 주 경로 + MP4/H.264 한정 Rust `mp4`/OpenH264 폴백 |
 | 저장소 | AWS SDK for Rust, AWS S3와 Cloudflare R2 custom endpoint |
 | 작업 저장소 | SQLite WAL 단일 서버 durable queue. 멀티노드는 별도 ADR 후 교체 |
 | 인증 | PHP 앱별 HMAC-SHA256 + timestamp + nonce + body hash |
@@ -150,7 +150,7 @@ CREATED -> UPLOADED -> QUARANTINED -> PROCESSING -> READY
 | 이미지 한 변 | 32,768 px | heavy tier 65,535 px |
 | 총 픽셀 | 일반 raster 200 MP, AVIF/HEIF 64 MP | heavy tier는 decoder 실측 범위 안에서만 상향 |
 | 애니메이션 프레임 | 300 | 500 |
-| MP4 길이 | 2시간 | 6시간 |
+| MP4/MOV 길이 | 2시간 | 6시간 |
 | 요청 JSON body | 1 MiB | 1 MiB |
 | API 요청률 | 50 req/s, burst 100 | 10,000 req/s, burst 100,000 |
 | API 동시 처리 | 64 | 1,024 |
@@ -270,7 +270,7 @@ health/metrics를 제외한 모든 API는 인증과 tenant scope가 필요합니
 
 ## 14. 구현 현황
 
-2026-07-15 기준으로 다음 제어 계층이 구현됐습니다.
+2026-07-16 기준으로 다음 제어 계층이 구현됐습니다.
 
 - 최대 100개 batch 정책과 single PUT/multipart 자동 선택
 - S3/R2 multipart create, part presign, complete, abort adapter
@@ -290,6 +290,8 @@ health/metrics를 제외한 모든 API는 인증과 tenant scope가 필요합니
 - FFmpeg 실행 파일 부재를 실제로 주입한 MP4/H.264에서 Rust `mp4` demux + OpenH264 첫
   frame을 추출하고 libvips JPEG로 재가공하며 HEVC/AV1·MOV·WebM은 폴백하지 않는 계약
 - 실제 AVIF encode/decode와 HEIC/HEIF signature·decoder probe·JPEG 파생 runtime smoke
+- 실제 MP4/MOV H.264를 FFprobe·FFmpeg로 검사해 원 container master와 JPEG poster를
+  원자적으로 Ready 발행하고 private delivery에서 container MIME을 보존하는 종단 smoke
 - source/derivative SHA-256 기반 불변 key와 멱등 게시, 상태 조회 API
 - worker lease heartbeat·재선점·bounded retry·dead-letter와 systemd 자원 제한 기본값
 - 위장 PHP 선차단, EXIF/GPS 제거, 실제 JPEG/MP4 probe·thumbnail fixture 하네스
@@ -318,7 +320,7 @@ health/metrics를 제외한 모든 API는 인증과 tenant scope가 필요합니
   100개 worker 부하를 함께 실행해 API health 267/267, 작업 100/100 완료와 cgroup peak
   1,066,602,496 bytes 확인
 - sandbox가 내장 fixture로 JPEG/PNG/GIF/WebP/AVIF/HEIF decode,
-  JPEG/PNG/WebP/AVIF encode, FFprobe+FFmpeg MP4/H.264 poster를 실제 실행하고 OpenH264
+  JPEG/PNG/WebP/AVIF encode, FFprobe+FFmpeg MP4/MOV H.264 poster를 실제 실행하고 OpenH264
   폴백 compile 경계를 보고합니다. API는 이 전체 v1 capability가 없으면 시작을 거부하며
   HMAC 인증된 `/v1/capabilities`만 검증 snapshot을 반환합니다.
 - G7 관리자 전용 capability proxy가 Rust 응답을 길이·형식 제한 후 반환합니다.
@@ -326,12 +328,14 @@ health/metrics를 제외한 모든 API는 인증과 tenant scope가 필요합니
   만료 multipart abort, derivative/raw idempotent 삭제와 systemd timer를 구현했습니다.
 - G7 module 0.3.0에 form 자동 연결, Ready master·thumbnail 전건 검증, DB lock 기반 native
   attachment 멱등 materialization, 게시글 scope·삭제글 정책을 재사용하는 private viewer redirect,
-  soft-delete 보존 대조를 구현하고 현재 G7 기준 `sirsoft-board` 1.2.0 upstream 계약 patch와 21항목 검증기를 준비했습니다.
+  soft-delete 보존 대조를 구현하고 현재 G7 기준 `sirsoft-board` 1.2.0 upstream 계약 patch와 28항목 검증기를 준비했습니다.
 - G5 5.6.24 core-free adapter에 PHP 8-safe hook, HMAC control proxy, browser direct single/multipart,
   MyISAM advisory-lock attachment 연결과 private delivery를 구현하고 실제 MySQL 8.4·MinIO 브라우저에서
   2개 동시 업로드→Rust 처리→게시글 첨부 표시와 비로그인 `403`을 검증했습니다.
 
-실제 AWS S3/R2 credential conformance, G7 upstream merge·실 provider 보존 삭제,
-5GiB 운영 부하 증거는
-아직 완료가 아니며
-`docs/IMPLEMENTATION_PLAN.md` 순서로 추진합니다.
+- 정확히 5GiB를 32MiB 160-part로 직접 전송하면서 80번째 part 뒤 API를 재기동해 같은
+  SQLite/provider session으로 재개하고, complete 2회 멱등 처리·HEAD 길이·Quarantined 상태와
+  API RSS 증가 464KiB를 확인했습니다.
+
+실제 R2/Lightsail credential별 conformance, G7 upstream merge와 실 provider 보존 삭제는
+외부 운영 게이트로 남아 있으며 `docs/IMPLEMENTATION_PLAN.md` 순서로 추진합니다.

@@ -2,6 +2,8 @@
 
 ## 0.4.0 - 2026-07-16
 
+- MP4에 더해 MOV/H.264를 실제 runtime·worker·private delivery fixture로 검증하고 업로더에 공개했습니다.
+- capability 응답의 `video_inputs`로 MP4/MOV 런타임 가용성을 관리자 화면에 보고합니다.
 - 관리자 설정의 수동 UUID 입력을 본인 소유 Ready JPEG·PNG·WebP 자산 선택기로 교체했습니다.
 - 워터마크 후보를 최근 7일·16MiB 이하로 제한하고 session·native attachment 소유권과 collection 메타데이터를 다시 검증합니다.
 - 타인 소유·AVIF·과대·삭제·동영상·잘못된 collection 자산 제외를 실제 G7 DB 호스트 게이트에 추가했습니다.

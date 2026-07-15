@@ -13,7 +13,7 @@ final class DeliveryValidator
     {
         if (($delivery['upload_id'] ?? null) !== $uploadId
             || ($delivery['variant'] ?? null) !== $variant
-            || ! in_array($delivery['content_type'] ?? null, ['image/jpeg', 'video/mp4'], true)
+            || ! in_array($delivery['content_type'] ?? null, ['image/jpeg', 'video/mp4', 'video/quicktime'], true)
             || ! is_int($delivery['byte_len'] ?? null)
             || $delivery['byte_len'] < 1
             || ! is_string($delivery['expires_at'] ?? null)

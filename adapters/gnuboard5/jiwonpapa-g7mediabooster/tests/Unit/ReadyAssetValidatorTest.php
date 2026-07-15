@@ -31,6 +31,25 @@ final class ReadyAssetValidatorTest extends TestCase
         (new ReadyAssetValidator)->validate($status, $this->session());
     }
 
+    #[Test]
+    public function valid_ready_quicktime_becomes_a_remote_g5_video_record(): void
+    {
+        $status = $this->readyStatus();
+        $status['detected_content_type'] = 'video/quicktime';
+        $status['derivatives'][0]['content_type'] = 'video/quicktime';
+        $status['derivatives'][0]['byte_len'] = 4096;
+        $session = $this->session();
+        $session['declared_kind'] = 'video';
+        $session['original_filename'] = '영상.mp4';
+
+        $materialized = (new ReadyAssetValidator)->validate($status, $session);
+
+        self::assertSame('영상.mov', $materialized['original_filename']);
+        self::assertStringEndsWith('.mov', $materialized['stored_filename']);
+        self::assertSame('video/quicktime', $materialized['mime_type']);
+        self::assertSame(0, $materialized['image_type']);
+    }
+
     /** @return array<string, mixed> */
     private function session(): array
     {

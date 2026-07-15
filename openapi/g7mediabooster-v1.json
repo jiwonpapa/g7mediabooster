@@ -997,6 +997,7 @@
         "required": [
           "image_inputs",
           "image_outputs",
+          "video_inputs",
           "mp4_thumbnail",
           "mp4_h264_fallback",
           "native_versions"
@@ -1033,6 +1034,13 @@
             "propertyNames": {
               "type": "string"
             }
+          },
+          "video_inputs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Video containers that passed probe and poster extraction fixtures."
           }
         }
       },

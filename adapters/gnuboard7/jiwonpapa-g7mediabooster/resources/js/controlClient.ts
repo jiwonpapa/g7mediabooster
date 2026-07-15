@@ -117,7 +117,7 @@ function validateNativeAttachment(value: NativeAttachment): NativeAttachment {
         || value.original_filename.length < 1
         || value.original_filename.length > 255
         || typeof value.stored_filename !== 'string'
-        || !['image/jpeg', 'video/mp4'].includes(value.mime_type)
+        || !['image/jpeg', 'video/mp4', 'video/quicktime'].includes(value.mime_type)
         || !Number.isSafeInteger(value.size)
         || value.size < 1
         || typeof value.url !== 'string'

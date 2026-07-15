@@ -3,7 +3,7 @@ import type { FileUploadProgress, PublicUploaderConfiguration, UploadBatchResult
 import { MultiUploader } from '../upload/MultiUploader';
 import { XhrUploadTransport } from '../upload/XhrUploadTransport';
 
-const ACCEPTED_TYPES = '.jpg,.jpeg,.png,.gif,.webp,.avif,.heic,.heif,.mp4';
+const ACCEPTED_TYPES = '.jpg,.jpeg,.png,.gif,.webp,.avif,.heic,.heif,.mp4,.mov';
 
 export class G7MediaUploaderElement extends HTMLElement {
     private readonly root: ShadowRoot;

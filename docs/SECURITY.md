@@ -60,7 +60,7 @@ G7MB-HMAC-SHA256
 검사하지 않습니다. 배포
 이미지는 패키지 목록과 `vips --version`, `ffmpeg -buildconf`를 SBOM에 포함해야 합니다.
 버전 문자열 성공만으로 capability를 승인하지 않습니다. sandbox `capabilities` 명령이
-내장 fixture로 필수 이미지 decode/encode와 MP4/H.264 추출을 실행하고, API는 결과가 v1
+내장 fixture로 필수 이미지 decode/encode와 MP4/MOV H.264 추출을 실행하고, API는 결과가 v1
 전체 조건을 충족하지 않으면 시작을 거부합니다. capability HTTP 응답도 HMAC·nonce 인증을
 요구합니다. 별도의 더 큰 native fixture release gate도 실행합니다.
 

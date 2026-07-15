@@ -127,9 +127,11 @@ final class Hooks
             $href = htmlspecialchars((string) ($file['href'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
             $master = htmlspecialchars($file['bf_fileurl'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
             $thumbnail = htmlspecialchars($file['bf_thumburl'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-            if (str_ends_with(strtolower((string) ($file['file'] ?? '')), '.mp4')) {
+            $extension = strtolower(pathinfo((string) ($file['file'] ?? ''), PATHINFO_EXTENSION));
+            if (in_array($extension, ['mp4', 'mov'], true)) {
+                $videoType = $extension === 'mov' ? 'video/quicktime' : 'video/mp4';
                 $file['view'] = '<video controls preload="metadata" poster="'.$thumbnail.'" style="max-width:100%;height:auto">'.
-                    '<source src="'.$master.'" type="video/mp4"></video>';
+                    '<source src="'.$master.'" type="'.$videoType.'"></video>';
             } else {
                 $file['view'] = '<a href="'.$href.'"><img src="'.$thumbnail.'" alt="'.$source.'" loading="lazy" decoding="async" style="max-width:100%;height:auto"></a>';
             }
