@@ -11,6 +11,16 @@ use PHPUnit\Framework\TestCase;
 
 final class MediaBoosterConfigurationTest extends TestCase
 {
+    public function testEmptySettingsLoadSafeDisabledDefaultsDuringFirstActivation(): void
+    {
+        $configuration = MediaBoosterConfiguration::fromArray([]);
+
+        self::assertFalse($configuration->enabled);
+        self::assertSame('http://127.0.0.1:8080', $configuration->endpoint);
+        self::assertSame('g7-primary', $configuration->keyId);
+        self::assertSame('', $configuration->hmacSecret);
+    }
+
     public function testAcceptsSecureOriginAndBoundedUploaderSettings(): void
     {
         $configuration = MediaBoosterConfiguration::fromArray($this->validSettings());

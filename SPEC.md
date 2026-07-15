@@ -328,6 +328,6 @@ health/metrics를 제외한 모든 API는 인증과 tenant scope가 필요합니
 
 실제 AWS S3/R2 credential conformance, G7 관리자 전용 워터마크 asset picker의 실제
 브라우저 smoke, G5 모듈,
-G7 upstream merge·실제 게시물/권한/삭제·복원 smoke, 5GiB·200MP/AVIF heavy-image 운영 부하 증거는
+G7 upstream merge·실제 저장소 전송·게시물/권한/삭제·복원 smoke, 5GiB·200MP/AVIF heavy-image 운영 부하 증거는
 아직 완료가 아니며
 `docs/IMPLEMENTATION_PLAN.md` 순서로 추진합니다.

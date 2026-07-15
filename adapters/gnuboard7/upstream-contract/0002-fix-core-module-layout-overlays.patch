@@ -1,0 +1,110 @@
+diff --git a/app/Services/LayoutExtensionService.php b/app/Services/LayoutExtensionService.php
+index d8077fc9..cdc338c1 100644
+--- a/app/Services/LayoutExtensionService.php
++++ b/app/Services/LayoutExtensionService.php
+@@ -134,10 +134,15 @@ public function __construct(
+      * @param  array  $layout  원본 레이아웃
+      * @param  int  $templateId  템플릿 ID
+      * @param  bool  $withSourceMeta  편집 모드 출처 메타 부여 여부
++     * @param  string|null  $requestedLayoutName  라우트가 요청한 정규화 전 레이아웃명
+      * @return array 확장이 적용된 레이아웃
+      */
+-    public function applyExtensions(array $layout, int $templateId, bool $withSourceMeta = false): array
+-    {
++    public function applyExtensions(
++        array $layout,
++        int $templateId,
++        bool $withSourceMeta = false,
++        ?string $requestedLayoutName = null
++    ): array {
+         $layoutName = $layout['layout_name'] ?? '';
+ 
+         // overlay 매칭 대상 = 서빙 레이아웃명 + 상속 체인(base 레이아웃들).
+@@ -146,7 +151,7 @@ public function applyExtensions(array $layout, int $templateId, bool $withSource
+         // 포함한다. Extension Point 는 병합 트리를 스캔하므로(체인 무관) 영향 없다.
+         $extendsChain = is_array($layout['__extends_chain'] ?? null) ? $layout['__extends_chain'] : [];
+         $overlayTargetNames = array_values(array_unique(array_filter(
+-            array_merge([$layoutName], $extendsChain),
++            array_merge([$layoutName, $requestedLayoutName], $extendsChain),
+             fn ($name) => is_string($name) && $name !== ''
+         )));
+ 
+diff --git a/app/Services/LayoutService.php b/app/Services/LayoutService.php
+index 0e5fe794..0c571d21 100644
+--- a/app/Services/LayoutService.php
++++ b/app/Services/LayoutService.php
+@@ -1248,7 +1248,12 @@ public function getLayout(string $templateIdentifier, string $layoutName, bool $
+         $layout = $this->loadAndMergeLayout($template->id, $layoutName, $withSourceMeta);
+ 
+         // 모듈/플러그인 Extension 적용 (Overlay, Extension Point)
+-        $layout = $this->layoutExtensionService->applyExtensions($layout, $template->id, $withSourceMeta);
++        $layout = $this->layoutExtensionService->applyExtensions(
++            $layout,
++            $template->id,
++            $withSourceMeta,
++            $layoutName
++        );
+ 
+         // 편집 모드 응답에 자식 레이아웃의 실제 DB lock_version 동봉.
+         // PublicLayoutController 가 LayoutResource 를 거치지 않고 머지된 배열을 그대로 반환하므로,
+diff --git a/tests/Unit/Services/LayoutExtensionServiceTest.php b/tests/Unit/Services/LayoutExtensionServiceTest.php
+index 79c5f928..d0ebe502 100644
+--- a/tests/Unit/Services/LayoutExtensionServiceTest.php
++++ b/tests/Unit/Services/LayoutExtensionServiceTest.php
+@@ -562,6 +562,56 @@ public function test_applies_overlay_at_correct_position(): void
+         $this->assertEquals('marketing_tab', $result['components'][0]['children'][1]['id']);
+     }
+ 
++    /**
++     * 다른 모듈이 제공한 레이아웃은 DB와 라우트에서 모듈 접두사를 사용하지만,
++     * 파일 내부 layout_name은 기존 비접두사 값을 유지한다. 요청된 정규화 전 이름도
++     * overlay 후보에 포함해야 모듈 간 확장이 적용된다.
++     */
++    public function test_applies_overlay_to_module_prefixed_requested_layout(): void
++    {
++        LayoutExtension::create([
++            'template_id' => $this->template->id,
++            'extension_type' => LayoutExtensionType::Overlay,
++            'target_name' => 'sirsoft-board.admin_board_post_form',
++            'source_type' => LayoutSourceType::Module,
++            'source_identifier' => 'sirsoft-marketing',
++            'content' => [
++                'target_layout' => 'sirsoft-board.admin_board_post_form',
++                'injections' => [[
++                    'target_id' => 'admin_board_native_file_uploader',
++                    'position' => 'prepend',
++                    'components' => [[
++                        'id' => 'external_uploader',
++                        'type' => 'basic',
++                        'name' => 'Div',
++                    ]],
++                ]],
++            ],
++            'priority' => 100,
++            'is_active' => true,
++        ]);
++
++        $layout = [
++            'layout_name' => 'admin_board_post_form',
++            'components' => [[
++                'id' => 'admin_board_native_file_uploader',
++                'type' => 'basic',
++                'name' => 'Div',
++                'children' => [],
++            ]],
++        ];
++
++        $result = $this->service->applyExtensions(
++            $layout,
++            $this->template->id,
++            false,
++            'sirsoft-board.admin_board_post_form'
++        );
++
++        $this->assertSame('external_uploader', $result['components'][0]['id']);
++        $this->assertSame('admin_board_native_file_uploader', $result['components'][1]['id']);
++    }
++
+     /**
+      * Overlay 확장이 호스트 레이아웃 init_actions 뒤에 초기화 액션을 병합한다.
+      *

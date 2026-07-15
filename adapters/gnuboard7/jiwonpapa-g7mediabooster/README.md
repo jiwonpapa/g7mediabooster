@@ -30,7 +30,8 @@ PHP 8.2 이상과 `mbstring` 확장이 필요합니다.
 modules/jiwonpapa-g7mediabooster
 ```
 
-먼저 `adapters/gnuboard7/upstream-contract`의 계약이 정식 반영된 `sirsoft-board >=1.2.0`인지
+먼저 `adapters/gnuboard7/upstream-contract`의 board 계약과 module-prefixed overlay core patch가
+정식 반영된 `sirsoft-board >=1.2.0`인지
 검증한 뒤 G7의 표준 모듈 설치·활성화 절차를 사용합니다. 설치 시
 `g7mb_upload_sessions`, attachment bridge, retention queue migration이 실행되고 관리자 메뉴에 `미디어 부스터`가 추가됩니다.
 Rust API의 `key_id`, HMAC secret, tenant 설정은 G7 관리자 값과 정확히 맞아야 합니다.
@@ -88,12 +89,13 @@ npm run build
 현재 검증 범위는 PHP HMAC/config/client·삭제·Ready materialization·URL resolver 계약,
 TypeScript 100개 bounded scheduling·multipart·ETag·Ready polling·native attachment 생성,
 site policy PUT/GET, Vite production build와 G7 upstream 계약 검사입니다.
-워터마크 자산은 현재 관리자 화면에서 Ready upload UUID로 지정합니다. 실제 S3/R2
-credential과 G7 설치 후 브라우저 smoke는 별도 운영 게이트입니다.
+워터마크 자산은 현재 관리자 화면에서 Ready upload UUID로 지정합니다. 설치·설정·user/admin
+form 주입·disabled fail-safe는 격리 브라우저 smoke를 통과했으며, 실제 S3/R2 전송과
+create/update·권한·삭제/복원은 별도 운영 게이트입니다.
 
 ## 아직 공식 지원으로 게시하지 않는 연동
 
 모듈에는 form 자동 연결, Ready→native attachment bridge, 권한 기반 private delivery와
-보존기간 삭제 대조가 구현돼 있습니다. 다만 G7 upstream patch 정식 반영, create/update·비밀글·삭제/복원 실제
+보존기간 삭제 대조가 구현돼 있습니다. 다만 실제 저장소 전송과 create/update·비밀글·삭제/복원
 브라우저 smoke 전에는 이를 배포 설명의 공식 지원 기능으로 게시하지 않습니다. patch가 없는
 `sirsoft-board`에서는 manifest와 runtime 계약 검사가 설치·실행을 fail-closed 합니다.

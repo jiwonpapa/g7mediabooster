@@ -1,5 +1,5 @@
 {
-  "target_layout": "admin_board_post_form",
+  "target_layout": "sirsoft-board.admin_board_post_form",
   "injections": [
     {
       "target_id": "admin_board_native_file_uploader",

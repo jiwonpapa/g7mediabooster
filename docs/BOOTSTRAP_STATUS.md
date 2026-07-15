@@ -27,7 +27,7 @@
 | EXIF/GPS 제거 | PASS | 개인정보 fixture를 libvips로 가공 후 metadata 부재 확인 |
 | 이미지·영상 poster 워터마크 | PASS | bounded 합성, SHA-256 pin, revision+digest key, fail-closed worker와 실제 MP4 경로 |
 | sandbox egress | PASS | Linux seccomp socket 계열 차단, native child 상속, 컨테이너 EPERM 테스트 |
-| G7 제어 업로더 | PASS | PHP 54 tests, TS 17 tests, 100개 bounded 전송 후 Ready polling·native attachment materialization, form state 연결, capability·삭제·private delivery proxy, typecheck·Vite build 통과 |
+| G7 제어 업로더 | PASS | PHP 55 tests/137 assertions, TS 17 tests, 100개 bounded 전송 후 Ready polling·native attachment materialization, form state 연결, capability·삭제·private delivery proxy, typecheck·Vite build 통과 |
 | 런타임 capability | PASS | 필수 image 6 input/4 output, MP4/H.264 poster, OpenH264 폴백 보고와 API startup fail-closed |
 | G7 site policy | PASS | HMAC PUT/GET, Ready asset pin, 단조 revision, job 고정·worker exact revision 적용 |
 | lifecycle 삭제·보존 | PASS | HMAC/G7 소유권 삭제 예약, 만료 multipart abort, derivative/raw 정리, SQLite lease·retry·tombstone |
@@ -41,7 +41,7 @@
 | AVIF decoder memory | PASS | 64MP AVIF peak RSS 1,221,776 KiB, 200MP AVIF full decode 전 정책 거부 |
 | tenant fair queue·backpressure | PASS | 영속 round-robin claim, global 1,000/tenant 200 활성 cap, presign 전 차단, 429 계약 |
 | Linux cgroup 부하 | PASS | CPU 2 core, memory 2GiB, PID 64, network none, API health 267/267, worker 100/100 |
-| G7 게시물 첨부 표시 | PARTIAL | 현재 G7 `e64381dd` 기준 patch clean apply, 계약 21/21, 핵심 PHP 48/48 PASS, 전체 baseline 대비 신규 실패 0; upstream merge·browser smoke 필요 |
+| G7 게시물 첨부 표시 | PARTIAL | G7 `e64381dd` 기준 patch 2개 clean apply, 계약 21/21, 핵심 PHP 48/48, core overlay 2/2, 설치·설정·user/admin form disabled smoke PASS; 실제 전송·create/update·권한·삭제/복원 필요 |
 
 ## 준비된 하네스
 
@@ -73,7 +73,7 @@ round-trip과 전체 `cargo xtask native-smoke`를 다시 통과했습니다.
 
 현재 코드는 batch intent, multipart part/complete/abort, SQLite lease/heartbeat, worker 실행
 loop, 원본 검사·master+thumbnail/poster, lifecycle cleanup과 G7 관리자/브라우저 제어 업로더까지 구현됐습니다. 실제 R2/Lightsail
-conformance, G7 게시물 첨부 표시, G5, G7 관리자 전용 asset picker browser smoke,
+conformance, G7 게시물 실제 전송·첨부 표시·권한·삭제/복원, G5, G7 관리자 전용 asset picker browser smoke,
 실제 S3/R2·5GiB와
 filesystem quota 증거는 구현 완료로 표시하지 않습니다. 멀티노드는 v1 범위가
 아니며 각 기능은 `SPEC.md` 완료 정의를 만족한 뒤에만 완료 처리합니다.

@@ -56,7 +56,7 @@ final class BridgeContractSourceTest extends TestCase
         $admin = $this->decodeExtension($root.'/resources/extensions/admin-board-media-uploader.json');
 
         self::assertSame('board/form', $user['target_layout']);
-        self::assertSame('admin_board_post_form', $admin['target_layout']);
+        self::assertSame('sirsoft-board.admin_board_post_form', $admin['target_layout']);
         $this->assertUploaderInjection($user, 'board_native_file_uploader', 'board_post_submit');
         $this->assertUploaderInjection($admin, 'admin_board_native_file_uploader', 'footer_save_button');
     }
