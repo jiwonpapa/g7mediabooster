@@ -1,6 +1,7 @@
 import type {
     CompletedPart,
     MediaControlClient,
+    NativeAttachment,
     PresignedPart,
     PublicUploaderConfiguration,
     UploadBatch,
@@ -18,6 +19,10 @@ interface G7Envelope<T> {
     success: boolean;
     message?: string;
     data: T;
+}
+
+interface MaterializedAttachmentEnvelope {
+    data: NativeAttachment;
 }
 
 export class G7MediaControlClient implements MediaControlClient {
@@ -64,6 +69,14 @@ export class G7MediaControlClient implements MediaControlClient {
     public async status(uploadId: string): Promise<UploadStatus> {
         return unwrap(await this.api.get<G7Envelope<UploadStatus>>(`${this.basePath}/${assertUploadId(uploadId)}`));
     }
+
+    public async materializeAttachment(uploadId: string): Promise<NativeAttachment> {
+        const response = unwrap(await this.api.post<G7Envelope<MaterializedAttachmentEnvelope>>(
+            `${this.basePath}/${assertUploadId(uploadId)}/attachment`,
+        ));
+
+        return validateNativeAttachment(response.data);
+    }
 }
 
 function unwrap<T>(response: G7Envelope<T>): T {
@@ -93,6 +106,31 @@ function assertPartNumber(partNumber: number): number {
         throw new RangeError('invalid part number');
     }
     return partNumber;
+}
+
+function validateNativeAttachment(value: NativeAttachment): NativeAttachment {
+    if (!value
+        || !Number.isSafeInteger(value.id)
+        || value.id < 1
+        || !/^[A-Za-z0-9]{12}$/.test(value.hash)
+        || typeof value.original_filename !== 'string'
+        || value.original_filename.length < 1
+        || value.original_filename.length > 255
+        || typeof value.stored_filename !== 'string'
+        || !['image/jpeg', 'video/mp4'].includes(value.mime_type)
+        || !Number.isSafeInteger(value.size)
+        || value.size < 1
+        || typeof value.url !== 'string'
+        || !value.url.startsWith('/api/modules/jiwonpapa-g7mediabooster/')
+        || (value.preview_url !== null
+            && (typeof value.preview_url !== 'string'
+                || !value.preview_url.startsWith('/api/modules/jiwonpapa-g7mediabooster/')))
+        || !Number.isSafeInteger(value.order)
+    ) {
+        throw new Error('G7 attachment bridge returned an invalid response');
+    }
+
+    return value;
 }
 
 declare global {

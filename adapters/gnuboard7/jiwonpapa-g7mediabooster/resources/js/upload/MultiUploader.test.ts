@@ -3,6 +3,7 @@ import type {
     CompletedPart,
     DirectUploadTransport,
     MediaControlClient,
+    NativeAttachment,
     PresignedPart,
     PublicUploaderConfiguration,
     UploadBatch,
@@ -19,6 +20,9 @@ class FakeControl implements MediaControlClient {
     public readonly presignedLengths: number[] = [];
     public batchRequests = 0;
     public completed: CompletedPart[] = [];
+    public requestedFiles: UploadFileIntent[] = [];
+    public materialized = 0;
+    public expectedTransfersBeforeStatus = 0;
 
     public async configuration(): Promise<PublicUploaderConfiguration> {
         return {
@@ -34,6 +38,7 @@ class FakeControl implements MediaControlClient {
 
     public async createBatch(files: UploadFileIntent[]): Promise<UploadBatch> {
         this.batchRequests += 1;
+        this.requestedFiles = files;
         return {
             batch_id: '018f47f0-1111-7111-8111-111111111111',
             uploads: files.map((file, index) => {
@@ -78,13 +83,35 @@ class FakeControl implements MediaControlClient {
     }
 
     public async status(uploadId: string): Promise<UploadStatus> {
+        if (this.expectedTransfersBeforeStatus > 0 && this.confirmed.length !== this.expectedTransfersBeforeStatus) {
+            throw new Error('status polling started before the bounded transfer phase completed');
+        }
         return {
             upload_id: uploadId,
-            state: 'processing',
-            detected_content_type: null,
+            state: 'ready',
+            detected_content_type: 'image/jpeg',
             error_code: null,
             deletion_pending: false,
-            derivatives: [],
+            derivatives: [
+                { preset_id: 'v1', variant: 'master', url_path: '/master.jpg', delivery_url: '', content_type: 'image/jpeg', byte_len: 1024 },
+                { preset_id: 'v1', variant: 'thumbnail', url_path: '/thumbnail.jpg', delivery_url: '', content_type: 'image/jpeg', byte_len: 512 },
+            ],
+        };
+    }
+
+    public async materializeAttachment(uploadId: string): Promise<NativeAttachment> {
+        this.materialized += 1;
+        return {
+            id: this.materialized,
+            hash: `hash${String(this.materialized).padStart(8, '0')}`,
+            original_filename: 'image.jpg',
+            stored_filename: `${uploadId}.jpg`,
+            mime_type: 'image/jpeg',
+            size: 1024,
+            url: `/api/modules/jiwonpapa-g7mediabooster/attachment/${this.materialized}/master`,
+            preview_url: `/api/modules/jiwonpapa-g7mediabooster/attachment/${this.materialized}/thumbnail`,
+            order: 0,
+            created_at: null,
         };
     }
 }
@@ -122,24 +149,37 @@ class TrackingTransport implements DirectUploadTransport {
 
 describe('MultiUploader', () => {
     it('schedules a 100-file batch through one control request and bounded connections', async () => {
+        vi.useFakeTimers();
         const control = new FakeControl();
+        control.expectedTransfersBeforeStatus = 100;
         const transport = new TrackingTransport();
         const files = Array.from(
             { length: 100 },
             (_, index) => fileOfSize(1024, `image-${index}.jpg`, 'image/jpeg'),
         );
+        const startedAt = Date.now();
 
-        const result = await new MultiUploader(control, transport).upload(files, {
-            maxParallelFiles: 16,
-            maxConnections: 8,
-            maxRetries: 0,
-        });
+        try {
+            const pending = new MultiUploader(control, transport).upload(files, {
+                maxParallelFiles: 16,
+                maxConnections: 8,
+                maxRetries: 0,
+            });
+            await vi.runAllTimersAsync();
+            const result = await pending;
 
-        expect(control.batchRequests).toBe(1);
-        expect(transport.maxActive).toBe(8);
-        expect(control.confirmed).toHaveLength(100);
-        expect(result.files).toHaveLength(100);
-        expect(result.files.every((file) => file.state === 'accepted')).toBe(true);
+            expect(control.batchRequests).toBe(1);
+            expect(control.requestedFiles[0]?.original_filename).toBe('image-0.jpg');
+            expect(transport.maxActive).toBe(8);
+            expect(control.confirmed).toHaveLength(100);
+            expect(control.materialized).toBe(100);
+            expect(Date.now() - startedAt).toBeGreaterThanOrEqual(24_875);
+            expect(result.files).toHaveLength(100);
+            expect(result.files.every((file) => file.state === 'accepted')).toBe(true);
+            expect(result.files.every((file) => file.attachment !== null)).toBe(true);
+        } finally {
+            vi.useRealTimers();
+        }
     });
 
     it('rejects 101 files before creating a control-plane batch', async () => {
@@ -153,6 +193,16 @@ describe('MultiUploader', () => {
         await expect(new MultiUploader(control, transport).upload(files)).rejects.toThrow('1-100');
         expect(control.batchRequests).toBe(0);
         expect(transport.maxActive).toBe(0);
+    });
+
+    it('rejects media outside the published release formats before reservation', async () => {
+        const control = new FakeControl();
+        const uploader = new MultiUploader(control, new TrackingTransport());
+
+        await expect(uploader.upload([
+            fileOfSize(1024, 'clip.webm', 'video/webm'),
+        ])).rejects.toThrow('unsupported media type');
+        expect(control.batchRequests).toBe(0);
     });
 
     it('caps direct PUT connections across multiple files', async () => {

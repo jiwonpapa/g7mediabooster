@@ -61,6 +61,28 @@ final class DerivativeDeliveryValidator
         return $url;
     }
 
+    /**
+     * @param array<string, mixed> $delivery
+     */
+    public function validateExact(
+        array $delivery,
+        string $uploadId,
+        string $variant,
+        string $expectedPresetId,
+        string $expectedContentType,
+        int $expectedByteLen,
+    ): string {
+        $url = $this->validate($delivery, $uploadId, $variant);
+        if (($delivery['preset_id'] ?? null) !== $expectedPresetId
+            || ($delivery['content_type'] ?? null) !== $expectedContentType
+            || ($delivery['byte_len'] ?? null) !== $expectedByteLen
+        ) {
+            throw new UnexpectedValueException('derivative no longer matches the native attachment contract');
+        }
+
+        return $url;
+    }
+
     private function isFutureTimestamp(string $value): bool
     {
         if (preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/', $value) !== 1) {

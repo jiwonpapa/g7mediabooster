@@ -25,6 +25,10 @@
 - S3의 ACL, Object Lock, replication, inventory, IAM/STS, SSE-KMS 관리 기능
 - 실계정 conformance를 아직 통과하지 않은 R2 또는 Lightsail profile
 
+G7 module 0.2.0에는 Ready→native attachment와 권한 기반 viewer redirect 후보 코드가
+포함되지만, upstream `sirsoft-board` 1.1.0 계약 반영과 실제 browser smoke 전에는 위 첫 항목을
+공식 지원으로 승격하지 않습니다.
+
 ## 공식 object storage 지원 범위
 
 배포판은 S3 전체 관리 API가 아니라 다음 runtime 작업만 공식 지원합니다.

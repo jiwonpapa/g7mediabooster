@@ -69,7 +69,8 @@ G7 모듈은 세션·게시판 권한·첨부 연결의 진실 원천이고, Rus
 - 단계 A 직접·재개 가능 업로드: 진행 중
 - 단계 B 미디어 보안·가공: 진행 중
 - 단계 C G7 모듈·썸네일·워터마크: 제어 업로더, 이미지·영상 poster 렌더링,
-  서명 policy revision과 worker 반영 구현; 게시물 연결·전용 asset picker smoke 대기
+  서명 policy revision, Ready→native attachment bridge와 권한 viewer redirect 구현;
+  upstream merge·form 자동 주입·전용 asset picker smoke 대기
 - 단계 D 멀티업로드 큐·자원 통제: lease/heartbeat, 100 JPEG RSS·crash 복구,
   25,000px heavy semaphore, tenant fair queue·active capacity·Linux cgroup 부하 통과
 - 단계 E 운영 완성: lifecycle 삭제·보존 cleanup 구현, quota·관측·백업 등 후속 대기
@@ -89,7 +90,8 @@ G7 모듈은 세션·게시판 권한·첨부 연결의 진실 원천이고, Rus
   MP4/H.264 poster를 검증하고 API startup fail-closed·HMAC capability snapshot 구현
 - Stage B video fallback: FFmpeg 실행 파일 부재를 주입한 MP4/H.264에서 Rust `mp4` demux,
   OpenH264 첫 frame decode, libvips JPEG 재가공·임시 파일 제거 통과. HEVC/AV1·MOV·WebM 차단
-- Stage C: G7 관리자 설정/HMAC client, upload ownership, browser direct multi-uploader 구현
+- Stage C: G7 관리자 설정/HMAC client, upload ownership, browser direct multi-uploader,
+  원자적 attachment materialization과 private viewer redirect 구현
 - Stage D: SQLite lease, heartbeat, retry/dead-letter, bounded worker pool, systemd quota 구현
 - Stage D 계약 하네스: 브라우저 100개 batch를 제어 요청 1회·전체 연결 최대 8개로 제한하고,
   Rust 100개 예약을 저장 1회로 커밋하는 테스트 구현
@@ -115,8 +117,8 @@ G7 모듈은 세션·게시판 권한·첨부 연결의 진실 원천이고, Rus
   FFmpeg/FFprobe child 상속 및 실제 Linux `EPERM` 테스트 구현
 - 품질 게이트: 전체 CI와 API smoke, Rust line coverage 84.64%, G7 PHP/TS unit·build 통과
 
-남은 핵심 게이트는 실제 R2/Lightsail credential·5GiB 검증, G7 attachment resolver·게시물
-smoke와 G7 관리자 전용 watermark asset picker browser smoke입니다. 외부 저장소 하네스와
+남은 핵심 게이트는 실제 R2/Lightsail credential·5GiB 검증, G7 upstream merge·form 자동
+주입·게시물 smoke와 G7 관리자 전용 watermark asset picker browser smoke입니다. 외부 저장소 하네스와
 2026-07-16 실행 인계서는 구현됐습니다.
 
 ### 단계 0 — 계약 변경
@@ -191,18 +193,18 @@ G7 모듈의 책임:
 
 현재 모듈에는 관리자 설정, Laravel Crypt secret, Rust 호환 HMAC client, 게시판 권한,
 `upload_id + user_id + board_slug` 소유권, direct single/multipart uploader, 전체 연결·파일·part
-bounded 동시성, 진행률·취소·재시도·ETag/abort와 관리자 capability proxy가 구현됐습니다.
-PHP는 file body를 받지 않습니다.
-기존 `attachment_ids` 연결과 원격 preview/download는 아래 공개 확장 계약이 없어 아직
-완료가 아니며 `docs/GNUBOARD7_INTEGRATION.md`에 경계를 고정했습니다.
+bounded 동시성, 진행률·취소·재시도·ETag/abort, Ready polling·native attachment 생성,
+권한 기반 preview/download와 관리자 capability proxy가 구현됐습니다. PHP는 file body를
+받지 않습니다. upstream patch가 실제 G7에 반영되기 전에는 runtime 계약 검사로 fail-closed 합니다.
 
-필요한 G7 공개 확장 계약은 두 개입니다.
+준비한 G7 공개 확장 계약은 세 개입니다.
 
-1. 사용자·관리자 첨부 UI를 교체하는 `attachment_uploader` extension point
-2. CDN/Rust URL을 반환하는 `AttachmentUrlResolverInterface` 또는 URL filter
+1. 사용자·관리자 첨부 UI와 submit을 겨냥하는 안정적인 layout extension ID
+2. CDN/Rust URL을 반환하는 download/preview URL filter와 byte-free 권한 검사
+3. `attachment_ids`의 owner·list·최대 수·전건 일치 연결
 
-이는 G7 본체의 임시 patch가 아니라 `sirsoft-board`가 제공할 공개 확장 계약으로 먼저
-반영하고 계약 테스트를 고정합니다.
+이는 `sirsoft-board` 1.1.0 후보 patch와 14항목 검증기로 고정했습니다. 실제 G7 정식 병합과
+브라우저 smoke 전에는 공식 지원으로 게시하지 않습니다.
 
 #### 썸네일 URL·캐시
 

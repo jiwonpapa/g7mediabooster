@@ -24,8 +24,6 @@ final class CreateUploadBatchRequest extends FormRequest
         'image/png',
         'image/webp',
         'video/mp4',
-        'video/quicktime',
-        'video/webm',
     ];
 
     public function authorize(): bool
@@ -39,8 +37,14 @@ final class CreateUploadBatchRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'files' => ['required', 'array', 'min:1', 'max:100'],
+            'files' => ['required', 'array', 'list', 'min:1', 'max:100'],
             'files.*.client_ref' => ['required', 'string', 'max:128', 'regex:/^[A-Za-z0-9_-]+$/', 'distinct:strict'],
+            'files.*.original_filename' => [
+                'required',
+                'string',
+                'max:255',
+                'regex:#\A[^\x00-\x1F\x7F/\\\\]+\z#u',
+            ],
             'files.*.declared_kind' => ['required', Rule::in(['image', 'video'])],
             'files.*.content_length' => ['required', 'integer', 'min:1', 'max:'.self::VIDEO_MAX_BYTES],
             'files.*.content_type_hint' => ['required', 'string', Rule::in(self::CONTENT_TYPES)],

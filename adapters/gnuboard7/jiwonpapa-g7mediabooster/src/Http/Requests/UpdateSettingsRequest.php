@@ -26,7 +26,7 @@ final class UpdateSettingsRequest extends FormRequest
             'max_parallel_files' => ['required', 'integer', 'min:1', 'max:16'],
             'max_parallel_parts' => ['required', 'integer', 'min:1', 'max:8'],
             'max_part_retries' => ['required', 'integer', 'min:0', 'max:5'],
-            'status_poll_interval_ms' => ['required', 'integer', 'min:250', 'max:10000'],
+            'status_poll_interval_ms' => ['required', 'integer', 'min:1500', 'max:10000'],
             'watermark_enabled' => ['required', 'boolean'],
             'watermark_asset_upload_id' => ['nullable', 'string', 'uuid'],
             'watermark_position' => ['required', 'string', 'in:center,top_left,top_right,bottom_left,bottom_right'],

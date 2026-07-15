@@ -27,7 +27,7 @@
 | EXIF/GPS 제거 | PASS | 개인정보 fixture를 libvips로 가공 후 metadata 부재 확인 |
 | 이미지·영상 poster 워터마크 | PASS | bounded 합성, SHA-256 pin, revision+digest key, fail-closed worker와 실제 MP4 경로 |
 | sandbox egress | PASS | Linux seccomp socket 계열 차단, native child 상속, 컨테이너 EPERM 테스트 |
-| G7 제어 업로더 | PASS | PHP 29 tests, TS 11 tests, 100개 bounded scheduler, capability·삭제·private delivery proxy, typecheck·Vite build 통과 |
+| G7 제어 업로더 | PASS | PHP 49 tests, TS 13 tests, 100개 bounded 전송 후 Ready polling·native attachment materialization, capability·삭제·private delivery proxy, typecheck·Vite build 통과 |
 | 런타임 capability | PASS | 필수 image 6 input/4 output, MP4/H.264 poster, OpenH264 폴백 보고와 API startup fail-closed |
 | G7 site policy | PASS | HMAC PUT/GET, Ready asset pin, 단조 revision, job 고정·worker exact revision 적용 |
 | lifecycle 삭제·보존 | PASS | HMAC/G7 소유권 삭제 예약, 만료 multipart abort, derivative/raw 정리, SQLite lease·retry·tombstone |
@@ -36,7 +36,7 @@
 | AVIF decoder memory | PASS | 64MP AVIF peak RSS 1,221,776 KiB, 200MP AVIF full decode 전 정책 거부 |
 | tenant fair queue·backpressure | PASS | 영속 round-robin claim, global 1,000/tenant 200 활성 cap, presign 전 차단, 429 계약 |
 | Linux cgroup 부하 | PASS | CPU 2 core, memory 2GiB, PID 64, network none, API health 267/267, worker 100/100 |
-| G7 게시물 첨부 표시 | PENDING | `attachment_uploader` hook과 원격 URL resolver 공개 계약 필요 |
+| G7 게시물 첨부 표시 | PARTIAL | module bridge·viewer redirect·upstream patch 14/14 구현; upstream merge·form 자동 주입·browser smoke 필요 |
 
 ## 준비된 하네스
 

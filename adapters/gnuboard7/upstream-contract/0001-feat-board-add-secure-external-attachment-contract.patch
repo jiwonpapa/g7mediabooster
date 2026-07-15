@@ -1,35 +1,36 @@
-From 98f5681f4c12dd48fb0c1d09ee0d362fcfff2fae Mon Sep 17 00:00:00 2001
+From 47a6ee29f2042a0146486bd3df8e52ffb897db07 Mon Sep 17 00:00:00 2001
 From: Baek Jinseok <baegjins@gmail.com>
 Date: Wed, 15 Jul 2026 22:02:50 +0900
 Subject: [PATCH] feat(board): add secure external attachment contract
 
 ---
- modules/_bundled/sirsoft-board/CHANGELOG.md   | 12 +++++
+ modules/_bundled/sirsoft-board/CHANGELOG.md   | 13 ++++
  modules/_bundled/sirsoft-board/composer.json  |  2 +-
  modules/_bundled/sirsoft-board/module.json    |  2 +-
  .../_bundled/sirsoft-board/package-lock.json  |  4 +-
  modules/_bundled/sirsoft-board/package.json   |  2 +-
  .../admin_board_post_form/_attachments.json   |  1 +
- .../Http/Controllers/User/PostController.php  | 10 +++-
- .../src/Http/Requests/StorePostRequest.php    |  2 +-
- .../src/Http/Requests/UpdatePostRequest.php   |  4 +-
- .../sirsoft-board/src/Models/Attachment.php   | 17 ++++++-
+ .../Http/Controllers/User/PostController.php  | 10 ++-
+ .../src/Http/Requests/StorePostRequest.php    |  5 +-
+ .../src/Http/Requests/UpdatePostRequest.php   | 11 +++-
+ .../sirsoft-board/src/Models/Attachment.php   | 27 ++++++--
  .../src/Repositories/AttachmentRepository.php |  4 +-
  .../AttachmentRepositoryInterface.php         |  3 +-
- .../src/Services/AttachmentService.php        | 48 ++++++++++++++-----
- .../src/Services/PostService.php              | 23 ++++++++-
- .../tests/Unit/AttachmentRepositoryTest.php   | 30 ++++++++++--
- .../tests/Unit/AttachmentServiceTest.php      | 22 +++++++++
- .../tests/Unit/AttachmentUrlFilterTest.php    | 44 +++++++++++++++++
+ .../src/Services/AttachmentService.php        | 48 ++++++++++----
+ .../src/Services/PostService.php              | 23 ++++++-
+ .../Feature/FormRequestValidationTest.php     | 23 +++++++
+ .../tests/Unit/AttachmentRepositoryTest.php   | 30 +++++++--
+ .../tests/Unit/AttachmentServiceTest.php      | 22 +++++++
+ .../tests/Unit/AttachmentUrlFilterTest.php    | 63 +++++++++++++++++++
  .../partials/board/form/_post_form.json       |  5 +-
- 18 files changed, 202 insertions(+), 33 deletions(-)
+ 19 files changed, 259 insertions(+), 39 deletions(-)
  create mode 100644 modules/_bundled/sirsoft-board/tests/Unit/AttachmentUrlFilterTest.php
 
 diff --git a/modules/_bundled/sirsoft-board/CHANGELOG.md b/modules/_bundled/sirsoft-board/CHANGELOG.md
-index 9369166f..6ba45c50 100644
+index 9369166f..78f4e5f4 100644
 --- a/modules/_bundled/sirsoft-board/CHANGELOG.md
 +++ b/modules/_bundled/sirsoft-board/CHANGELOG.md
-@@ -4,6 +4,18 @@ # Changelog
+@@ -4,6 +4,19 @@ # Changelog
  형식은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)를 따르며,
  [Semantic Versioning](https://semver.org/lang/ko/)을 준수합니다.
  
@@ -37,13 +38,14 @@ index 9369166f..6ba45c50 100644
 +
 +### Added
 +
-+- 외부 미디어 모듈이 게시판 권한을 재사용하면서 파일 바이트를 PHP로 읽지 않도록 `AttachmentService::authorizeDelivery()` 계약과 다운로드·미리보기 URL filter 훅을 추가했습니다.
++- 외부 미디어 모듈이 게시판 권한을 재사용하면서 파일 바이트를 PHP로 읽지 않도록 `AttachmentService::authorizeDelivery()` 계약과 다운로드·이미지 미리보기·영상 poster URL filter 훅을 추가했습니다.
 +- 사용자 게시글 폼의 첨부 영역·업로더·저장 버튼에 layout extension용 안정 ID를 추가했습니다.
 +
 +### Fixed
 +
 +- 사용자 게시글 생성·수정 요청의 `attachment_ids`가 서비스에 전달되지 않던 문제를 수정했습니다.
 +- 순차 첨부 ID만 알면 다른 사용자의 임시 첨부를 게시글에 연결할 수 있던 문제를 소유자 조건과 전건 일치 검사로 차단했습니다.
++- `attachment_ids`를 list와 게시판별 최대 첨부 수로 제한해 비정상 대량 연결 요청을 차단했습니다.
 +
  ## [1.0.2] - 2026-07-14
  
@@ -153,32 +155,42 @@ index cf0fbfe4..90617f7e 100644
              // board 관계 수동 설정
              $post->setRelation('board', $board);
 diff --git a/modules/_bundled/sirsoft-board/src/Http/Requests/StorePostRequest.php b/modules/_bundled/sirsoft-board/src/Http/Requests/StorePostRequest.php
-index 19837f9d..56b6c453 100644
+index 19837f9d..f1588241 100644
 --- a/modules/_bundled/sirsoft-board/src/Http/Requests/StorePostRequest.php
 +++ b/modules/_bundled/sirsoft-board/src/Http/Requests/StorePostRequest.php
-@@ -87,7 +87,7 @@ public function rules(): array
+@@ -86,8 +86,9 @@ public function rules(): array
+                 Rule::exists(Post::class, 'id')->where('board_id', $board->id),
                  new ParentPostValidationRule($slug),
              ];
-             $rules['attachment_ids'] = ['nullable', 'array'];
+-            $rules['attachment_ids'] = ['nullable', 'array'];
 -            $rules['attachment_ids.*'] = ['integer', 'min:1'];
++            $maxAttachmentIds = min(100, max(1, (int) ($board->max_file_count ?? 1)));
++            $rules['attachment_ids'] = ['nullable', 'array', 'list', 'max:'.$maxAttachmentIds];
 +            $rules['attachment_ids.*'] = ['integer', 'min:1', 'distinct:strict'];
          }
  
          // 파일 업로드 검증 규칙 (게시판 설정에 따라)
 diff --git a/modules/_bundled/sirsoft-board/src/Http/Requests/UpdatePostRequest.php b/modules/_bundled/sirsoft-board/src/Http/Requests/UpdatePostRequest.php
-index 5b5f4abe..226da917 100644
+index 5b5f4abe..19f52781 100644
 --- a/modules/_bundled/sirsoft-board/src/Http/Requests/UpdatePostRequest.php
 +++ b/modules/_bundled/sirsoft-board/src/Http/Requests/UpdatePostRequest.php
-@@ -62,7 +62,7 @@ public function rules(): array
+@@ -61,8 +61,13 @@ public function rules(): array
+             'is_notice' => ['nullable', 'boolean'],
              'is_secret' => ['nullable', 'boolean'],
              'status' => ['nullable', 'string', Rule::in(PostStatus::values())],
-             'attachment_ids' => ['nullable', 'array'],
+-            'attachment_ids' => ['nullable', 'array'],
 -            'attachment_ids.*' => ['integer', 'min:1'],
++            'attachment_ids' => [
++                'nullable',
++                'array',
++                'list',
++                'max:'.min(100, max(1, (int) ($board->max_file_count ?? 1))),
++            ],
 +            'attachment_ids.*' => ['integer', 'min:1', 'distinct:strict'],
              // temp_key는 게시판 존재 여부와 무관하게 항상 허용
              'temp_key' => ['nullable', 'string', 'max:64'],
          ];
-@@ -107,4 +107,4 @@ public function attributes(): array
+@@ -107,4 +112,4 @@ public function attributes(): array
              'status' => __('sirsoft-board::validation.attributes.post.status'),
          ];
      }
@@ -186,7 +198,7 @@ index 5b5f4abe..226da917 100644
 \ No newline at end of file
 +}
 diff --git a/modules/_bundled/sirsoft-board/src/Models/Attachment.php b/modules/_bundled/sirsoft-board/src/Models/Attachment.php
-index dd8c06ca..04d72c75 100644
+index dd8c06ca..b8d0c6f6 100644
 --- a/modules/_bundled/sirsoft-board/src/Models/Attachment.php
 +++ b/modules/_bundled/sirsoft-board/src/Models/Attachment.php
 @@ -2,6 +2,7 @@
@@ -197,7 +209,7 @@ index dd8c06ca..04d72c75 100644
  use App\Models\User;
  use Illuminate\Database\Eloquent\Factories\HasFactory;
  use Illuminate\Database\Eloquent\Model;
-@@ -160,7 +161,13 @@ public function getDownloadUrlAttribute(): string
+@@ -160,7 +161,14 @@ public function getDownloadUrlAttribute(): string
              ? $this->board->slug
              : Board::find($this->board_id)?->slug;
  
@@ -208,22 +220,36 @@ index dd8c06ca..04d72c75 100644
 +            'sirsoft-board.attachment.filter_download_url',
 +            $defaultUrl,
 +            $this,
++            $boardSlug,
 +        );
      }
  
      /**
-@@ -178,7 +185,13 @@ public function getPreviewUrlAttribute(): ?string
+@@ -170,15 +178,22 @@ public function getDownloadUrlAttribute(): string
+      */
+     public function getPreviewUrlAttribute(): ?string
+     {
+-        if (! $this->is_image) {
+-            return null;
+-        }
+-
+         $boardSlug = $this->relationLoaded('board')
              ? $this->board->slug
              : Board::find($this->board_id)?->slug;
  
 -        return '/api/modules/sirsoft-board/boards/'.$boardSlug.'/attachment/'.$this->hash.'/preview';
-+        $defaultUrl = '/api/modules/sirsoft-board/boards/'.$boardSlug.'/attachment/'.$this->hash.'/preview';
++        $defaultUrl = $this->is_image
++            ? '/api/modules/sirsoft-board/boards/'.$boardSlug.'/attachment/'.$this->hash.'/preview'
++            : null;
 +
-+        return HookManager::applyFilters(
++        $filteredUrl = HookManager::applyFilters(
 +            'sirsoft-board.attachment.filter_preview_url',
 +            $defaultUrl,
 +            $this,
++            $boardSlug,
 +        );
++
++        return is_string($filteredUrl) && $filteredUrl !== '' ? $filteredUrl : null;
      }
  
      /**
@@ -372,6 +398,45 @@ index 3a09ce17..01c01330 100644
              if ($linkedCount > 0) {
                  Log::info("{$context} 시 첨부파일 ID로 연결 완료", [
                      'board_slug' => $slug,
+diff --git a/modules/_bundled/sirsoft-board/tests/Feature/FormRequestValidationTest.php b/modules/_bundled/sirsoft-board/tests/Feature/FormRequestValidationTest.php
+index 39500b8d..f6a3391f 100644
+--- a/modules/_bundled/sirsoft-board/tests/Feature/FormRequestValidationTest.php
++++ b/modules/_bundled/sirsoft-board/tests/Feature/FormRequestValidationTest.php
+@@ -148,6 +148,18 @@ public function test_store_post_succeeds_with_valid_data(): void
+         ])->assertStatus(201);
+     }
+ 
++    public function test_store_post_rejects_attachment_ids_over_board_limit(): void
++    {
++        $this->board->update(['use_file_upload' => true, 'max_file_count' => 1]);
++        $user = $this->createUser();
++
++        $this->actingAs($user)->postJson($this->postUrl(), [
++            'title' => '정상 제목',
++            'content' => '정상적인 내용입니다.',
++            'attachment_ids' => [1, 2],
++        ])->assertStatus(422);
++    }
++
+     // ==========================================
+     // StoreCommentRequest
+     // ==========================================
+@@ -300,4 +312,15 @@ public function test_update_post_fails_with_title_too_short(): void
+             ['title' => '가'] // min_title_length=2 미만
+         )->assertStatus(422);
+     }
++
++    public function test_update_post_rejects_non_list_attachment_ids(): void
++    {
++        $user = $this->createUser();
++        $postId = $this->createTestPost(['user_id' => $user->id]);
++
++        $this->actingAs($user)->putJson(
++            "/api/modules/sirsoft-board/boards/{$this->board->slug}/posts/{$postId}",
++            ['attachment_ids' => ['first' => 1]],
++        )->assertStatus(422);
++    }
+ }
 diff --git a/modules/_bundled/sirsoft-board/tests/Unit/AttachmentRepositoryTest.php b/modules/_bundled/sirsoft-board/tests/Unit/AttachmentRepositoryTest.php
 index e6ce5b96..d737a993 100644
 --- a/modules/_bundled/sirsoft-board/tests/Unit/AttachmentRepositoryTest.php
@@ -474,10 +539,10 @@ index dedbf652..dddd4638 100644
      {
 diff --git a/modules/_bundled/sirsoft-board/tests/Unit/AttachmentUrlFilterTest.php b/modules/_bundled/sirsoft-board/tests/Unit/AttachmentUrlFilterTest.php
 new file mode 100644
-index 00000000..7242dc63
+index 00000000..59f87683
 --- /dev/null
 +++ b/modules/_bundled/sirsoft-board/tests/Unit/AttachmentUrlFilterTest.php
-@@ -0,0 +1,44 @@
+@@ -0,0 +1,63 @@
 +<?php
 +
 +namespace Modules\Sirsoft\Board\Tests\Unit;
@@ -521,6 +586,25 @@ index 00000000..7242dc63
 +        $this->assertSame('/external/abc123def456/master', $attachment->download_url);
 +        $this->assertSame('/external/abc123def456/thumbnail', $attachment->preview_url);
 +    }
++
++    #[Test]
++    public function external_storage_module_can_publish_a_video_poster_url(): void
++    {
++        $attachment = new Attachment([
++            'hash' => 'abc123def456',
++            'mime_type' => 'video/mp4',
++        ]);
++        $board = new Board(['slug' => 'notice']);
++        $attachment->setRelation('board', $board);
++
++        HookManager::addFilter(
++            'sirsoft-board.attachment.filter_preview_url',
++            static fn (?string $url, Attachment $model, ?string $slug): string =>
++                '/external/'.$slug.'/'.$model->hash.'/thumbnail',
++        );
++
++        $this->assertSame('/external/notice/abc123def456/thumbnail', $attachment->preview_url);
++    }
 +}
 diff --git a/templates/_bundled/sirsoft-basic/layouts/partials/board/form/_post_form.json b/templates/_bundled/sirsoft-basic/layouts/partials/board/form/_post_form.json
 index 47ccd65b..eb79ba15 100644
@@ -557,3 +641,6 @@ index 47ccd65b..eb79ba15 100644
 -}
 \ No newline at end of file
 +}
+-- 
+2.50.1 (Apple Git-155)
+

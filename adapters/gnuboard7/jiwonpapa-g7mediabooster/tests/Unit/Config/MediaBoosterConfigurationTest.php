@@ -65,6 +65,15 @@ final class MediaBoosterConfigurationTest extends TestCase
         MediaBoosterConfiguration::fromArray($settings);
     }
 
+    public function testRejectsAPollRateThatCanExhaustTheUserRouteBudget(): void
+    {
+        $settings = $this->validSettings();
+        $settings['status_poll_interval_ms'] = 1499;
+
+        $this->expectException(InvalidArgumentException::class);
+        MediaBoosterConfiguration::fromArray($settings);
+    }
+
     /** @return array<string, mixed> */
     private function validSettings(): array
     {

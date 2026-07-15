@@ -38,6 +38,12 @@ require_pattern "$board/src/Http/Controllers/User/PostController.php" \
 require_pattern "$board/src/Http/Controllers/User/PostController.php" \
   'updatePost\(\$slug, \$id, \$data, \$attachmentIds\)' \
   'user update passes attachment IDs'
+require_pattern "$board/src/Http/Requests/StorePostRequest.php" \
+  "'attachment_ids'.*'list'.*'max:'" \
+  'user create bounds attachment ID list'
+require_pattern "$board/src/Http/Requests/UpdatePostRequest.php" \
+  "'list'," \
+  'user update requires attachment ID list'
 require_pattern "$board/src/Services/AttachmentService.php" \
   'public function authorizeDelivery\(' \
   'byte-free attachment delivery authorization'
@@ -47,6 +53,12 @@ require_pattern "$board/src/Models/Attachment.php" \
 require_pattern "$board/src/Models/Attachment.php" \
   'sirsoft-board\.attachment\.filter_preview_url' \
   'preview URL filter'
+require_pattern "$board/src/Models/Attachment.php" \
+  '\$defaultUrl = \$this->is_image' \
+  'video poster filter fallback'
+require_pattern "$board/src/Models/Attachment.php" \
+  '\$boardSlug,' \
+  'URL filter receives validated board slug'
 require_pattern "$template" '"id": "board_native_attachment_section"' \
   'user attachment layout target'
 require_pattern "$template" '"id": "board_post_submit"' \
@@ -57,4 +69,4 @@ if (( failures > 0 )); then
   exit 1
 fi
 
-echo "Gnuboard7 media contract: PASS"
+echo "Gnuboard7 media contract: PASS (14/14)"

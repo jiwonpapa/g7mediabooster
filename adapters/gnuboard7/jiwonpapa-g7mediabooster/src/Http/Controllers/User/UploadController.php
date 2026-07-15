@@ -73,7 +73,12 @@ final class UploadController extends AuthBaseController
                 }
             }
 
-            $created = $this->client->createBatch(['files' => $files]);
+            $controlFiles = array_map(static function (array $file): array {
+                unset($file['original_filename']);
+
+                return $file;
+            }, $files);
+            $created = $this->client->createBatch(['files' => $controlFiles]);
             $this->sessions->recordBatch($this->userId(), $slug, $files, $created);
 
             return $this->success('직접 업로드 예약을 만들었습니다.', $created, 201);

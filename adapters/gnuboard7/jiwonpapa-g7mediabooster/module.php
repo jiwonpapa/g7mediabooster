@@ -5,9 +5,16 @@ declare(strict_types=1);
 namespace Modules\Jiwonpapa\G7mediabooster;
 
 use App\Extension\AbstractModule;
+use Modules\Jiwonpapa\G7mediabooster\Listeners\AttachmentUrlListener;
 
 final class Module extends AbstractModule
 {
+    /** @return array<class-string> */
+    public function getHookListeners(): array
+    {
+        return [AttachmentUrlListener::class];
+    }
+
     /**
      * @return array<string, mixed>
      */

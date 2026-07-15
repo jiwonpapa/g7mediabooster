@@ -8,8 +8,8 @@ profile만 공식 지원으로 게시합니다.
 
 현재 저장소는 **v0.1 구현 진행 단계**입니다. batch 생성, S3/R2 single·multipart 제어,
 HMAC 인증, SQLite lease queue, 검증된 master+thumbnail/poster 원자적 발행,
-digest-pinned 이미지 워터마크, sandbox runtime capability, 삭제·보존 cleanup과 G7 제어
-업로더까지 연결됐습니다. 실제 R2/Lightsail·G7 게시물 첨부 표시 등 남은 게이트는 구현
+digest-pinned 이미지 워터마크, sandbox runtime capability, 삭제·보존 cleanup과 G7 0.2
+Ready attachment bridge 후보까지 연결됐습니다. 실제 R2/Lightsail·G7 upstream/form smoke 등 남은 게이트는 구현
 계획에 따라 진행합니다. 배포 시에는 [검증된 공식 기능 범위](deploy/README.md)만 게시합니다.
 
 ## 확정 기술 스택

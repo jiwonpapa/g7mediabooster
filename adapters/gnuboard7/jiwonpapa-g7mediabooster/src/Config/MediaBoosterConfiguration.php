@@ -80,7 +80,7 @@ final readonly class MediaBoosterConfiguration
             maxParallelFiles: self::boundedInt($settings, 'max_parallel_files', 8, 1, 16),
             maxParallelParts: self::boundedInt($settings, 'max_parallel_parts', 4, 1, 8),
             maxPartRetries: self::boundedInt($settings, 'max_part_retries', 3, 0, 5),
-            statusPollIntervalMs: self::boundedInt($settings, 'status_poll_interval_ms', 1500, 250, 10_000),
+            statusPollIntervalMs: self::boundedInt($settings, 'status_poll_interval_ms', 1500, 1500, 10_000),
             watermarkEnabled: $watermarkEnabled,
             watermarkAssetUploadId: $watermarkAssetUploadId,
             watermarkPosition: $watermarkPosition,

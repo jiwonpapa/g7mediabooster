@@ -10,6 +10,7 @@ export type UploadLifecycleState =
 
 export interface UploadFileIntent {
     client_ref: string;
+    original_filename: string;
     declared_kind: DeclaredKind;
     content_length: number;
     content_type_hint: string;
@@ -58,6 +59,19 @@ export interface UploadStatus {
     }>;
 }
 
+export interface NativeAttachment {
+    id: number;
+    hash: string;
+    original_filename: string;
+    stored_filename: string;
+    mime_type: 'image/jpeg' | 'video/mp4';
+    size: number;
+    url: string;
+    preview_url: string | null;
+    order: number;
+    created_at: string | null;
+}
+
 export interface PublicUploaderConfiguration {
     enabled: boolean;
     max_files: number;
@@ -77,6 +91,7 @@ export interface MediaControlClient {
     deleteUpload(uploadId: string): Promise<void>;
     confirmSingle(uploadId: string): Promise<void>;
     status(uploadId: string): Promise<UploadStatus>;
+    materializeAttachment(uploadId: string): Promise<NativeAttachment>;
 }
 
 export interface DirectUploadTransport {
@@ -105,6 +120,7 @@ export interface FileUploadResult {
     uploadId: string | null;
     file: File;
     state: 'accepted' | 'failed' | 'cancelled';
+    attachment: NativeAttachment | null;
     error?: string;
 }
 

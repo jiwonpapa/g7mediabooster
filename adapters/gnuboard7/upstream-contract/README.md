@@ -13,10 +13,10 @@
 
 패치는 다음을 제공합니다.
 
-1. `attachment_ids` 연결 시 현재 사용자 `created_by` 조건과 전건 일치 검사
+1. `attachment_ids` list·게시판 최대 수 제한과 현재 사용자 `created_by` 조건·전건 일치 검사
 2. 사용자 게시글 create/update에서 검증된 `attachment_ids`의 실제 전달
 3. PHP가 원격 파일 바이트를 읽지 않는 `AttachmentService::authorizeDelivery()`
-4. download/preview URL filter와 사용자·관리자 form의 안정적인 layout extension ID
+4. download/preview URL filter, 영상 poster URL, 사용자·관리자 form의 안정적인 layout extension ID
 5. 저장소·URL filter 회귀 테스트와 `sirsoft-board` 버전/변경 이력 동기화
 
 ## 적용 순서
@@ -28,6 +28,7 @@ git apply /path/to/G7MediaBooster/adapters/gnuboard7/upstream-contract/0001-*.pa
 
 /path/to/G7MediaBooster/scripts/verify-gnuboard7-media-contract.sh "$PWD"
 php artisan test \
+  modules/_bundled/sirsoft-board/tests/Feature/FormRequestValidationTest.php \
   modules/_bundled/sirsoft-board/tests/Unit/AttachmentRepositoryTest.php \
   modules/_bundled/sirsoft-board/tests/Unit/AttachmentServiceTest.php \
   modules/_bundled/sirsoft-board/tests/Unit/AttachmentUrlFilterTest.php
@@ -41,6 +42,6 @@ dirty 작업 트리에는 바로 적용하지 않습니다. 먼저 별도 브랜
 다음 네 항목이 모두 PASS일 때만 G7MediaBooster module의 게시물 첨부 bridge를 켭니다.
 
 - 계약 검증기 PASS
-- 위 3개 PHP 회귀 테스트 PASS
+- 위 4개 PHP 회귀 테스트 PASS
 - G7 사용자 create/update 실제 화면 smoke PASS
 - 비소유 첨부 ID, 삭제 글, 비밀 글, 권한 없는 viewer의 전달 요청 차단 PASS

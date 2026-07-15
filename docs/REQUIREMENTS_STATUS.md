@@ -11,7 +11,7 @@
 | 3 동영상 업로드 | PASS | MP4/H.264 직접 업로드·검사·master·poster | MOV/WebM은 release fixture 전 공식 게시 제외 |
 | 4 최신 포맷 | PASS | JPEG/PNG/GIF/WebP/AVIF/HEIC·HEIF runtime decode gate | JPEG XL, 영상 HEVC/AV1은 v1 제외 |
 | 5 진짜 파일·보안 | PASS | signature, 실제 decode/ffprobe, digest, hard limit, no-network sandbox | ClamAV·moderation은 선택 hook |
-| 6 G7 연동 | PARTIAL | G7 관리자 설정, HMAC, 소유권 제어 API·programmatic uploader·private owner delivery PASS; upstream 계약 patch 준비 | patch 반영, attachment bridge, 사용자/권한별 게시물 smoke |
+| 6 G7 연동 | PARTIAL | 관리자 설정·HMAC·100개 uploader, Ready→native attachment 원자적 bridge, 게시글 권한 private delivery와 upstream 계약 patch 구현 | patch 정식 반영, form 자동 주입, 사용자/권한별 게시물 browser smoke |
 | 7 다중 업로드 | PASS | 1~100개, 파일·part·전체 연결 bounded 병렬 처리 | 실 브라우저/provider 부하 재측정 |
 | 8 대용량 streaming | PARTIAL | PHP/Rust body를 거치지 않는 object storage 직접 multipart | 실계정 5GiB 중단·재개·RSS 증거 |
 | 9 EXIF 개인정보 | PASS | 이미지 orientation 적용 후 EXIF/GPS/XMP/IPTC 제거 | 영상 metadata 제거는 공식 범위 아님 |
@@ -33,6 +33,6 @@
 
 ## 배포 게시 금지 항목
 
-G7 게시글 form 자동 주입·첨부 표시, 멀티노드/PostgreSQL, 임의 동적 리사이즈, 영상 트랜스코딩·metadata 제거,
+G7 upstream 미반영 상태의 게시글 form 자동 주입·첨부 표시, 멀티노드/PostgreSQL, 임의 동적 리사이즈, 영상 트랜스코딩·metadata 제거,
 MOV/WebM release 지원, S3 관리 기능 전체, 실계정 conformance 전 R2/Lightsail profile은 공식
 지원 기능으로 게시하지 않습니다.

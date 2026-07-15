@@ -16,6 +16,9 @@ export interface MultiUploaderOptions {
     maxParallelParts?: number;
     maxConnections?: number;
     maxRetries?: number;
+    statusPollIntervalMs?: number;
+    statusTimeoutMs?: number;
+    materializeAttachments?: boolean;
     signal?: AbortSignal;
     onProgress?: (progress: FileUploadProgress) => void;
 }
@@ -24,6 +27,8 @@ interface PreparedFile {
     file: File;
     intent: UploadFileIntent;
 }
+
+const CONTROL_REQUEST_INTERVAL_MS = 125;
 
 export class MultiUploader {
     public constructor(
@@ -47,7 +52,7 @@ export class MultiUploader {
         const batch = await this.control.createBatch(prepared.map(({ intent }) => intent));
         const instructions = validateBatch(batch.uploads, prepared);
         const connections = new Semaphore(maxConnections);
-        const results = await mapLimit(
+        const transferred = await mapLimit(
             prepared,
             maxParallelFiles,
             async ({ file, intent }): Promise<FileUploadResult> => {
@@ -67,6 +72,31 @@ export class MultiUploader {
                 );
             },
         );
+
+        const materializeAttachments = options.materializeAttachments ?? true;
+        const pollIntervalMs = boundedOption(options.statusPollIntervalMs, 1500, 1500, 30_000, 'statusPollIntervalMs');
+        const statusTimeoutMs = boundedOption(options.statusTimeoutMs, 10 * 60_000, 100, 30 * 60_000, 'statusTimeoutMs');
+        const controlConnections = new Semaphore(maxParallelFiles);
+        const controlRate = new StartRateGate(CONTROL_REQUEST_INTERVAL_MS);
+        const results = await Promise.all(transferred.map(async (result): Promise<FileUploadResult> => {
+            if (result.state !== 'accepted' || !result.uploadId) {
+                return result;
+            }
+            if (!materializeAttachments) {
+                emitFileProgress(options.onProgress, result, 'accepted');
+                return result;
+            }
+
+            return this.finalizeAttachment(
+                result,
+                signal,
+                pollIntervalMs,
+                statusTimeoutMs,
+                controlConnections,
+                controlRate,
+                options.onProgress,
+            );
+        }));
 
         return { batchId: batch.batch_id, files: results };
     }
@@ -110,8 +140,8 @@ export class MultiUploader {
                     (loaded) => emit('uploading', loaded),
                 );
             }
-            emit('accepted', file.size);
-            return { clientRef, uploadId: instruction.upload_id, file, state: 'accepted' };
+            emit('verifying', file.size);
+            return { clientRef, uploadId: instruction.upload_id, file, state: 'accepted', attachment: null };
         } catch (error) {
             const cancelled = isAbortError(error) || signal.aborted;
             const message = cancelled ? '업로드가 취소되었습니다.' : safeErrorMessage(error);
@@ -121,8 +151,69 @@ export class MultiUploader {
                 uploadId: instruction.upload_id,
                 file,
                 state: cancelled ? 'cancelled' : 'failed',
+                attachment: null,
                 error: message,
             };
+        }
+    }
+
+    private async finalizeAttachment(
+        result: FileUploadResult,
+        signal: AbortSignal,
+        pollIntervalMs: number,
+        statusTimeoutMs: number,
+        controlConnections: Semaphore,
+        controlRate: StartRateGate,
+        onProgress?: (progress: FileUploadProgress) => void,
+    ): Promise<FileUploadResult> {
+        const uploadId = result.uploadId as string;
+        const deadline = Date.now() + statusTimeoutMs;
+        try {
+            while (Date.now() <= deadline) {
+                signal.throwIfAborted();
+                const status = await controlledRequest(
+                    signal,
+                    controlConnections,
+                    controlRate,
+                    () => this.control.status(uploadId),
+                );
+                if (status.upload_id.toLowerCase() !== uploadId.toLowerCase()) {
+                    throw new Error('control API returned a mismatched upload status');
+                }
+                if (status.state === 'ready') {
+                    if (status.deletion_pending) {
+                        throw new Error('ready upload is pending deletion');
+                    }
+                    const attachment = await controlledRequest(
+                        signal,
+                        controlConnections,
+                        controlRate,
+                        () => this.control.materializeAttachment(uploadId),
+                    );
+                    const finalized = { ...result, attachment };
+                    emitFileProgress(onProgress, finalized, 'accepted');
+                    return finalized;
+                }
+                if (['rejected', 'failed', 'deleted'].includes(status.state)) {
+                    const code = typeof status.error_code === 'string' && /^[A-Z0-9_]{1,80}$/.test(status.error_code)
+                        ? ` (${status.error_code})`
+                        : '';
+                    throw new Error(`media safety processing ended in ${status.state}${code}`);
+                }
+                await abortableDelay(pollIntervalMs, signal);
+            }
+            throw new Error('media safety processing timed out');
+        } catch (error) {
+            const cancelled = isAbortError(error) || signal.aborted;
+            const message = cancelled ? '업로드가 취소되었습니다.' : safeErrorMessage(error);
+            const failed: FileUploadResult = {
+                ...result,
+                state: cancelled ? 'cancelled' : 'failed',
+                attachment: null,
+                error: message,
+            };
+            emitFileProgress(onProgress, failed, failed.state, message);
+            return failed;
         }
     }
 
@@ -232,6 +323,7 @@ function prepareFiles(files: Iterable<File>): PreparedFile[] {
             file,
             intent: {
                 client_ref: createClientRef(),
+                original_filename: file.name,
                 declared_kind: declaredKind,
                 content_length: file.size,
                 content_type_hint: contentType,
@@ -241,11 +333,17 @@ function prepareFiles(files: Iterable<File>): PreparedFile[] {
 }
 
 function classifyFile(file: File): 'image' | 'video' {
-    if (file.type.startsWith('image/')) return 'image';
-    if (file.type.startsWith('video/')) return 'video';
+    const normalizedType = file.type.trim().toLowerCase();
+    if (['image/avif', 'image/gif', 'image/heic', 'image/heif', 'image/jpeg', 'image/png', 'image/webp'].includes(normalizedType)) {
+        return 'image';
+    }
+    if (normalizedType === 'video/mp4') return 'video';
+    if (normalizedType !== '' && normalizedType !== 'application/octet-stream') {
+        throw new TypeError(`unsupported media type: ${file.name}`);
+    }
     const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
     if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'heic', 'heif'].includes(extension)) return 'image';
-    if (['mp4', 'mov', 'webm'].includes(extension)) return 'video';
+    if (extension === 'mp4') return 'video';
     throw new TypeError(`unsupported media type: ${file.name}`);
 }
 
@@ -280,6 +378,58 @@ function validateBatch(instructions: UploadIntent[], files: PreparedFile[]): Map
         result.set(instruction.client_ref, instruction);
     }
     return result;
+}
+
+function emitFileProgress(
+    onProgress: ((progress: FileUploadProgress) => void) | undefined,
+    result: FileUploadResult,
+    state: FileUploadProgress['state'],
+    error?: string,
+): void {
+    onProgress?.({
+        clientRef: result.clientRef,
+        file: result.file,
+        uploadId: result.uploadId,
+        state,
+        bytesSent: state === 'cancelled' || state === 'failed' ? 0 : result.file.size,
+        totalBytes: result.file.size,
+        percent: state === 'cancelled' || state === 'failed' ? 0 : 100,
+        ...(error ? { error } : {}),
+    });
+}
+
+class StartRateGate {
+    private tail: Promise<void> = Promise.resolve();
+    private nextStartAt = 0;
+
+    public constructor(private readonly intervalMs: number) {}
+
+    public async wait(signal: AbortSignal): Promise<void> {
+        let release = (): void => {};
+        const previous = this.tail;
+        this.tail = new Promise<void>((resolve) => {
+            release = resolve;
+        });
+        await previous;
+        try {
+            signal.throwIfAborted();
+            const delay = Math.max(0, this.nextStartAt - Date.now());
+            if (delay > 0) await abortableDelay(delay, signal);
+            this.nextStartAt = Date.now() + this.intervalMs;
+        } finally {
+            release();
+        }
+    }
+}
+
+async function controlledRequest<T>(
+    signal: AbortSignal,
+    connections: Semaphore,
+    rate: StartRateGate,
+    operation: () => Promise<T>,
+): Promise<T> {
+    await rate.wait(signal);
+    return connections.use(signal, operation);
 }
 
 async function mapLimit<T, R>(items: readonly T[], limit: number, mapper: (item: T, index: number) => Promise<R>): Promise<R[]> {

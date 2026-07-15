@@ -3,7 +3,7 @@ import type { FileUploadProgress, PublicUploaderConfiguration, UploadBatchResult
 import { MultiUploader } from '../upload/MultiUploader';
 import { XhrUploadTransport } from '../upload/XhrUploadTransport';
 
-const ACCEPTED_TYPES = '.jpg,.jpeg,.png,.gif,.webp,.avif,.heic,.heif,.mp4,.mov,.webm';
+const ACCEPTED_TYPES = '.jpg,.jpeg,.png,.gif,.webp,.avif,.heic,.heif,.mp4';
 
 export class G7MediaUploaderElement extends HTMLElement {
     private readonly root: ShadowRoot;
@@ -69,13 +69,14 @@ export class G7MediaUploaderElement extends HTMLElement {
                 maxParallelParts: configuration.max_parallel_parts,
                 maxConnections: configuration.max_parallel_files,
                 maxRetries: configuration.max_part_retries,
+                statusPollIntervalMs: configuration.status_poll_interval_ms,
                 signal: this.activeController.signal,
                 onProgress: (progress) => this.updateProgress(progress),
             });
             const accepted = result.files.filter((file) => file.state === 'accepted').length;
             const failed = result.files.length - accepted;
             this.setStatus(failed === 0
-                ? `${accepted}개 파일을 안전 검사 대기열에 등록했습니다.`
+                ? `${accepted}개 파일을 G7 첨부파일로 준비했습니다.`
                 : `${accepted}개 완료, ${failed}개 실패 또는 취소되었습니다.`);
             this.dispatchEvent(new CustomEvent<UploadBatchResult>('g7mb:complete', {
                 detail: result,
@@ -216,7 +217,7 @@ function stateLabel(progress: FileUploadProgress): string {
         case 'queued': return '대기';
         case 'uploading': return `${progress.percent}%`;
         case 'verifying': return '확인 중';
-        case 'accepted': return '검사 대기';
+        case 'accepted': return '첨부 준비 완료';
         case 'cancelled': return '취소됨';
         case 'failed': return progress.error ?? '실패';
     }

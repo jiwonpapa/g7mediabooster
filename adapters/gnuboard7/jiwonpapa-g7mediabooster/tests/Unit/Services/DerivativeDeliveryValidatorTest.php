@@ -24,6 +24,29 @@ final class DerivativeDeliveryValidatorTest extends TestCase
         self::assertStringStartsWith('https://private.example.com/', $url);
     }
 
+    public function testRequiresTheSignedDeliveryToMatchNativeMetadataExactly(): void
+    {
+        $validator = new DerivativeDeliveryValidator;
+        self::assertStringStartsWith('https://', $validator->validateExact(
+            self::delivery('https://private.example.com/file?signature=x'),
+            self::UPLOAD_ID,
+            'thumbnail',
+            'board-v1',
+            'image/jpeg',
+            512,
+        ));
+
+        $this->expectException(UnexpectedValueException::class);
+        $validator->validateExact(
+            self::delivery('https://private.example.com/file?signature=x'),
+            self::UPLOAD_ID,
+            'thumbnail',
+            'board-v1',
+            'image/jpeg',
+            513,
+        );
+    }
+
     /** @param array<string, mixed> $delivery */
     #[DataProvider('invalidDeliveries')]
     public function testRejectsUntrustedDeliveryResponses(array $delivery, string $variant): void

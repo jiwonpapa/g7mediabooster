@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use Illuminate\Support\Facades\Route;
 use Modules\Jiwonpapa\G7mediabooster\Http\Controllers\Admin\SettingsController;
+use Modules\Jiwonpapa\G7mediabooster\Http\Controllers\User\AttachmentBridgeController;
+use Modules\Jiwonpapa\G7mediabooster\Http\Controllers\User\AttachmentDeliveryController;
 use Modules\Jiwonpapa\G7mediabooster\Http\Controllers\User\UploadController;
 
 Route::prefix('admin')
@@ -19,6 +21,19 @@ Route::prefix('admin')
             ->middleware('permission:admin,jiwonpapa-g7mediabooster.settings.update')
             ->name('admin.settings.update');
     });
+
+Route::get('boards/{slug}/attachments/{hash}/{variant}', [AttachmentDeliveryController::class, 'show'])
+    ->middleware([
+        'optional.sanctum',
+        'throttle:600,1',
+        'permission:user,sirsoft-board.{slug}.attachments.download',
+    ])
+    ->where([
+        'slug' => '[A-Za-z0-9_-]+',
+        'hash' => '[A-Za-z0-9]{12}',
+        'variant' => 'master|thumbnail',
+    ])
+    ->name('attachments.delivery');
 
 Route::prefix('boards/{slug}/uploads')
     ->middleware([
@@ -47,6 +62,9 @@ Route::prefix('boards/{slug}/uploads')
         Route::get('{uploadId}', [UploadController::class, 'status'])
             ->whereUuid('uploadId')
             ->name('status');
+        Route::post('{uploadId}/attachment', [AttachmentBridgeController::class, 'store'])
+            ->whereUuid('uploadId')
+            ->name('attachment.store');
         Route::get('{uploadId}/derivatives/{variant}', [UploadController::class, 'derivative'])
             ->whereUuid('uploadId')
             ->whereIn('variant', ['master', 'thumbnail'])
