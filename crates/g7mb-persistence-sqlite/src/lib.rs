@@ -6,6 +6,10 @@ use async_trait::async_trait;
 use g7mb_application::{
     JobFailureDisposition, JobQueue, JobQueueError, LeasedProcessingJob, NonceStore,
     NonceStoreError, ProcessingJob, WatermarkPosition,
+    inventory::{
+        InventoryObject, InventoryReconcileResult, InventoryRepository, InventoryRepositoryError,
+        OrphanCandidate, StorageNamespace,
+    },
     lifecycle::{
         CleanupCandidate, CleanupReason, DeletionRequestError, DeletionRequestOutcome,
         LifecycleRepository, LifecycleRepositoryError,
@@ -218,6 +222,272 @@ impl SitePolicyRepository for SqliteStore {
         .await
         .map_err(policy_backend)?;
         row.map(site_policy_from_row).transpose()
+    }
+}
+
+#[async_trait]
+impl InventoryRepository for SqliteStore {
+    async fn inventory_cursor(
+        &self,
+        namespace: StorageNamespace,
+    ) -> Result<Option<String>, InventoryRepositoryError> {
+        sqlx::query_scalar::<_, Option<String>>(
+            "SELECT start_after FROM inventory_cursors WHERE namespace = ?",
+        )
+        .bind(namespace.as_str())
+        .fetch_optional(&self.pool)
+        .await
+        .map(|row| row.flatten())
+        .map_err(inventory_backend)
+    }
+
+    async fn reconcile_inventory_page(
+        &self,
+        namespace: StorageNamespace,
+        objects: &[InventoryObject],
+        observed_at: OffsetDateTime,
+        eligible_before: OffsetDateTime,
+    ) -> Result<InventoryReconcileResult, InventoryRepositoryError> {
+        if objects.len() > 1000 {
+            return Err(InventoryRepositoryError(
+                "inventory page exceeds the repository bound".to_owned(),
+            ));
+        }
+        let mut transaction = self
+            .pool
+            .begin_with("BEGIN IMMEDIATE")
+            .await
+            .map_err(inventory_backend)?;
+        let mut result = InventoryReconcileResult::default();
+        for object in objects {
+            let known = match namespace {
+                StorageNamespace::Raw => {
+                    sqlx::query_scalar::<_, i64>(
+                        "SELECT EXISTS(
+                            SELECT 1 FROM uploads
+                            WHERE object_key = ? AND state <> 'deleted'
+                         )",
+                    )
+                    .bind(object.key.as_str())
+                    .fetch_one(&mut *transaction)
+                    .await
+                }
+                StorageNamespace::Derivative => {
+                    sqlx::query_scalar::<_, i64>(
+                        "SELECT EXISTS(
+                            SELECT 1
+                            FROM derivatives d
+                            JOIN uploads u ON u.id = d.upload_id
+                            WHERE d.object_key = ? AND u.state <> 'deleted'
+                         )",
+                    )
+                    .bind(object.key.as_str())
+                    .fetch_one(&mut *transaction)
+                    .await
+                }
+            }
+            .map_err(inventory_backend)?
+                == 1;
+            if known {
+                sqlx::query("DELETE FROM orphan_objects WHERE namespace = ? AND object_key = ?")
+                    .bind(namespace.as_str())
+                    .bind(object.key.as_str())
+                    .execute(&mut *transaction)
+                    .await
+                    .map_err(inventory_backend)?;
+                result.known += 1;
+                continue;
+            }
+            let content_length = i64::try_from(object.content_length).map_err(|_| {
+                InventoryRepositoryError("inventory object length exceeds SQLite range".to_owned())
+            })?;
+            sqlx::query(
+                "INSERT INTO orphan_objects
+                    (namespace, object_key, content_length, first_seen_at, last_seen_at,
+                     state, delete_attempts, last_error_code, deleted_at)
+                 VALUES (?, ?, ?, ?, ?, 'suspected', 0, NULL, NULL)
+                 ON CONFLICT(namespace, object_key) DO UPDATE SET
+                    content_length = excluded.content_length,
+                    first_seen_at = CASE
+                        WHEN orphan_objects.state = 'deleted' THEN excluded.first_seen_at
+                        ELSE orphan_objects.first_seen_at
+                    END,
+                    last_seen_at = excluded.last_seen_at,
+                    state = 'suspected',
+                    delete_attempts = CASE
+                        WHEN orphan_objects.state = 'deleted' THEN 0
+                        ELSE orphan_objects.delete_attempts
+                    END,
+                    last_error_code = NULL,
+                    deleted_at = NULL",
+            )
+            .bind(namespace.as_str())
+            .bind(object.key.as_str())
+            .bind(content_length)
+            .bind(observed_at.unix_timestamp())
+            .bind(observed_at.unix_timestamp())
+            .execute(&mut *transaction)
+            .await
+            .map_err(inventory_backend)?;
+            let first_seen_at = sqlx::query_scalar::<_, i64>(
+                "SELECT first_seen_at FROM orphan_objects
+                 WHERE namespace = ? AND object_key = ? AND state = 'suspected'",
+            )
+            .bind(namespace.as_str())
+            .bind(object.key.as_str())
+            .fetch_one(&mut *transaction)
+            .await
+            .map_err(inventory_backend)?;
+            if first_seen_at <= eligible_before.unix_timestamp() {
+                result.eligible.push(OrphanCandidate {
+                    key: object.key.clone(),
+                    content_length: object.content_length,
+                });
+            } else {
+                result.suspected += 1;
+            }
+        }
+        transaction.commit().await.map_err(inventory_backend)?;
+        Ok(result)
+    }
+
+    async fn is_inventory_key_known(
+        &self,
+        namespace: StorageNamespace,
+        key: &ObjectKey,
+    ) -> Result<bool, InventoryRepositoryError> {
+        let known = match namespace {
+            StorageNamespace::Raw => {
+                sqlx::query_scalar::<_, i64>(
+                    "SELECT EXISTS(
+                        SELECT 1 FROM uploads
+                        WHERE object_key = ? AND state <> 'deleted'
+                     )",
+                )
+                .bind(key.as_str())
+                .fetch_one(&self.pool)
+                .await
+            }
+            StorageNamespace::Derivative => {
+                sqlx::query_scalar::<_, i64>(
+                    "SELECT EXISTS(
+                        SELECT 1
+                        FROM derivatives d
+                        JOIN uploads u ON u.id = d.upload_id
+                        WHERE d.object_key = ? AND u.state <> 'deleted'
+                     )",
+                )
+                .bind(key.as_str())
+                .fetch_one(&self.pool)
+                .await
+            }
+        }
+        .map_err(inventory_backend)?;
+        Ok(known == 1)
+    }
+
+    async fn forget_orphan(
+        &self,
+        namespace: StorageNamespace,
+        key: &ObjectKey,
+    ) -> Result<(), InventoryRepositoryError> {
+        sqlx::query("DELETE FROM orphan_objects WHERE namespace = ? AND object_key = ?")
+            .bind(namespace.as_str())
+            .bind(key.as_str())
+            .execute(&self.pool)
+            .await
+            .map_err(inventory_backend)?;
+        Ok(())
+    }
+
+    async fn complete_orphan_deletion(
+        &self,
+        namespace: StorageNamespace,
+        key: &ObjectKey,
+        deleted_at: OffsetDateTime,
+    ) -> Result<(), InventoryRepositoryError> {
+        let result = sqlx::query(
+            "UPDATE orphan_objects
+             SET state = 'deleted', deleted_at = ?, last_error_code = NULL
+             WHERE namespace = ? AND object_key = ?",
+        )
+        .bind(deleted_at.unix_timestamp())
+        .bind(namespace.as_str())
+        .bind(key.as_str())
+        .execute(&self.pool)
+        .await
+        .map_err(inventory_backend)?;
+        if result.rows_affected() != 1 {
+            return Err(InventoryRepositoryError(
+                "orphan deletion has no durable observation".to_owned(),
+            ));
+        }
+        Ok(())
+    }
+
+    async fn fail_orphan_deletion(
+        &self,
+        namespace: StorageNamespace,
+        key: &ObjectKey,
+        error_code: &str,
+        failed_at: OffsetDateTime,
+    ) -> Result<(), InventoryRepositoryError> {
+        if error_code.is_empty() || error_code.len() > 64 {
+            return Err(InventoryRepositoryError(
+                "orphan deletion error code is invalid".to_owned(),
+            ));
+        }
+        let result = sqlx::query(
+            "UPDATE orphan_objects
+             SET delete_attempts = delete_attempts + 1, last_error_code = ?, last_seen_at = ?
+             WHERE namespace = ? AND object_key = ? AND state = 'suspected'",
+        )
+        .bind(error_code)
+        .bind(failed_at.unix_timestamp())
+        .bind(namespace.as_str())
+        .bind(key.as_str())
+        .execute(&self.pool)
+        .await
+        .map_err(inventory_backend)?;
+        if result.rows_affected() != 1 {
+            return Err(InventoryRepositoryError(
+                "orphan deletion failure has no active observation".to_owned(),
+            ));
+        }
+        Ok(())
+    }
+
+    async fn save_inventory_cursor(
+        &self,
+        namespace: StorageNamespace,
+        start_after: Option<&str>,
+        updated_at: OffsetDateTime,
+    ) -> Result<(), InventoryRepositoryError> {
+        if start_after.is_some_and(|cursor| {
+            cursor.len() > 1024
+                || !cursor.starts_with(match namespace {
+                    StorageNamespace::Raw => "raw/",
+                    StorageNamespace::Derivative => "media/",
+                })
+        }) {
+            return Err(InventoryRepositoryError(
+                "inventory cursor is invalid".to_owned(),
+            ));
+        }
+        sqlx::query(
+            "INSERT INTO inventory_cursors (namespace, start_after, updated_at)
+             VALUES (?, ?, ?)
+             ON CONFLICT(namespace) DO UPDATE SET
+                start_after = excluded.start_after,
+                updated_at = excluded.updated_at",
+        )
+        .bind(namespace.as_str())
+        .bind(start_after)
+        .bind(updated_at.unix_timestamp())
+        .execute(&self.pool)
+        .await
+        .map_err(inventory_backend)?;
+        Ok(())
     }
 }
 
@@ -1536,6 +1806,10 @@ fn lifecycle_backend(error: impl std::fmt::Display) -> LifecycleRepositoryError 
     LifecycleRepositoryError(format!("SQLite backend: {error}"))
 }
 
+fn inventory_backend(error: impl std::fmt::Display) -> InventoryRepositoryError {
+    InventoryRepositoryError(format!("SQLite backend: {error}"))
+}
+
 fn policy_backend(error: impl std::fmt::Display) -> SitePolicyRepositoryError {
     SitePolicyRepositoryError::Backend(format!("SQLite backend: {error}"))
 }
@@ -1862,6 +2136,7 @@ mod tests {
 
     use g7mb_application::{
         JobFailureDisposition, JobQueue as _, ProcessingJob, WatermarkPosition,
+        inventory::{InventoryObject, InventoryRepository as _, StorageNamespace},
         lifecycle::{
             CleanupReason, DeletionRequestError, DeletionRequestOutcome, LifecycleRepository as _,
         },
@@ -2392,6 +2667,149 @@ mod tests {
         assert!(store.has_capacity("tenant-a", 1, 1024, capacity).await?);
         let replacement = single_image_batch("tenant-a", 1_800_000_004)?;
         store.save_batch(&replacement, capacity).await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn orphan_inventory_requires_repeated_observation_and_rechecks_ownership()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let store = SqliteStore::connect("sqlite::memory:", 1).await?;
+        let observed_at = OffsetDateTime::from_unix_timestamp(1_800_000_000)?;
+        let orphan = InventoryObject {
+            key: ObjectKey::new("raw/site-a/orphan/source".to_owned())?,
+            content_length: 2048,
+        };
+        let first = store
+            .reconcile_inventory_page(
+                StorageNamespace::Raw,
+                std::slice::from_ref(&orphan),
+                observed_at,
+                observed_at - time::Duration::hours(48),
+            )
+            .await?;
+        assert_eq!(first.suspected, 1);
+        assert!(first.eligible.is_empty());
+
+        let observed_again = observed_at + time::Duration::hours(49);
+        let second = store
+            .reconcile_inventory_page(
+                StorageNamespace::Raw,
+                std::slice::from_ref(&orphan),
+                observed_again,
+                observed_again - time::Duration::hours(48),
+            )
+            .await?;
+        assert_eq!(second.eligible.len(), 1);
+        assert!(
+            !store
+                .is_inventory_key_known(StorageNamespace::Raw, &orphan.key)
+                .await?
+        );
+
+        let upload_id = UploadId::new();
+        sqlx::query(
+            "INSERT INTO uploads
+                (id, tenant_id, object_key, declared_kind, state, expected_size_bytes,
+                 content_type_hint, transfer_kind, created_at, updated_at)
+             VALUES (?, 'site-a', ?, 'image', 'created', 2048, 'image/jpeg',
+                     'single_put', ?, ?)",
+        )
+        .bind(upload_id.to_string())
+        .bind(orphan.key.as_str())
+        .bind(observed_again.unix_timestamp())
+        .bind(observed_again.unix_timestamp())
+        .execute(store.pool())
+        .await?;
+        assert!(
+            store
+                .is_inventory_key_known(StorageNamespace::Raw, &orphan.key)
+                .await?
+        );
+        sqlx::query("UPDATE uploads SET state = 'deleted' WHERE id = ?")
+            .bind(upload_id.to_string())
+            .execute(store.pool())
+            .await?;
+        assert!(
+            !store
+                .is_inventory_key_known(StorageNamespace::Raw, &orphan.key)
+                .await?
+        );
+        store
+            .forget_orphan(StorageNamespace::Raw, &orphan.key)
+            .await?;
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM orphan_objects")
+                .fetch_one(store.pool())
+                .await?,
+            0
+        );
+
+        store
+            .save_inventory_cursor(
+                StorageNamespace::Raw,
+                Some(orphan.key.as_str()),
+                observed_again,
+            )
+            .await?;
+        assert_eq!(
+            store.inventory_cursor(StorageNamespace::Raw).await?,
+            Some(orphan.key.to_string())
+        );
+        store
+            .save_inventory_cursor(StorageNamespace::Raw, None, observed_again)
+            .await?;
+        assert_eq!(store.inventory_cursor(StorageNamespace::Raw).await?, None);
+
+        let deleted_orphan = InventoryObject {
+            key: ObjectKey::new("raw/site-a/deleted-orphan/source".to_owned())?,
+            content_length: 4096,
+        };
+        let old_observation = observed_at - time::Duration::hours(49);
+        let eligible = store
+            .reconcile_inventory_page(
+                StorageNamespace::Raw,
+                std::slice::from_ref(&deleted_orphan),
+                old_observation,
+                observed_at - time::Duration::hours(48),
+            )
+            .await?;
+        assert_eq!(eligible.eligible.len(), 1);
+        store
+            .fail_orphan_deletion(
+                StorageNamespace::Raw,
+                &deleted_orphan.key,
+                "PROVIDER_DELETE_FAILED",
+                observed_at,
+            )
+            .await?;
+        store
+            .complete_orphan_deletion(StorageNamespace::Raw, &deleted_orphan.key, observed_at)
+            .await?;
+        let state = sqlx::query(
+            "SELECT state, delete_attempts, deleted_at FROM orphan_objects
+             WHERE namespace = 'raw' AND object_key = ?",
+        )
+        .bind(deleted_orphan.key.as_str())
+        .fetch_one(store.pool())
+        .await?;
+        assert_eq!(state.try_get::<String, _>("state")?, "deleted");
+        assert_eq!(state.try_get::<i64, _>("delete_attempts")?, 1);
+        assert_eq!(
+            state.try_get::<Option<i64>, _>("deleted_at")?,
+            Some(observed_at.unix_timestamp())
+        );
+
+        let reappeared_at = observed_at + time::Duration::hours(1);
+        let reappeared = store
+            .reconcile_inventory_page(
+                StorageNamespace::Raw,
+                std::slice::from_ref(&deleted_orphan),
+                reappeared_at,
+                observed_at - time::Duration::hours(48),
+            )
+            .await?;
+        assert_eq!(reappeared.suspected, 1);
+        assert!(reappeared.eligible.is_empty());
         Ok(())
     }
 

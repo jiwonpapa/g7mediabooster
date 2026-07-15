@@ -64,6 +64,9 @@ cleanup_lease_seconds = 300
 cleanup_retry_seconds = 60
 cleanup_batch_size = 100
 cleanup_max_attempts = 10
+orphan_grace_period_seconds = 172800
+inventory_page_size = 1000
+inventory_max_pages_per_run = 10
 
 [delivery]
 # The cache stores immutable object metadata only, never thumbnail bytes or signed URLs.

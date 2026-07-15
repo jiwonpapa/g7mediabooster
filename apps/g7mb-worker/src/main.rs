@@ -6,6 +6,7 @@ use anyhow::{Context as _, bail};
 use clap::{Parser, Subcommand};
 use g7mb_application::{
     WatermarkPosition,
+    inventory::{InventoryMode, InventoryPolicy, InventoryService},
     lifecycle::{LifecyclePolicy, LifecycleService},
 };
 use g7mb_config::{Settings, WatermarkPositionSetting};
@@ -48,6 +49,12 @@ enum Command {
         #[arg(long)]
         worker_id: String,
     },
+    /// Audits bounded raw/media provider pages or explicitly prunes old confirmed orphans.
+    Inventory {
+        /// Enables deletion after the grace period and a final database ownership recheck.
+        #[arg(long)]
+        prune: bool,
+    },
 }
 
 #[tokio::main]
@@ -59,7 +66,62 @@ async fn main() -> anyhow::Result<()> {
         Command::Run { worker_id } => run(&cli.config, &worker_id).await,
         Command::Once { worker_id } => once(&cli.config, &worker_id).await,
         Command::Cleanup { worker_id } => cleanup(&cli.config, &worker_id).await,
+        Command::Inventory { prune } => inventory(&cli.config, prune).await,
     }
+}
+
+async fn inventory(path: &std::path::Path, prune: bool) -> anyhow::Result<()> {
+    let settings = Settings::load(Some(path)).context("failed to load configuration")?;
+    let database = Arc::new(
+        SqliteStore::connect(&settings.database.url, settings.database.max_connections)
+            .await
+            .context("failed to initialize SQLite")?,
+    );
+    let raw_store = Arc::new(
+        S3CompatibleStore::for_raw_bucket(&settings.storage)
+            .await
+            .context("failed to initialize raw object store")?,
+    );
+    let derivative_store = Arc::new(
+        S3CompatibleStore::for_derivative_bucket(&settings.storage)
+            .await
+            .context("failed to initialize derivative object store")?,
+    );
+    let service = InventoryService::new(
+        raw_store,
+        derivative_store,
+        database,
+        InventoryPolicy {
+            orphan_grace_period: Duration::from_secs(
+                settings.lifecycle.orphan_grace_period_seconds,
+            ),
+            page_size: settings.lifecycle.inventory_page_size,
+            max_pages_per_namespace: settings.lifecycle.inventory_max_pages_per_run,
+        },
+    )?;
+    let mode = if prune {
+        InventoryMode::Prune
+    } else {
+        InventoryMode::Audit
+    };
+    let summary = service
+        .run_once(mode)
+        .await
+        .context("provider inventory failed")?;
+    tracing::info!(
+        ?mode,
+        pages = summary.pages,
+        listed = summary.listed,
+        invalid_keys = summary.invalid_keys,
+        known = summary.known,
+        suspected = summary.suspected,
+        eligible = summary.eligible,
+        deleted = summary.deleted,
+        delete_failed = summary.delete_failed,
+        completed_namespaces = summary.completed_namespaces,
+        "provider inventory completed"
+    );
+    Ok(())
 }
 
 async fn cleanup(path: &std::path::Path, worker_id: &str) -> anyhow::Result<()> {

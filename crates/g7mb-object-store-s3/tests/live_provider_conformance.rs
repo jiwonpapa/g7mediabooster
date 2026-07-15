@@ -4,8 +4,8 @@ use std::{collections::BTreeMap, env, path::Path, process::Command, time::Durati
 
 use g7mb_application::{
     AbortMultipartRequest, CompleteMultipartRequest, CompletedPart, CreateMultipartRequest,
-    DownloadObjectRequest, ObjectStore as _, PresignGetRequest, PresignPartRequest,
-    PresignPutRequest, PutFileRequest,
+    DownloadObjectRequest, ListObjectsRequest, ObjectStore as _, PresignGetRequest,
+    PresignPartRequest, PresignPutRequest, PutFileRequest,
 };
 use g7mb_config::StorageSettings;
 use g7mb_domain::{ObjectKey, UploadId};
@@ -65,6 +65,19 @@ async fn live_provider_single_multipart_and_delete_conformance()
     assert_eq!(
         tokio::fs::read(downloaded_path).await?,
         tokio::fs::read(&single_path).await?
+    );
+    let raw_inventory = raw
+        .list_objects(ListObjectsRequest {
+            prefix: "raw/".to_owned(),
+            start_after: None,
+            max_keys: 1000,
+        })
+        .await?;
+    assert!(
+        raw_inventory
+            .objects
+            .iter()
+            .any(|object| object.key == single_key.as_str())
     );
     raw.delete(&single_key).await?;
     raw.delete(&single_key).await?;
@@ -128,6 +141,19 @@ async fn live_provider_single_multipart_and_delete_conformance()
     assert_eq!(
         tokio::fs::read(delivered_path).await?,
         tokio::fs::read(&derivative_path).await?
+    );
+    let derivative_inventory = derivative
+        .list_objects(ListObjectsRequest {
+            prefix: "media/".to_owned(),
+            start_after: None,
+            max_keys: 1000,
+        })
+        .await?;
+    assert!(
+        derivative_inventory
+            .objects
+            .iter()
+            .any(|object| object.key == derivative_key.as_str())
     );
     derivative.delete(&derivative_key).await?;
 

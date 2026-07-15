@@ -13,8 +13,9 @@ use aws_sdk_s3::{
 };
 use g7mb_application::{
     AbortMultipartRequest, CompleteMultipartRequest, CreateMultipartRequest, DownloadObjectRequest,
-    MultipartSession, ObjectMetadata, ObjectStore, ObjectStoreError, PresignGetRequest,
-    PresignPartRequest, PresignPutRequest, PresignedDownload, PresignedUpload, PutFileRequest,
+    ListObjectsRequest, ListedObject, ListedObjectsPage, MultipartSession, ObjectMetadata,
+    ObjectStore, ObjectStoreError, PresignGetRequest, PresignPartRequest, PresignPutRequest,
+    PresignedDownload, PresignedUpload, PutFileRequest,
 };
 use g7mb_config::StorageSettings;
 use g7mb_domain::ObjectKey;
@@ -343,6 +344,69 @@ impl ObjectStore for S3CompatibleStore {
         })
     }
 
+    async fn list_objects(
+        &self,
+        request: ListObjectsRequest,
+    ) -> Result<ListedObjectsPage, ObjectStoreError> {
+        if !matches!(request.prefix.as_str(), "raw/" | "media/")
+            || request.max_keys == 0
+            || request.max_keys > 1000
+            || request.start_after.as_ref().is_some_and(|cursor| {
+                cursor.len() > 1024 || !cursor.starts_with(request.prefix.as_str())
+            })
+        {
+            return Err(ObjectStoreError::InvalidRequest(
+                "inventory request violates prefix, cursor, or page bounds".to_owned(),
+            ));
+        }
+        let output = self
+            .client
+            .list_objects_v2()
+            .bucket(&self.bucket)
+            .prefix(&request.prefix)
+            .set_start_after(request.start_after)
+            .max_keys(i32::from(request.max_keys))
+            .send()
+            .await
+            .map_err(|error| ObjectStoreError::Backend(error.to_string()))?;
+        let mut objects = Vec::with_capacity(output.contents().len());
+        for object in output.contents() {
+            let key = object.key().ok_or_else(|| {
+                ObjectStoreError::Backend("storage inventory returned no object key".to_owned())
+            })?;
+            let content_length =
+                u64::try_from(object.size().unwrap_or_default()).map_err(|_| {
+                    ObjectStoreError::Backend(
+                        "storage inventory returned a negative object length".to_owned(),
+                    )
+                })?;
+            objects.push(ListedObject {
+                key: key.to_owned(),
+                content_length,
+            });
+        }
+        let truncated = output.is_truncated().unwrap_or(false);
+        let next_start_after = if truncated {
+            Some(
+                objects
+                    .last()
+                    .ok_or_else(|| {
+                        ObjectStoreError::Backend(
+                            "storage returned an empty truncated inventory page".to_owned(),
+                        )
+                    })?
+                    .key
+                    .clone(),
+            )
+        } else {
+            None
+        };
+        Ok(ListedObjectsPage {
+            objects,
+            next_start_after,
+        })
+    }
+
     async fn delete(&self, key: &ObjectKey) -> Result<(), ObjectStoreError> {
         self.client
             .delete_object()
@@ -429,7 +493,8 @@ mod tests {
     use std::time::Duration;
 
     use g7mb_application::{
-        CompletedPart, ObjectStore as _, PresignGetRequest, PresignPartRequest, PresignPutRequest,
+        CompletedPart, ListObjectsRequest, ObjectStore as _, ObjectStoreError, PresignGetRequest,
+        PresignPartRequest, PresignPutRequest,
     };
     use g7mb_config::StorageSettings;
     use g7mb_domain::ObjectKey;
@@ -540,6 +605,32 @@ mod tests {
             },
         ]);
         assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn inventory_rejects_arbitrary_prefixes_before_network_io()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let settings = StorageSettings {
+            endpoint_url: Some("https://account-id.r2.cloudflarestorage.com".to_owned()),
+            region: "auto".to_owned(),
+            raw_bucket: "raw-private".to_owned(),
+            derivative_bucket: "media".to_owned(),
+            access_key_id: SecretString::from("test-access".to_owned()),
+            secret_access_key: SecretString::from("test-secret".to_owned()),
+            force_path_style: false,
+        };
+        let store = S3CompatibleStore::for_raw_bucket(&settings).await?;
+        let error = store
+            .list_objects(ListObjectsRequest {
+                prefix: "foreign/".to_owned(),
+                start_after: None,
+                max_keys: 1001,
+            })
+            .await
+            .err()
+            .ok_or("unsafe inventory request was accepted")?;
+        assert!(matches!(error, ObjectStoreError::InvalidRequest(_)));
+        Ok(())
     }
 
     #[tokio::test]

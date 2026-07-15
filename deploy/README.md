@@ -59,6 +59,10 @@ systemd가 중복 실행하지 않으며, SQLite lease가 수동 실행·강제 
 만료 multipart abort와 private raw/derivative 삭제는 S3/R2 작업이 모두 성공한 뒤에만
 upload를 `deleted`로 tombstone 처리합니다.
 
+`g7mediabooster-inventory.timer`는 매일 `raw/`·`media/` bounded inventory를 비파괴 audit합니다.
+기본 unit은 orphan을 삭제하지 않습니다. 48시간 이상 반복 관측된 후보의 명시적 prune 절차와
+삭제 직전 ownership 재검사는 [provider orphan runbook](../docs/ORPHAN_INVENTORY.md)을 따릅니다.
+
 worker가 S3/R2에 접근해야 하므로 worker service 자체는 네트워크를 사용합니다. Linux
 `g7mb-sandbox`는 명령 처리 전에 seccomp-BPF를 모든 runtime thread에 설치하고 socket,
 connect, bind, listen, send/recv 계열 syscall을 `EPERM`으로 거부합니다. 필터는 FFmpeg와

@@ -1,6 +1,7 @@
 //! Application ports shared by API and infrastructure adapters.
 
 pub mod delivery;
+pub mod inventory;
 pub mod lifecycle;
 pub mod policies;
 pub mod processing;
@@ -151,6 +152,35 @@ pub struct PutFileRequest {
     pub content_type: String,
 }
 
+/// Bounded provider inventory page request under one server-owned prefix.
+#[derive(Clone, Debug)]
+pub struct ListObjectsRequest {
+    /// Exact allowlisted prefix (`raw/` or `media/`).
+    pub prefix: String,
+    /// Last key from the previous page, used as a durable lexicographic cursor.
+    pub start_after: Option<String>,
+    /// Provider page bound in `1..=1000`.
+    pub max_keys: u16,
+}
+
+/// One object returned by a bounded provider inventory page.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ListedObject {
+    /// Provider key; application code validates it before any destructive action.
+    pub key: String,
+    /// Provider-reported object length.
+    pub content_length: u64,
+}
+
+/// One provider inventory page with a resumable key cursor.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ListedObjectsPage {
+    /// Objects in provider lexicographic order.
+    pub objects: Vec<ListedObject>,
+    /// Last returned key when another page exists; absent at end of prefix.
+    pub next_start_after: Option<String>,
+}
+
 /// Errors exposed by the object storage port.
 #[derive(Debug, Error)]
 pub enum ObjectStoreError {
@@ -220,6 +250,16 @@ pub trait ObjectStore: Send + Sync {
 
     /// Streams a trusted local derivative to an immutable object key.
     async fn put_file(&self, request: PutFileRequest) -> Result<ObjectMetadata, ObjectStoreError>;
+
+    /// Lists one bounded page under an allowlisted server-owned prefix.
+    async fn list_objects(
+        &self,
+        _request: ListObjectsRequest,
+    ) -> Result<ListedObjectsPage, ObjectStoreError> {
+        Err(ObjectStoreError::InvalidRequest(
+            "provider inventory is unavailable".to_owned(),
+        ))
+    }
 
     /// Deletes one server-owned object key. Implementations must be idempotent when absent.
     async fn delete(&self, key: &ObjectKey) -> Result<(), ObjectStoreError>;

@@ -72,6 +72,9 @@ impl Settings {
             .set_default("lifecycle.cleanup_retry_seconds", 60_i64)?
             .set_default("lifecycle.cleanup_batch_size", 100_i64)?
             .set_default("lifecycle.cleanup_max_attempts", 10_i64)?
+            .set_default("lifecycle.orphan_grace_period_seconds", 172_800_i64)?
+            .set_default("lifecycle.inventory_page_size", 1_000_i64)?
+            .set_default("lifecycle.inventory_max_pages_per_run", 10_i64)?
             .set_default("delivery.signed_url_ttl_seconds", 300_i64)?
             .set_default("delivery.manifest_cache_ttl_seconds", 60_i64)?
             .set_default("delivery.manifest_cache_max_bytes", 4_194_304_i64)?;
@@ -192,6 +195,9 @@ impl Settings {
             || self.lifecycle.cleanup_retry_seconds > 24 * 60 * 60
             || !(1..=100).contains(&self.lifecycle.cleanup_batch_size)
             || !(1..=100).contains(&self.lifecycle.cleanup_max_attempts)
+            || !(60 * 60..=30 * 24 * 60 * 60).contains(&self.lifecycle.orphan_grace_period_seconds)
+            || !(1..=1000).contains(&self.lifecycle.inventory_page_size)
+            || !(1..=100).contains(&self.lifecycle.inventory_max_pages_per_run)
         {
             return Err(ConfigError::Message(
                 "lifecycle settings violate retention, lease, retry, batch, or attempt limits"
@@ -339,6 +345,12 @@ pub struct LifecycleSettings {
     pub cleanup_batch_size: usize,
     /// Attempt ceiling before manual intervention.
     pub cleanup_max_attempts: u32,
+    /// Minimum repeated-observation age before explicit prune may delete an orphan.
+    pub orphan_grace_period_seconds: u64,
+    /// Provider keys requested per inventory page.
+    pub inventory_page_size: u16,
+    /// Pages scanned per namespace and inventory invocation.
+    pub inventory_max_pages_per_run: usize,
 }
 
 /// Bounded private derivative delivery settings.
@@ -561,6 +573,39 @@ cleanup_batch_size = 101
                     "unbounded cleanup batch was unexpectedly accepted",
                 )
                 .into());
+            }
+            Err(error) => error,
+        };
+        assert!(error.to_string().contains("lifecycle settings"));
+        Ok(())
+    }
+
+    #[test]
+    fn orphan_inventory_requires_a_grace_period_and_bounded_pages()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let file = NamedTempFile::new()?;
+        fs::write(
+            file.path(),
+            r#"
+[storage]
+raw_bucket = "raw"
+derivative_bucket = "media"
+access_key_id = "test-access"
+secret_access_key = "test-secret"
+
+[auth]
+key_id = "g7-primary"
+tenant_id = "site-a"
+hmac_secret = "0123456789abcdef0123456789abcdef"
+
+[lifecycle]
+orphan_grace_period_seconds = 0
+inventory_page_size = 1001
+"#,
+        )?;
+        let error = match Settings::load(Some(file.path())) {
+            Ok(_) => {
+                return Err(std::io::Error::other("unsafe inventory policy was accepted").into());
             }
             Err(error) => error,
         };

@@ -1,0 +1,12 @@
+[Unit]
+Description=Audit G7MediaBooster provider inventory daily
+
+[Timer]
+OnBootSec=30min
+OnUnitActiveSec=1d
+RandomizedDelaySec=30min
+Persistent=true
+Unit=g7mediabooster-inventory.service
+
+[Install]
+WantedBy=timers.target

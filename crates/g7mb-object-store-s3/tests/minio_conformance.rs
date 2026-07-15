@@ -9,8 +9,8 @@ use aws_sdk_s3::{
 };
 use g7mb_application::{
     AbortMultipartRequest, CompleteMultipartRequest, CompletedPart, CreateMultipartRequest,
-    DownloadObjectRequest, ObjectStore as _, PresignGetRequest, PresignPartRequest,
-    PresignPutRequest, PutFileRequest,
+    DownloadObjectRequest, ListObjectsRequest, ObjectStore as _, PresignGetRequest,
+    PresignPartRequest, PresignPutRequest, PutFileRequest,
 };
 use g7mb_config::StorageSettings;
 use g7mb_domain::ObjectKey;
@@ -49,6 +49,19 @@ async fn minio_single_multipart_abort_download_and_derivative_conformance()
     assert_eq!(
         raw.head(&single_key).await?.content_length,
         u64::try_from(single_bytes.len())?
+    );
+    let raw_inventory = raw
+        .list_objects(ListObjectsRequest {
+            prefix: "raw/".to_owned(),
+            start_after: None,
+            max_keys: 1000,
+        })
+        .await?;
+    assert!(
+        raw_inventory
+            .objects
+            .iter()
+            .any(|object| object.key == single_key.as_str())
     );
 
     let multipart_key = ObjectKey::new("raw/conformance/multipart/source")?;
@@ -145,6 +158,19 @@ async fn minio_single_multipart_abort_download_and_derivative_conformance()
     assert_eq!(
         tokio::fs::read(delivered_path).await?,
         b"\xff\xd8\xff\xe0conformance"
+    );
+    let derivative_inventory = derivative
+        .list_objects(ListObjectsRequest {
+            prefix: "media/".to_owned(),
+            start_after: None,
+            max_keys: 1000,
+        })
+        .await?;
+    assert!(
+        derivative_inventory
+            .objects
+            .iter()
+            .any(|object| object.key == derivative_key.as_str())
     );
     derivative.delete(&derivative_key).await?;
     assert!(derivative.head(&derivative_key).await.is_err());
