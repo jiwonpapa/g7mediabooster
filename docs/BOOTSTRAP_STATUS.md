@@ -61,6 +61,7 @@
 - 64MP AVIF/200MP 거부 경계: `cargo xtask heavy-avif`
 - Linux cgroup/API 생존/100개 worker: `cargo xtask cgroup-smoke`
 - S3 호환 실연결: `cargo xtask storage-conformance`
+- 외부 S3 환경·HTTPS·secret redaction 사전검사: `bash scripts/live-storage-preflight-smoke.sh`
 - G7 정책 종단: `cargo xtask g7-policy-smoke`
 - 로컬 정확한 5GiB/API RSS: `cargo xtask large-multipart-smoke`
 - 성능·강건성: `cargo xtask bench`, `cargo xtask fuzz`, `cargo xtask miri`

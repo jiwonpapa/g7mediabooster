@@ -7,6 +7,8 @@ if [[ -z "$root" || ! -d "$root" ]]; then
   exit 64
 fi
 
+script_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+patch_root="$script_root/../adapters/gnuboard7/upstream-contract"
 board="$root/modules/_bundled/sirsoft-board"
 template="$root/templates/_bundled/sirsoft-basic/layouts/partials/board/form/_post_form.json"
 admin_attachments="$board/resources/layouts/admin/partials/admin_board_post_form/_attachments.json"
@@ -126,9 +128,54 @@ require_pattern "$layout_extension_service" \
   'return \$injected;' \
   'layout overlay applies to every matching target'
 
+# 패턴 일치만으로 문법이 깨진 overlay를 PASS 처리하지 않습니다. 공식 patch가 만지는
+# PHP/JSON 전체를 실제 parser로 검사하되 credential이나 DB 연결은 요구하지 않습니다.
+if ! command -v php >/dev/null 2>&1; then
+  echo "FAIL: php CLI is required for upstream contract syntax validation" >&2
+  failures=$((failures + 1))
+elif [[ ! -d "$patch_root" ]]; then
+  echo "FAIL: upstream patch directory is missing" >&2
+  failures=$((failures + 1))
+else
+  syntax_failures=0
+  while IFS= read -r relative_path; do
+    file="$root/$relative_path"
+    if [[ ! -f "$file" ]]; then
+      echo "FAIL: patched file is missing: $relative_path" >&2
+      syntax_failures=$((syntax_failures + 1))
+      continue
+    fi
+    case "$relative_path" in
+      *.php)
+        if ! php -l "$file" >/dev/null; then
+          echo "FAIL: invalid PHP syntax: $relative_path" >&2
+          syntax_failures=$((syntax_failures + 1))
+        fi
+        ;;
+      *.json)
+        if ! php -r \
+          'json_decode(file_get_contents($argv[1]), true, 512, JSON_THROW_ON_ERROR);' \
+          "$file"; then
+          echo "FAIL: invalid JSON syntax: $relative_path" >&2
+          syntax_failures=$((syntax_failures + 1))
+        fi
+        ;;
+    esac
+  done < <(
+    rg --no-filename '^\+\+\+ b/' "$patch_root"/*.patch \
+      | sed 's#^+++ b/##' \
+      | sort -u
+  )
+  if (( syntax_failures > 0 )); then
+    failures=$((failures + syntax_failures))
+  else
+    echo "PASS: patched PHP/JSON parser validation"
+  fi
+fi
+
 if (( failures > 0 )); then
   echo "Gnuboard7 media contract: FAIL ($failures missing)" >&2
   exit 1
 fi
 
-echo "Gnuboard7 media contract: PASS (28/28)"
+echo "Gnuboard7 media contract: PASS (28/28 + parser validation)"

@@ -35,8 +35,12 @@
 
 ## 현재 G7 upstream checkout 상태
 
-격리된 clean worktree에서는 patch 5개와 계약 28/28을 검증했습니다. 반면 현재 개발 checkout은
-사용자 작업이 섞인 dirty 상태이며 계약 검사가 22/28입니다. 누락된 6개는 첨부 수 동기화,
-visibility-aware repository, 블라인드·비밀글 guard, native preview guard, 전체 layout target
-적용입니다. 이 checkout은 기존 변경을 보호하기 위해 자동 수정하지 않았으며, 28/28 반영 전에는
-해당 G7 배포를 공식 지원 대상으로 게시하지 않습니다.
+현재 개발 checkout의 기준 HEAD `e64381dd`에는 patch `0001`, `0002`가 이미 정확히 적용돼
+있었습니다. `git apply --check`로 충돌이 없음을 확인한 뒤 누락된 `0003`~`0005`만 반영해
+계약 28/28, 변경 PHP·JSON 문법 검사를 통과했습니다. 기존 `.playwright-cli/` 등 patch 범위 밖
+사용자 파일은 수정하지 않았습니다.
+
+현재 checkout에는 테스트 전용 `.env.testing`이 없어 DB 회귀 실행은 G7의 production DB 보호
+가드에서 중단됐습니다. 격리 clean worktree의 기존 회귀 PASS는 유지되지만, 현재 checkout은
+테스트 DB 설정 후 동일 회귀를 다시 통과하고 정식 upstream 변경으로 commit되기 전까지 공식
+지원 대상으로 게시하지 않습니다.

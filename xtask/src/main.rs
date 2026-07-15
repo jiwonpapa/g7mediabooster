@@ -172,6 +172,7 @@ fn quick() -> anyhow::Result<()> {
 fn ci() -> anyhow::Result<()> {
     quick()?;
     openapi(OpenApiAction::Check)?;
+    run("bash", ["scripts/live-storage-preflight-smoke.sh"])?;
     bench(true)
 }
 
