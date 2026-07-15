@@ -1,0 +1,22 @@
+{
+    "name": "@g7/gnuboard5-g7mediabooster",
+    "version": "0.1.0",
+    "description": "Bounded direct multi-uploader for the Gnuboard 5 adapter",
+    "private": true,
+    "type": "module",
+    "engines": {
+        "node": ">=20"
+    },
+    "scripts": {
+        "build": "vite build",
+        "typecheck": "tsc --noEmit",
+        "test": "vitest run"
+    },
+    "devDependencies": {
+        "@types/node": "^24.13.3",
+        "jsdom": "^27.1.0",
+        "typescript": "^5.9.3",
+        "vite": "^7.3.6",
+        "vitest": "^4.1.10"
+    }
+}

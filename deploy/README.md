@@ -26,6 +26,9 @@
 - G7 권한 확인 뒤 private master/thumbnail 302 redirect와 저장소 200 전달
 - G7 비밀글·블라인드글·삭제글 첨부 직접 경로의 작성자·권한자 fail-closed 정책
 - G7 soft-delete 보존 예약, lease 재검증, 복원 취소와 원격 삭제 시작 뒤 복원 차단
+- G5 5.6.24 core-free 플러그인과 게시판 쓰기·업로드 권한 및 회원/세션 소유권 확인
+- G5 실제 브라우저 single PUT·2-part multipart 동시 업로드와 native 첨부 2개 표시
+- G5 권한 확인 뒤 private master/thumbnail 전달과 MyISAM advisory-lock 첨부 연결
 
 다음 항목은 구현·실환경 검증 전 공식 지원 기능으로 게시하지 않습니다.
 
@@ -42,6 +45,11 @@ Ready→native attachment create/update 유지, private thumbnail 전달은 0.3.
 standalone module gate와 실제 G7 DB 호스트 게이트를 통과했습니다. 이 범위는 upstream patch
 `0001`~`0005` 적용을 전제로 공식 게시합니다.
 실브라우저 거부 매트릭스와 실 provider 보존 만료 삭제는 해당 종단 게이트 통과 전 게시하지 않습니다.
+
+G5는 5.6.24 코어 무수정 설치, MySQL 8.4·MyISAM host gate와 MinIO 기반 실제 브라우저
+single/multipart 전송, Rust 처리, 게시글 저장·첨부 표시, 비로그인 thumbnail `403`까지
+통과한 범위만 공식 게시합니다. 다른 G5 버전과 실 R2/Lightsail profile은 각 게이트 통과 전
+지원으로 표시하지 않습니다.
 
 ## 공식 object storage 지원 범위
 

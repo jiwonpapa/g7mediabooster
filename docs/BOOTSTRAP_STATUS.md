@@ -2,7 +2,7 @@
 
 - 기준일: 2026-07-16
 - 범위: Git, Rust 워크스페이스, 기술 스펙, 개발 헌법, 필수 크레이트와 품질 하네스
-- 결론: 내부 v1 구현 완료. 외부 R2/Lightsail·5GiB와 G7 upstream·실브라우저/실 provider 종단 게이트만 남았습니다.
+- 결론: 내부 v1과 G5 격리 브라우저 종단 완료. 외부 R2/Lightsail·5GiB와 G7 upstream·실브라우저/실 provider 종단 게이트만 남았습니다.
 
 ## 완료 항목
 
@@ -42,6 +42,7 @@
 | tenant fair queue·backpressure | PASS | 영속 round-robin claim, global 1,000/tenant 200 활성 cap, presign 전 차단, 429 계약 |
 | Linux cgroup 부하 | PASS | CPU 2 core, memory 2GiB, PID 64, network none, API health 267/267, worker 100/100 |
 | G7 게시물 첨부 표시 | PARTIAL | G7 `e64381dd` 기준 patch 5개 clean apply, 계약 28/28, 실제 browser upload/create/update/private thumbnail과 권한·보존 G7 DB gate PASS; upstream 반영·실브라우저/실 provider 종단 필요 |
+| G5 게시물 첨부 표시 | PASS | G5 5.6.24 계약 21/21, PHP 14/25, TS 5, MySQL 8.4·MyISAM 11/11, 실제 browser single PUT+2-part multipart→첨부 2개·private thumbnail PASS |
 
 ## 준비된 하네스
 
@@ -51,6 +52,7 @@
 - 커버리지: `cargo xtask coverage`
 - API·네이티브 스모크: `cargo xtask api-smoke`, `cargo xtask native-smoke`
 - G7 어댑터: `cargo xtask g7-adapter`
+- G5 어댑터: `cargo xtask g5-adapter`, `cargo xtask g5-host-smoke`
 - G7 권한·삭제/복원·보존 DB: `scripts/g7-host-security-gate.sh /path/to/gnuboard7`
 - 100개 실제 JPEG/RSS/crash 복구: `cargo xtask load100`
 - 25,000px heavy-image/RSS: `cargo xtask heavy-image`
@@ -73,8 +75,8 @@ round-trip과 전체 `cargo xtask native-smoke`를 다시 통과했습니다.
 ## 범위 경계
 
 현재 코드는 batch intent, multipart part/complete/abort, SQLite lease/heartbeat, worker 실행
-loop, 원본 검사·master+thumbnail/poster, lifecycle cleanup과 G7 관리자/브라우저 직접 업로더·첨부 표시까지 구현됐습니다. 실제 R2/Lightsail
-conformance, G7 실브라우저 권한 매트릭스와 실 provider 보존 삭제, G5, G7 관리자 전용 asset picker browser smoke,
+loop, 원본 검사·master+thumbnail/poster, lifecycle cleanup과 G5/G7 브라우저 직접 업로더·첨부 표시까지 구현됐습니다. 실제 R2/Lightsail
+conformance, G7 실브라우저 권한 매트릭스와 실 provider 보존 삭제, G7 관리자 전용 asset picker browser smoke,
 실제 S3/R2·5GiB와
 filesystem quota 증거는 구현 완료로 표시하지 않습니다. 멀티노드는 v1 범위가
 아니며 각 기능은 `SPEC.md` 완료 정의를 만족한 뒤에만 완료 처리합니다.

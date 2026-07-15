@@ -32,10 +32,12 @@ jobs:
         run: cargo xtask nextest
       - name: Run API process smoke
         run: cargo xtask api-smoke
-      - name: Verify Gnuboard 7 adapter toolchains
+      - name: Verify Gnuboard adapter toolchains
         run: php --version && composer --version && node --version && npm --version
       - name: Run Gnuboard 7 adapter gate
         run: cargo xtask g7-adapter
+      - name: Run Gnuboard 5 adapter gate
+        run: cargo xtask g5-adapter
       - name: Install coverage harness
         run: cargo install --locked cargo-llvm-cov --version 0.8.7
       - name: Enforce control-plane coverage ratchet
@@ -91,3 +93,16 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends pkg-config libvips-dev libvips-tools ffmpeg
       - name: Run actual API, MinIO, worker, and sandbox media flow
         run: cargo xtask full-stack-smoke
+
+  gnuboard5-host-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - name: Verify PHP, Composer, and Docker runtimes
+        run: php --version && composer --version && docker version
+      - name: Install Gnuboard 5 adapter dependencies
+        run: composer install --working-dir=adapters/gnuboard5/jiwonpapa-g7mediabooster --no-interaction --prefer-dist
+      - name: Run MySQL and MyISAM host contract
+        run: bash scripts/gnuboard5-session-store-smoke.sh

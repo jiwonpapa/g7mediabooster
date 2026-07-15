@@ -8,6 +8,7 @@
 *.profraw
 coverage/
 reports/
+output/
 tmp/
 **/g7mb.cdx.json
 /data/*

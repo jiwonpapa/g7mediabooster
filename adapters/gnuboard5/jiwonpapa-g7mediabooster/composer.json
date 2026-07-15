@@ -1,0 +1,28 @@
+{
+    "name": "jiwonpapa/gnuboard5-g7mediabooster",
+    "description": "Secure direct multi-upload adapter for Gnuboard 5",
+    "license": "Apache-2.0",
+    "type": "library",
+    "require": {
+        "php": "^8.1"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^11.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "Jiwonpapa\\G7MediaBooster\\Gnuboard5\\": "plugin/g7mediabooster/src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Jiwonpapa\\G7MediaBooster\\Gnuboard5\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "phpunit"
+    },
+    "config": {
+        "sort-packages": true
+    }
+}

@@ -325,9 +325,12 @@ health/metrics를 제외한 모든 API는 인증과 tenant scope가 필요합니
 - G7 module 0.3.0에 form 자동 연결, Ready master·thumbnail 전건 검증, DB lock 기반 native
   attachment 멱등 materialization, 게시글 scope·삭제글 정책을 재사용하는 private viewer redirect,
   soft-delete 보존 대조를 구현하고 현재 G7 기준 `sirsoft-board` 1.2.0 upstream 계약 patch와 21항목 검증기를 준비했습니다.
+- G5 5.6.24 core-free adapter에 PHP 8-safe hook, HMAC control proxy, browser direct single/multipart,
+  MyISAM advisory-lock attachment 연결과 private delivery를 구현하고 실제 MySQL 8.4·MinIO 브라우저에서
+  2개 동시 업로드→Rust 처리→게시글 첨부 표시와 비로그인 `403`을 검증했습니다.
 
 실제 AWS S3/R2 credential conformance, G7 관리자 전용 워터마크 asset picker의 실제
-브라우저 smoke, G5 모듈,
+브라우저 smoke,
 G7 upstream merge·실제 저장소 전송·게시물/권한/삭제·복원 smoke, 5GiB·200MP/AVIF heavy-image 운영 부하 증거는
 아직 완료가 아니며
 `docs/IMPLEMENTATION_PLAN.md` 순서로 추진합니다.

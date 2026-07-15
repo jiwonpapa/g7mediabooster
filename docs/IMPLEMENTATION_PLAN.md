@@ -66,8 +66,8 @@ G7 모듈은 세션·게시판 권한·첨부 연결의 진실 원천이고, Rus
 현재 진행률:
 
 - 단계 0 계약 변경: 완료
-- 단계 A 직접·재개 가능 업로드: 진행 중
-- 단계 B 미디어 보안·가공: 진행 중
+- 단계 A 직접·재개 가능 업로드: 내부·MinIO 게이트 완료, 실 provider 대기
+- 단계 B 미디어 보안·가공: 완료
 - 단계 C G7 모듈·썸네일·워터마크: 제어 업로더, 이미지·영상 poster 렌더링,
   서명 policy revision, form 자동 연결, Ready→native attachment bridge, 권한 viewer redirect와
   soft-delete 보존 대조 구현; upstream merge·브라우저·전용 asset picker smoke 대기
@@ -94,6 +94,8 @@ G7 모듈은 세션·게시판 권한·첨부 연결의 진실 원천이고, Rus
 - Stage C: G7 관리자 설정/HMAC client, upload ownership, browser direct multi-uploader,
   form state 자동 연결, 원자적 attachment materialization, private viewer redirect와
   lease 기반 soft-delete 보존 대조 구현
+- Stage C G5: 5.6.24 core-free hook, HMAC control proxy, browser direct multi-uploader,
+  MyISAM advisory-lock attachment 연결과 private delivery를 실제 MySQL·MinIO 브라우저 종단 검증
 - Stage D: SQLite lease, heartbeat, retry/dead-letter, bounded worker pool, systemd quota 구현
 - Stage D 계약 하네스: 브라우저 100개 batch를 제어 요청 1회·전체 연결 최대 8개로 제한하고,
   Rust 100개 예약을 저장 1회로 커밋하는 테스트 구현

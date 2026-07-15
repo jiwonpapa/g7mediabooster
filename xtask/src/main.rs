@@ -44,6 +44,10 @@ enum Harness {
     ApiSmoke,
     /// Install and verify the Gnuboard 7 PHP/TypeScript adapter harness.
     G7Adapter,
+    /// Install and verify the Gnuboard 5 PHP/TypeScript adapter harness.
+    G5Adapter,
+    /// Verify the Gnuboard 5 session/link/deletion store against MySQL and MyISAM fixtures.
+    G5HostSmoke,
     /// Run 100 real JPEG jobs with process-tree RSS and expired-lease recovery gates.
     Load100,
     /// Run an actual 25,000px panorama through the heavy-image RSS gate.
@@ -91,6 +95,8 @@ fn main() -> anyhow::Result<()> {
         Harness::NativeSmoke => run("bash", ["scripts/native-smoke.sh"]),
         Harness::ApiSmoke => run("bash", ["scripts/api-smoke.sh"]),
         Harness::G7Adapter => g7_adapter(),
+        Harness::G5Adapter => g5_adapter(),
+        Harness::G5HostSmoke => run("bash", ["scripts/gnuboard5-session-store-smoke.sh"]),
         Harness::Load100 => run("bash", ["scripts/load-100.sh"]),
         Harness::HeavyImage => run("bash", ["scripts/heavy-image.sh"]),
         Harness::HeavyAvif => run("bash", ["scripts/heavy-avif.sh"]),
@@ -262,6 +268,25 @@ fn sbom() -> anyhow::Result<()> {
 
 fn g7_adapter() -> anyhow::Result<()> {
     let module = workspace_root().join("adapters/gnuboard7/jiwonpapa-g7mediabooster");
+    run_in(
+        &module,
+        "composer",
+        ["validate", "--strict", "--no-check-publish"],
+    )?;
+    run_in(
+        &module,
+        "composer",
+        ["install", "--no-interaction", "--prefer-dist"],
+    )?;
+    run_in(&module, "vendor/bin/phpunit", ["-c", "phpunit.xml"])?;
+    run_in(&module, "npm", ["ci", "--ignore-scripts"])?;
+    run_in(&module, "npm", ["run", "typecheck"])?;
+    run_in(&module, "npm", ["test"])?;
+    run_in(&module, "npm", ["run", "build"])
+}
+
+fn g5_adapter() -> anyhow::Result<()> {
+    let module = workspace_root().join("adapters/gnuboard5/jiwonpapa-g7mediabooster");
     run_in(
         &module,
         "composer",

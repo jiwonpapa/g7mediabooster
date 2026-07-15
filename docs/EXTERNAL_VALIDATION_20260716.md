@@ -102,3 +102,17 @@ MinIO 기반 실제 전송·create/update·private thumbnail 전달까지 통과
 10. 실브라우저 403 매트릭스와 보존 만료 command→실 provider 객체 삭제 확인
 
 배포 설명에는 1~9에서 실제 통과한 범위만 게시하며 10은 통과 전 게시하지 않습니다.
+
+## G5 운영 승격 게이트
+
+G5 5.6.24는 core-free adapter를 실제 MySQL 8.4·MyISAM과 MinIO 격리 브라우저에서 검증했습니다.
+
+1. G5 source contract 21/21 — PASS
+2. PHP 14 tests/25 assertions, TypeScript 5 tests, typecheck/build — PASS
+3. MyISAM attachment advisory lock·부분 실패 복구·삭제 retry 11/11 — PASS
+4. 실제 browser single PUT + 2-part multipart 동시 업로드, Rust Ready 2/2 — PASS
+5. G5 게시글 `wr_file=2`, remote attachment row 2개, thumbnail decode 2/2 — PASS
+6. 비로그인 private thumbnail HTTP 403 — PASS
+
+따라서 G5 5.6.24의 위 범위는 공식 게시할 수 있습니다. 실 R2/Lightsail profile과 5GiB,
+provider 보존 만료 삭제는 공통 외부 게이트 통과 전 게시하지 않습니다.
