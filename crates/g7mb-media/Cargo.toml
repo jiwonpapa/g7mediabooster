@@ -1,0 +1,34 @@
+[package]
+name = "g7mb-media"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = []
+native-vips = ["dep:libvips"]
+openh264-fallback = ["dep:mp4", "dep:openh264"]
+
+[dependencies]
+g7mb-application.workspace = true
+g7mb-domain.workspace = true
+libvips = { workspace = true, optional = true }
+mp4 = { workspace = true, optional = true }
+openh264 = { workspace = true, optional = true }
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["fs", "io-util", "process", "time"] }
+tracing.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+tokio = { workspace = true, features = ["macros", "rt"] }
+
+[build-dependencies]
+pkg-config = "0.3.33"

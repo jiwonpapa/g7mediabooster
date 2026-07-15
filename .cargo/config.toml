@@ -1,0 +1,10 @@
+[alias]
+xtask = "run --package xtask --"
+quick = "xtask quick"
+ci = "xtask ci"
+
+[build]
+incremental = true
+
+[term]
+color = "auto"

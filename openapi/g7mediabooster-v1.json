@@ -1,0 +1,1524 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "g7mb-api",
+    "description": "",
+    "license": {
+      "name": "Apache-2.0",
+      "identifier": "Apache-2.0"
+    },
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/health/live": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "operationId": "liveness",
+        "responses": {
+          "200": {
+            "description": "Process is alive",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "operationId": "readiness",
+        "responses": {
+          "200": {
+            "description": "Required dependencies are ready",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "At least one dependency is not ready",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/metrics": {
+      "get": {
+        "tags": [
+          "internal"
+        ],
+        "operationId": "metrics",
+        "responses": {
+          "200": {
+            "description": "Prometheus text exposition"
+          }
+        }
+      }
+    },
+    "/v1/capabilities": {
+      "get": {
+        "tags": [
+          "media"
+        ],
+        "operationId": "capabilities",
+        "responses": {
+          "200": {
+            "description": "Verified native capabilities",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapabilitiesResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed signing headers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "HMAC authentication failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Native capability snapshot is unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/site-policy": {
+      "get": {
+        "tags": [
+          "policy"
+        ],
+        "operationId": "get_site_policy",
+        "responses": {
+          "200": {
+            "description": "Active immutable policy revision",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SitePolicySnapshotResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed signing headers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "HMAC authentication failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No policy has been published",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request nonce replay",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Durable policy state unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "policy"
+        ],
+        "operationId": "publish_site_policy",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishSitePolicyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Exact revision replay was idempotent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SitePolicySnapshotResponse"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Next immutable policy revision published",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SitePolicySnapshotResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed JSON or signing headers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "HMAC authentication failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Selected watermark upload was not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Policy revision conflict or nonce replay",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Policy or watermark asset violates hard bounds",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Durable policy state unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/upload-batches": {
+      "post": {
+        "tags": [
+          "uploads"
+        ],
+        "operationId": "create_upload_batch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUploadBatchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Bounded direct-upload batch created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateUploadBatchResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed JSON or signing headers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "HMAC authentication failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request nonce replay",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Upload policy rejected the batch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Active upload capacity exhausted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Storage or durable state unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/uploads/{upload_id}": {
+      "get": {
+        "tags": [
+          "uploads"
+        ],
+        "operationId": "get_upload_status",
+        "parameters": [
+          {
+            "name": "upload_id",
+            "in": "path",
+            "description": "Upload reservation identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tenant-scoped upload and derivative status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadStatusResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed path or signing headers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "HMAC authentication failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Upload not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request nonce replay",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Durable state unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "uploads"
+        ],
+        "operationId": "request_upload_deletion",
+        "parameters": [
+          {
+            "name": "upload_id",
+            "in": "path",
+            "description": "Upload reservation identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Durable object cleanup was accepted or already pending"
+          },
+          "204": {
+            "description": "Upload was already fully deleted"
+          },
+          "400": {
+            "description": "Malformed path or signing headers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "HMAC authentication failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Upload not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Upload is processing or pinned by a site policy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Lifecycle state unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/uploads/{upload_id}/complete": {
+      "post": {
+        "tags": [
+          "uploads"
+        ],
+        "operationId": "confirm_single_upload",
+        "parameters": [
+          {
+            "name": "upload_id",
+            "in": "path",
+            "description": "Upload reservation identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Single PUT object verified and validation queued"
+          },
+          "400": {
+            "description": "Malformed path or signing headers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "HMAC authentication failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Upload not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Upload state, stored size, or nonce conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Storage or durable state unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/uploads/{upload_id}/multipart": {
+      "delete": {
+        "tags": [
+          "uploads"
+        ],
+        "operationId": "abort_multipart_upload",
+        "parameters": [
+          {
+            "name": "upload_id",
+            "in": "path",
+            "description": "Upload reservation identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Incomplete multipart upload aborted"
+          },
+          "400": {
+            "description": "Malformed path or signing headers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "HMAC authentication failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Upload not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Upload state conflict or nonce replay",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Storage or durable state unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/uploads/{upload_id}/multipart/complete": {
+      "post": {
+        "tags": [
+          "uploads"
+        ],
+        "operationId": "complete_multipart_upload",
+        "parameters": [
+          {
+            "name": "upload_id",
+            "in": "path",
+            "description": "Upload reservation identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompleteMultipartUploadRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Multipart object completed and byte length verified"
+          },
+          "400": {
+            "description": "Malformed path, JSON, or signing headers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "HMAC authentication failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Upload not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Upload state conflict or nonce replay",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Completion layout rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Storage or durable state unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/uploads/{upload_id}/parts/{part_number}/presign": {
+      "post": {
+        "tags": [
+          "uploads"
+        ],
+        "operationId": "presign_upload_part",
+        "parameters": [
+          {
+            "name": "upload_id",
+            "in": "path",
+            "description": "Upload reservation identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "part_number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "maximum": 10000,
+              "minimum": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PresignUploadPartRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Exact multipart part URL created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PresignUploadPartResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed path, JSON, or signing headers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "HMAC authentication failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Upload not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Upload state conflict or nonce replay",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Part layout rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Storage or durable state unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CapabilitiesResponse": {
+        "type": "object",
+        "description": "Runtime media capability response.",
+        "required": [
+          "image_inputs",
+          "image_outputs",
+          "mp4_thumbnail",
+          "mp4_h264_fallback",
+          "native_versions"
+        ],
+        "properties": {
+          "image_inputs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Formats the native runtime can decode in this deployment."
+          },
+          "image_outputs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Formats the native runtime can encode in this deployment."
+          },
+          "mp4_h264_fallback": {
+            "type": "boolean",
+            "description": "Whether the narrow MP4/H.264 OpenH264 fallback is compiled into the sandbox."
+          },
+          "mp4_thumbnail": {
+            "type": "boolean",
+            "description": "Whether FFprobe and FFmpeg passed the embedded MP4/H.264 runtime fixture."
+          },
+          "native_versions": {
+            "type": "object",
+            "description": "Sanitized version lines from the native tools checked by the sandbox.",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "CompleteMultipartUploadRequest": {
+        "type": "object",
+        "description": "Finalizes a previously created multipart upload.",
+        "required": [
+          "parts"
+        ],
+        "properties": {
+          "parts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CompletedUploadPart"
+            },
+            "description": "Ordered, unique completed parts.",
+            "maxItems": 10000,
+            "minItems": 1
+          }
+        }
+      },
+      "CompletedUploadPart": {
+        "type": "object",
+        "description": "One completed multipart part supplied to the finalization call.",
+        "required": [
+          "part_number",
+          "etag"
+        ],
+        "properties": {
+          "etag": {
+            "type": "string",
+            "description": "Opaque provider ETag returned by the part upload."
+          },
+          "part_number": {
+            "type": "integer",
+            "format": "int32",
+            "description": "One-based part number.",
+            "maximum": 10000,
+            "minimum": 1
+          }
+        }
+      },
+      "CreateUploadBatchRequest": {
+        "type": "object",
+        "description": "Creates direct-upload reservations for multiple files at once.",
+        "required": [
+          "files"
+        ],
+        "properties": {
+          "files": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UploadFileIntentRequest"
+            },
+            "description": "One to one hundred file reservations.",
+            "maxItems": 100,
+            "minItems": 1
+          }
+        }
+      },
+      "CreateUploadBatchResponse": {
+        "type": "object",
+        "description": "Result of creating one bounded multi-upload batch.",
+        "required": [
+          "batch_id",
+          "uploads"
+        ],
+        "properties": {
+          "batch_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Server-generated batch identifier."
+          },
+          "uploads": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UploadIntentResponse"
+            },
+            "description": "Response instructions in request order."
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "description": "Stable error envelope returned to API consumers.",
+        "required": [
+          "code",
+          "message",
+          "request_id"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Stable machine-readable error code."
+          },
+          "message": {
+            "type": "string",
+            "description": "User-safe explanation without backend details."
+          },
+          "request_id": {
+            "type": "string",
+            "description": "Correlation identifier for support and logs."
+          }
+        }
+      },
+      "HealthResponse": {
+        "type": "object",
+        "description": "Health endpoint response.",
+        "required": [
+          "status",
+          "version"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "description": "`live` or `ready`."
+          },
+          "version": {
+            "type": "string",
+            "description": "Running package version."
+          }
+        }
+      },
+      "PresignUploadPartRequest": {
+        "type": "object",
+        "description": "Request for a short-lived URL for one multipart part.",
+        "required": [
+          "content_length"
+        ],
+        "properties": {
+          "content_length": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Exact part length; only the final part may be below 5 MiB.",
+            "minimum": 1
+          }
+        }
+      },
+      "PresignUploadPartResponse": {
+        "type": "object",
+        "description": "Short-lived direct upload URL for one multipart part.",
+        "required": [
+          "part_number",
+          "upload_url",
+          "required_headers",
+          "expires_at"
+        ],
+        "properties": {
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Signature expiration."
+          },
+          "part_number": {
+            "type": "integer",
+            "format": "int32",
+            "description": "One-based part number covered by the signature.",
+            "minimum": 0
+          },
+          "required_headers": {
+            "type": "object",
+            "description": "Signed request headers.",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "upload_url": {
+            "type": "string",
+            "description": "Sensitive presigned URL. API logs must redact it."
+          }
+        }
+      },
+      "PublishSitePolicyRequest": {
+        "type": "object",
+        "description": "HMAC-authenticated next site policy revision published by the PHP module.",
+        "required": [
+          "schema_version",
+          "revision",
+          "issued_at"
+        ],
+        "properties": {
+          "issued_at": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Unix issuance timestamp covered by the request signature."
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Strictly increasing tenant revision starting at one.",
+            "minimum": 1
+          },
+          "schema_version": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Must equal the v1 policy schema.",
+            "minimum": 0
+          },
+          "watermark": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SitePolicyWatermarkRequest",
+                "description": "`null` explicitly disables watermarking."
+              }
+            ]
+          }
+        }
+      },
+      "SitePolicySnapshotResponse": {
+        "type": "object",
+        "description": "Active immutable site policy snapshot.",
+        "required": [
+          "schema_version",
+          "revision",
+          "issued_at",
+          "settings_sha256"
+        ],
+        "properties": {
+          "issued_at": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Original signed issuance timestamp."
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Active tenant revision.",
+            "minimum": 0
+          },
+          "schema_version": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Stable policy schema version.",
+            "minimum": 0
+          },
+          "settings_sha256": {
+            "type": "string",
+            "description": "Rust-computed normalized settings hash."
+          },
+          "watermark": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SitePolicyWatermarkResponse",
+                "description": "`null` means watermarking is disabled."
+              }
+            ]
+          }
+        }
+      },
+      "SitePolicyWatermarkPosition": {
+        "type": "string",
+        "description": "Allowlisted watermark anchor in a signed site policy snapshot.",
+        "enum": [
+          "center",
+          "top_left",
+          "top_right",
+          "bottom_left",
+          "bottom_right"
+        ]
+      },
+      "SitePolicyWatermarkRequest": {
+        "type": "object",
+        "description": "Admin-selected watermark settings referencing an already validated image upload.",
+        "required": [
+          "asset_upload_id",
+          "position",
+          "margin_px",
+          "max_width_percent",
+          "opacity_percent"
+        ],
+        "properties": {
+          "asset_upload_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Tenant-owned Ready image upload selected as the source asset."
+          },
+          "margin_px": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Safe edge margin.",
+            "maximum": 1024,
+            "minimum": 0
+          },
+          "max_width_percent": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Maximum derivative width percentage.",
+            "maximum": 50,
+            "minimum": 1
+          },
+          "opacity_percent": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Alpha multiplier percentage.",
+            "maximum": 100,
+            "minimum": 1
+          },
+          "position": {
+            "$ref": "#/components/schemas/SitePolicyWatermarkPosition",
+            "description": "Allowlisted overlay anchor."
+          }
+        }
+      },
+      "SitePolicyWatermarkResponse": {
+        "type": "object",
+        "description": "Pinned watermark facts returned from durable policy state.",
+        "required": [
+          "asset_upload_id",
+          "asset_sha256",
+          "position",
+          "margin_px",
+          "max_width_percent",
+          "opacity_percent"
+        ],
+        "properties": {
+          "asset_sha256": {
+            "type": "string",
+            "description": "Lowercase source digest independently captured by Rust."
+          },
+          "asset_upload_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Original admin-selected upload."
+          },
+          "margin_px": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Safe edge margin.",
+            "minimum": 0
+          },
+          "max_width_percent": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Maximum derivative width percentage.",
+            "minimum": 0
+          },
+          "opacity_percent": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Alpha multiplier percentage.",
+            "minimum": 0
+          },
+          "position": {
+            "$ref": "#/components/schemas/SitePolicyWatermarkPosition",
+            "description": "Allowlisted overlay anchor."
+          }
+        }
+      },
+      "UploadDerivativeResponse": {
+        "type": "object",
+        "description": "One immutable generated derivative.",
+        "required": [
+          "preset_id",
+          "variant",
+          "url_path",
+          "content_type",
+          "byte_len"
+        ],
+        "properties": {
+          "byte_len": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Exact encoded output length.",
+            "minimum": 0
+          },
+          "content_type": {
+            "type": "string",
+            "description": "Trusted output content type."
+          },
+          "preset_id": {
+            "type": "string",
+            "description": "Versioned transformation preset."
+          },
+          "url_path": {
+            "type": "string",
+            "description": "CDN-relative immutable media path."
+          },
+          "variant": {
+            "type": "string",
+            "description": "Stable output variant."
+          }
+        }
+      },
+      "UploadFileIntentRequest": {
+        "type": "object",
+        "description": "One file requested inside a bounded multi-upload batch.",
+        "required": [
+          "client_ref",
+          "declared_kind",
+          "content_length",
+          "content_type_hint"
+        ],
+        "properties": {
+          "client_ref": {
+            "type": "string",
+            "description": "Caller-generated opaque identifier used only to match batch responses."
+          },
+          "content_length": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Exact byte length covered by the direct-upload reservation.",
+            "minimum": 1
+          },
+          "content_type_hint": {
+            "type": "string",
+            "description": "Untrusted MIME hint retained for diagnostics and signing."
+          },
+          "declared_kind": {
+            "$ref": "#/components/schemas/UploadKind",
+            "description": "Client-declared media class. The worker verifies the actual bytes later."
+          }
+        }
+      },
+      "UploadIntentResponse": {
+        "type": "object",
+        "description": "One file reservation returned from a batch request.",
+        "required": [
+          "client_ref",
+          "upload_id",
+          "method",
+          "required_headers",
+          "expires_at"
+        ],
+        "properties": {
+          "client_ref": {
+            "type": "string",
+            "description": "Echo of the request identifier."
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Reservation and any returned signature expiration."
+          },
+          "method": {
+            "$ref": "#/components/schemas/UploadMethod",
+            "description": "Selected direct-upload strategy."
+          },
+          "part_size_bytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Planned part size for multipart uploads.",
+            "minimum": 0
+          },
+          "required_headers": {
+            "type": "object",
+            "description": "Headers that must be sent exactly as signed.",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "upload_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Server-generated media upload identifier."
+          },
+          "upload_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Presigned URL for single PUT. Multipart uploads presign parts separately."
+          }
+        }
+      },
+      "UploadKind": {
+        "type": "string",
+        "description": "Client-declared media class used to reserve a safe byte budget.",
+        "enum": [
+          "image",
+          "video"
+        ]
+      },
+      "UploadMethod": {
+        "type": "string",
+        "description": "Direct-upload strategy selected by server policy.",
+        "enum": [
+          "single_put",
+          "multipart"
+        ]
+      },
+      "UploadStatusResponse": {
+        "type": "object",
+        "description": "Tenant-scoped upload and derivative status.",
+        "required": [
+          "upload_id",
+          "state",
+          "deletion_pending",
+          "derivatives"
+        ],
+        "properties": {
+          "deletion_pending": {
+            "type": "boolean",
+            "description": "Whether irreversible object cleanup is durably queued."
+          },
+          "derivatives": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UploadDerivativeResponse"
+            },
+            "description": "Immutable derivatives available to the application."
+          },
+          "detected_content_type": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Trusted detected source content type after validation."
+          },
+          "error_code": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Stable rejection or failure code without backend details."
+          },
+          "state": {
+            "$ref": "#/components/schemas/UploadStatusValue",
+            "description": "Current lifecycle state."
+          },
+          "upload_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Upload identifier."
+          }
+        }
+      },
+      "UploadStatusValue": {
+        "type": "string",
+        "description": "Public upload lifecycle value returned to the authenticated PHP module.",
+        "enum": [
+          "created",
+          "uploaded",
+          "quarantined",
+          "processing",
+          "ready",
+          "rejected",
+          "failed",
+          "deleted"
+        ]
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "health",
+      "description": "Liveness and dependency readiness"
+    },
+    {
+      "name": "internal",
+      "description": "Private operational endpoints"
+    },
+    {
+      "name": "media",
+      "description": "Verified runtime media capabilities"
+    },
+    {
+      "name": "policy",
+      "description": "Authenticated immutable tenant policy snapshots"
+    },
+    {
+      "name": "uploads",
+      "description": "Authenticated bounded direct uploads"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+    "version": "1.0.0",
+    "routes": [
+        {
+            "path": "*/admin/media-booster/settings",
+            "layout": "admin_media_booster_settings",
+            "auth_required": true,
+            "meta": {
+                "title": "G7 미디어 부스터"
+            }
+        }
+    ]
+}

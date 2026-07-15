@@ -1,0 +1,25 @@
+[package]
+name = "g7mb-object-store-s3"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+async-trait.workspace = true
+aws-credential-types.workspace = true
+aws-sdk-s3.workspace = true
+g7mb-application.workspace = true
+g7mb-config.workspace = true
+g7mb-domain.workspace = true
+secrecy.workspace = true
+time.workspace = true
+tokio = { workspace = true, features = ["fs", "io-util"] }
+
+[dev-dependencies]
+tempfile.workspace = true
+tokio = { workspace = true, features = ["macros", "rt"] }

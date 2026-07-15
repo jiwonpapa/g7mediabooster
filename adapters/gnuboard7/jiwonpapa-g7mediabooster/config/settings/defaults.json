@@ -1,0 +1,31 @@
+{
+    "_meta": {
+        "version": "1.0.0",
+        "description": "G7MediaBooster control API and bounded browser uploader settings"
+    },
+    "defaults": {
+        "enabled": false,
+        "control_endpoint": "http://127.0.0.1:8080",
+        "key_id": "g7-primary",
+        "hmac_secret": "",
+        "timeout_seconds": 15,
+        "connect_timeout_seconds": 3,
+        "max_parallel_files": 8,
+        "max_parallel_parts": 4,
+        "max_part_retries": 3,
+        "status_poll_interval_ms": 1500,
+        "watermark_enabled": false,
+        "watermark_asset_upload_id": "",
+        "watermark_position": "bottom_right",
+        "watermark_margin_px": 24,
+        "watermark_max_width_percent": 20,
+        "watermark_opacity_percent": 80,
+        "policy_revision": 0,
+        "policy_settings_sha256": "",
+        "policy_sync_state": "never"
+    },
+    "frontend_schema": {
+        "control": { "expose": false },
+        "upload": { "expose": false }
+    }
+}

@@ -1,0 +1,33 @@
+[package]
+name = "g7mb-worker"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+clap.workspace = true
+g7mb-application.workspace = true
+g7mb-config.workspace = true
+g7mb-domain.workspace = true
+g7mb-media.workspace = true
+g7mb-object-store-s3.workspace = true
+g7mb-persistence-sqlite.workspace = true
+g7mb-telemetry.workspace = true
+hex.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tempfile.workspace = true
+thiserror.workspace = true
+time.workspace = true
+tokio = { workspace = true, features = ["fs", "io-util", "macros", "process", "rt-multi-thread", "signal", "sync", "time"] }
+tracing.workspace = true
+
+[dev-dependencies]
+sqlx.workspace = true

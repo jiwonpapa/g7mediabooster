@@ -1,0 +1,48 @@
+[Unit]
+Description=G7MediaBooster bounded media worker
+After=network-online.target g7mediabooster-api.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=g7mediabooster
+Group=g7mediabooster
+ExecStart=/usr/local/bin/g7mb-worker --config /etc/g7mediabooster/g7mb.toml run --worker-id local
+Restart=on-failure
+RestartSec=3s
+TimeoutStopSec=150s
+UMask=0077
+
+StateDirectory=g7mediabooster
+RuntimeDirectory=g7mediabooster
+ReadWritePaths=/var/lib/g7mediabooster /run/g7mediabooster
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+ProcSubset=pid
+CapabilityBoundingSet=
+AmbientCapabilities=
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+SystemCallArchitectures=native
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+# Includes all child sandbox processes. Tune only after fixed-fixture measurements.
+CPUQuota=200%
+MemoryMax=2G
+MemorySwapMax=0
+TasksMax=64
+
+[Install]
+WantedBy=multi-user.target

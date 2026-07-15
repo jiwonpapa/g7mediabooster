@@ -1,0 +1,25 @@
+name: nightly-hardening
+
+on:
+  schedule:
+    - cron: "17 18 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  miri-and-fuzz:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - name: Install nightly Miri and cargo-fuzz
+        run: |
+          rustup toolchain install nightly --profile minimal --component miri
+          cargo install --locked cargo-fuzz --version 0.13.2
+      - name: Run pure Rust policy under Miri
+        run: cargo xtask miri
+      - name: Fuzz object-key parser for five minutes
+        run: cargo xtask fuzz --seconds 300

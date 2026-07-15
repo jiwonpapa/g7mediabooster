@@ -1,0 +1,75 @@
+[server]
+bind_addr = "127.0.0.1:8088"
+request_body_limit_bytes = 1048576
+
+[auth]
+key_id = "g7-primary"
+tenant_id = "g7-site"
+hmac_secret = "replace-with-at-least-32-characters"
+allowed_skew_seconds = 300
+
+[upload]
+max_batch_files = 100
+max_batch_bytes = 21474836480
+max_image_bytes = 134217728
+max_video_bytes = 5368709120
+multipart_threshold_bytes = 104857600
+multipart_part_size_bytes = 33554432
+max_browser_connections = 8
+max_parts_per_file = 4
+max_active_uploads_global = 1000
+max_active_uploads_per_tenant = 200
+
+[storage]
+# Cloudflare R2: https://<ACCOUNT_ID>.r2.cloudflarestorage.com
+# AWS S3: omit endpoint_url and use the real AWS region.
+# Lightsail: omit endpoint_url, use the bucket region, and use one private bucket for both
+# fields when the bucket-scoped access key cannot access two buckets.
+endpoint_url = "https://example.r2.cloudflarestorage.com"
+region = "auto"
+raw_bucket = "g7mb-raw-private"
+derivative_bucket = "g7mb-media"
+access_key_id = "replace-me"
+secret_access_key = "replace-me"
+force_path_style = false
+
+[database]
+url = "sqlite://data/g7mb.db"
+max_connections = 4
+
+[worker]
+max_concurrent_jobs = 2
+max_concurrent_heavy_images = 1
+max_concurrent_videos = 1
+native_threads_per_job = 2
+image_timeout_seconds = 30
+video_timeout_seconds = 45
+sandbox_binary = "/usr/local/libexec/g7mb-sandbox"
+temp_directory = "/var/lib/g7mediabooster/tmp"
+lease_seconds = 120
+heartbeat_seconds = 30
+poll_interval_ms = 250
+retry_delay_seconds = 10
+max_attempts = 3
+max_sandbox_output_bytes = 65536
+
+[lifecycle]
+# Expire unconfirmed direct uploads after 24 hours and retain rejected private raw sources 7 days.
+created_reservation_ttl_seconds = 86400
+rejected_source_retention_seconds = 604800
+cleanup_lease_seconds = 300
+cleanup_retry_seconds = 60
+cleanup_batch_size = 100
+cleanup_max_attempts = 10
+
+[watermark]
+# Disabled by default. When enabled the worker copies this registered local asset into each
+# private job directory, verifies the exact SHA-256, and includes revision+digest in the key.
+enabled = false
+asset_path = "/etc/g7mediabooster/watermark.png"
+asset_sha256 = "replace-with-64-lowercase-hex-characters"
+preset_revision = "v1"
+position = "bottom_right"
+margin_px = 24
+max_width_percent = 20
+opacity_percent = 80

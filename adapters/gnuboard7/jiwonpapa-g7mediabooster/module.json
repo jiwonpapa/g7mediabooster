@@ -1,0 +1,34 @@
+{
+    "identifier": "jiwonpapa-g7mediabooster",
+    "vendor": "jiwonpapa",
+    "name": {
+        "ko": "G7 미디어 부스터",
+        "en": "G7 Media Booster"
+    },
+    "version": "0.1.0",
+    "license": "Apache-2.0",
+    "description": {
+        "ko": "S3/R2 직접 멀티업로드와 격리된 미디어 가공을 연결합니다.",
+        "en": "Connects direct S3/R2 multi-upload with isolated media processing."
+    },
+    "g7_version": ">=7.0.4",
+    "dependencies": {
+        "modules": {
+            "sirsoft-board": ">=1.0.1"
+        },
+        "plugins": {}
+    },
+    "github_url": "https://github.com/jiwonpapa/g7mediabooster",
+    "assets": {
+        "js": {
+            "entry": "resources/js/index.ts",
+            "output": "dist/js/module.iife.js"
+        },
+        "css": []
+    },
+    "loading": {
+        "strategy": "global",
+        "priority": 80,
+        "dependencies": []
+    }
+}

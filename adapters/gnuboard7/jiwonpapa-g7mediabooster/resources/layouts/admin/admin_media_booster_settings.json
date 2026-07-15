@@ -1,0 +1,483 @@
+{
+    "version": "1.0.0",
+    "layout_name": "admin_media_booster_settings",
+    "permissions": [
+        "jiwonpapa-g7mediabooster.settings.read"
+    ],
+    "extends": "_admin_base",
+    "meta": {
+        "title": "G7 미디어 부스터",
+        "description": "Rust 제어 API와 브라우저 직접 멀티업로드를 설정합니다."
+    },
+    "initLocal": {
+        "isSaving": false,
+        "hasChanges": false,
+        "errors": null
+    },
+    "transition_overlay": {
+        "wait_for": ["settings"]
+    },
+    "data_sources": [
+        {
+            "id": "settings",
+            "type": "api",
+            "endpoint": "/api/modules/jiwonpapa-g7mediabooster/admin/settings",
+            "method": "GET",
+            "auto_fetch": true,
+            "auth_required": true,
+            "initLocal": "form",
+            "refetchOnMount": true,
+            "errorHandling": {
+                "403": {
+                    "handler": "showErrorPage",
+                    "params": { "target": "content" }
+                }
+            }
+        }
+    ],
+    "slots": {
+        "content": [
+            {
+                "id": "media_booster_settings_root",
+                "type": "basic",
+                "name": "Div",
+                "props": {
+                    "className": "admin-page-content-fluid space-y-6"
+                },
+                "children": [
+                    {
+                        "type": "composite",
+                        "name": "PageHeader",
+                        "props": {
+                            "title": "G7 미디어 부스터",
+                            "description": "PHP는 인증과 제어만 담당하고, 파일은 브라우저에서 S3/R2로 직접 전송합니다."
+                        }
+                    },
+                    {
+                        "type": "basic",
+                        "name": "Div",
+                        "props": { "className": "admin-card p-6 space-y-5" },
+                        "children": [
+                            {
+                                "type": "basic",
+                                "name": "Div",
+                                "props": { "className": "flex items-start justify-between gap-6" },
+                                "children": [
+                                    {
+                                        "type": "basic",
+                                        "name": "Div",
+                                        "children": [
+                                            { "type": "basic", "name": "H3", "props": { "className": "text-lg font-semibold" }, "text": "워터마크 정책" },
+                                            { "type": "basic", "name": "P", "props": { "className": "text-sm text-gray-500 dark:text-gray-400 mt-1" }, "text": "검증 완료된 이미지 upload_id만 정책 자산으로 등록하며 Rust가 SHA-256을 다시 고정합니다." }
+                                        ]
+                                    },
+                                    {
+                                        "type": "basic",
+                                        "name": "Checkbox",
+                                        "props": { "checked": "{{_local.form?.watermark_enabled === true}}", "ariaLabel": "워터마크 활성화" },
+                                        "actions": [
+                                            { "type": "change", "handler": "setState", "params": { "target": "local", "form.watermark_enabled": "{{$event.target.checked}}", "hasChanges": true } }
+                                        ]
+                                    }
+                                ]
+                            },
+                            {
+                                "type": "basic",
+                                "name": "Div",
+                                "props": { "className": "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5" },
+                                "children": [
+                                    {
+                                        "type": "basic", "name": "Div", "props": { "className": "space-y-2 md:col-span-2" },
+                                        "children": [
+                                            { "type": "basic", "name": "Label", "text": "워터마크 이미지 Upload ID" },
+                                            {
+                                                "type": "basic", "name": "Input",
+                                                "props": { "type": "text", "value": "{{_local.form?.watermark_asset_upload_id ?? ''}}", "placeholder": "Ready 상태 이미지 UUID", "autocomplete": "off", "className": "input w-full" },
+                                                "actions": [
+                                                    { "type": "change", "handler": "setState", "params": { "target": "local", "form.watermark_asset_upload_id": "{{$event.target.value.trim()}}", "hasChanges": true } }
+                                                ]
+                                            },
+                                            { "type": "basic", "name": "P", "props": { "className": "text-xs text-gray-500" }, "text": "PNG·WebP·JPEG, 최대 16MiB이며 동일 사이트에서 안전 검사를 통과한 Ready 업로드만 허용됩니다." }
+                                        ]
+                                    },
+                                    {
+                                        "type": "basic", "name": "Div", "props": { "className": "space-y-2" },
+                                        "children": [
+                                            { "type": "basic", "name": "Label", "text": "위치" },
+                                            {
+                                                "type": "composite", "name": "Select",
+                                                "props": {
+                                                    "value": "{{_local.form?.watermark_position ?? 'bottom_right'}}",
+                                                    "options": [
+                                                        { "label": "가운데", "value": "center" },
+                                                        { "label": "왼쪽 위", "value": "top_left" },
+                                                        { "label": "오른쪽 위", "value": "top_right" },
+                                                        { "label": "왼쪽 아래", "value": "bottom_left" },
+                                                        { "label": "오른쪽 아래", "value": "bottom_right" }
+                                                    ],
+                                                    "className": "w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-sm"
+                                                },
+                                                "actions": [
+                                                    { "type": "change", "handler": "setState", "params": { "target": "local", "form.watermark_position": "{{$event.target.value}}", "hasChanges": true } }
+                                                ]
+                                            }
+                                        ]
+                                    },
+                                    {
+                                        "type": "basic", "name": "Div", "props": { "className": "space-y-2" },
+                                        "children": [
+                                            { "type": "basic", "name": "Label", "text": "여백(px)" },
+                                            { "type": "basic", "name": "Input", "props": { "type": "number", "min": 0, "max": 1024, "value": "{{_local.form?.watermark_margin_px ?? 24}}", "className": "input w-full" }, "actions": [{ "type": "change", "handler": "setState", "params": { "target": "local", "form.watermark_margin_px": "{{Number($event.target.value)}}", "hasChanges": true } }] }
+                                        ]
+                                    },
+                                    {
+                                        "type": "basic", "name": "Div", "props": { "className": "space-y-2" },
+                                        "children": [
+                                            { "type": "basic", "name": "Label", "text": "최대 너비(%)" },
+                                            { "type": "basic", "name": "Input", "props": { "type": "number", "min": 1, "max": 50, "value": "{{_local.form?.watermark_max_width_percent ?? 20}}", "className": "input w-full" }, "actions": [{ "type": "change", "handler": "setState", "params": { "target": "local", "form.watermark_max_width_percent": "{{Number($event.target.value)}}", "hasChanges": true } }] }
+                                        ]
+                                    },
+                                    {
+                                        "type": "basic", "name": "Div", "props": { "className": "space-y-2" },
+                                        "children": [
+                                            { "type": "basic", "name": "Label", "text": "투명도(%)" },
+                                            { "type": "basic", "name": "Input", "props": { "type": "number", "min": 1, "max": 100, "value": "{{_local.form?.watermark_opacity_percent ?? 80}}", "className": "input w-full" }, "actions": [{ "type": "change", "handler": "setState", "params": { "target": "local", "form.watermark_opacity_percent": "{{Number($event.target.value)}}", "hasChanges": true } }] }
+                                        ]
+                                    }
+                                ]
+                            },
+                            {
+                                "type": "basic", "name": "P",
+                                "props": { "className": "text-xs text-gray-500" },
+                                "text": "{{'정책 동기화: ' + (_local.form?.policy_sync_state ?? 'never') + ' · revision ' + (_local.form?.policy_revision ?? 0)}}"
+                            }
+                        ]
+                    },
+                    {
+                        "type": "basic",
+                        "name": "Div",
+                        "props": {
+                            "className": "admin-card p-6 space-y-5"
+                        },
+                        "children": [
+                            {
+                                "type": "basic",
+                                "name": "Div",
+                                "props": { "className": "flex items-start justify-between gap-6" },
+                                "children": [
+                                    {
+                                        "type": "basic",
+                                        "name": "Div",
+                                        "children": [
+                                            {
+                                                "type": "basic",
+                                                "name": "H3",
+                                                "props": { "className": "text-lg font-semibold" },
+                                                "text": "서비스 활성화"
+                                            },
+                                            {
+                                                "type": "basic",
+                                                "name": "P",
+                                                "props": { "className": "text-sm text-gray-500 dark:text-gray-400 mt-1" },
+                                                "text": "비활성 상태에서는 업로드 예약 API가 파일을 받지 않습니다."
+                                            }
+                                        ]
+                                    },
+                                    {
+                                        "type": "basic",
+                                        "name": "Checkbox",
+                                        "props": {
+                                            "checked": "{{_local.form?.enabled === true}}",
+                                            "ariaLabel": "미디어 부스터 활성화"
+                                        },
+                                        "actions": [
+                                            {
+                                                "type": "change",
+                                                "handler": "setState",
+                                                "params": {
+                                                    "target": "local",
+                                                    "form.enabled": "{{$event.target.checked}}",
+                                                    "hasChanges": true
+                                                }
+                                            }
+                                        ]
+                                    }
+                                ]
+                            },
+                            {
+                                "type": "basic",
+                                "name": "Div",
+                                "props": { "className": "grid grid-cols-1 lg:grid-cols-2 gap-5" },
+                                "children": [
+                                    {
+                                        "type": "basic",
+                                        "name": "Div",
+                                        "props": { "className": "space-y-2 lg:col-span-2" },
+                                        "children": [
+                                            { "type": "basic", "name": "Label", "text": "Rust 제어 API Origin" },
+                                            {
+                                                "type": "basic",
+                                                "name": "Input",
+                                                "props": {
+                                                    "type": "url",
+                                                    "value": "{{_local.form?.control_endpoint ?? ''}}",
+                                                    "placeholder": "https://media-control.example.com",
+                                                    "className": "input w-full"
+                                                },
+                                                "actions": [
+                                                    {
+                                                        "type": "change",
+                                                        "handler": "setState",
+                                                        "params": {
+                                                            "target": "local",
+                                                            "form.control_endpoint": "{{$event.target.value}}",
+                                                            "hasChanges": true
+                                                        }
+                                                    }
+                                                ]
+                                            },
+                                            {
+                                                "type": "basic",
+                                                "name": "P",
+                                                "props": { "className": "text-xs text-gray-500" },
+                                                "text": "운영 환경은 HTTPS만 허용하며, HTTP는 127.0.0.0/8·localhost·::1에서만 허용됩니다."
+                                            }
+                                        ]
+                                    },
+                                    {
+                                        "type": "basic",
+                                        "name": "Div",
+                                        "props": { "className": "space-y-2" },
+                                        "children": [
+                                            { "type": "basic", "name": "Label", "text": "HMAC Key ID" },
+                                            {
+                                                "type": "basic",
+                                                "name": "Input",
+                                                "props": {
+                                                    "type": "text",
+                                                    "value": "{{_local.form?.key_id ?? ''}}",
+                                                    "autocomplete": "off",
+                                                    "className": "input w-full"
+                                                },
+                                                "actions": [
+                                                    {
+                                                        "type": "change",
+                                                        "handler": "setState",
+                                                        "params": {
+                                                            "target": "local",
+                                                            "form.key_id": "{{$event.target.value}}",
+                                                            "hasChanges": true
+                                                        }
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    },
+                                    {
+                                        "type": "basic",
+                                        "name": "Div",
+                                        "props": { "className": "space-y-2" },
+                                        "children": [
+                                            { "type": "basic", "name": "Label", "text": "HMAC Secret" },
+                                            {
+                                                "type": "basic",
+                                                "name": "Input",
+                                                "props": {
+                                                    "type": "password",
+                                                    "value": "{{_local.form?.hmac_secret ?? ''}}",
+                                                    "placeholder": "{{_local.form?.hmac_secret_configured ? '설정됨 · 변경할 때만 입력' : '32~256 바이트'}}",
+                                                    "autocomplete": "new-password",
+                                                    "className": "input w-full"
+                                                },
+                                                "actions": [
+                                                    {
+                                                        "type": "change",
+                                                        "handler": "setState",
+                                                        "params": {
+                                                            "target": "local",
+                                                            "form.hmac_secret": "{{$event.target.value}}",
+                                                            "hasChanges": true
+                                                        }
+                                                    }
+                                                ]
+                                            },
+                                            {
+                                                "type": "basic",
+                                                "name": "P",
+                                                "props": { "className": "text-xs text-gray-500" },
+                                                "text": "브라우저에는 노출되지 않으며 Laravel Crypt로 암호화 저장됩니다."
+                                            }
+                                        ]
+                                    },
+                                    {
+                                        "type": "basic",
+                                        "name": "Div",
+                                        "props": { "className": "space-y-2" },
+                                        "children": [
+                                            { "type": "basic", "name": "Label", "text": "전체 요청 제한(초)" },
+                                            {
+                                                "type": "basic",
+                                                "name": "Input",
+                                                "props": { "type": "number", "min": 1, "max": 60, "value": "{{_local.form?.timeout_seconds ?? 15}}", "className": "input w-full" },
+                                                "actions": [
+                                                    {
+                                                        "type": "change",
+                                                        "handler": "setState",
+                                                        "params": { "target": "local", "form.timeout_seconds": "{{Number($event.target.value)}}", "hasChanges": true }
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    },
+                                    {
+                                        "type": "basic",
+                                        "name": "Div",
+                                        "props": { "className": "space-y-2" },
+                                        "children": [
+                                            { "type": "basic", "name": "Label", "text": "연결 제한(초)" },
+                                            {
+                                                "type": "basic",
+                                                "name": "Input",
+                                                "props": { "type": "number", "min": 1, "max": 15, "value": "{{_local.form?.connect_timeout_seconds ?? 3}}", "className": "input w-full" },
+                                                "actions": [
+                                                    {
+                                                        "type": "change",
+                                                        "handler": "setState",
+                                                        "params": { "target": "local", "form.connect_timeout_seconds": "{{Number($event.target.value)}}", "hasChanges": true }
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "type": "basic",
+                        "name": "Div",
+                        "props": { "className": "admin-card p-6 space-y-5" },
+                        "children": [
+                            { "type": "basic", "name": "H3", "props": { "className": "text-lg font-semibold" }, "text": "멀티업로드 자원 제한" },
+                            {
+                                "type": "basic",
+                                "name": "P",
+                                "props": { "className": "text-sm text-gray-500 dark:text-gray-400" },
+                                "text": "파일 수와 multipart part 수를 각각 제한하고, 실제 저장소 연결도 파일 병렬 수 이하로 제한합니다."
+                            },
+                            {
+                                "type": "basic",
+                                "name": "Div",
+                                "props": { "className": "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5" },
+                                "children": [
+                                    {
+                                        "type": "basic", "name": "Div", "props": { "className": "space-y-2" },
+                                        "children": [
+                                            { "type": "basic", "name": "Label", "text": "동시 파일" },
+                                            {
+                                                "type": "basic", "name": "Input",
+                                                "props": { "type": "number", "min": 1, "max": 16, "value": "{{_local.form?.max_parallel_files ?? 8}}", "className": "input w-full" },
+                                                "actions": [{ "type": "change", "handler": "setState", "params": { "target": "local", "form.max_parallel_files": "{{Number($event.target.value)}}", "hasChanges": true } }]
+                                            }
+                                        ]
+                                    },
+                                    {
+                                        "type": "basic", "name": "Div", "props": { "className": "space-y-2" },
+                                        "children": [
+                                            { "type": "basic", "name": "Label", "text": "파일별 동시 Part" },
+                                            {
+                                                "type": "basic", "name": "Input",
+                                                "props": { "type": "number", "min": 1, "max": 8, "value": "{{_local.form?.max_parallel_parts ?? 4}}", "className": "input w-full" },
+                                                "actions": [{ "type": "change", "handler": "setState", "params": { "target": "local", "form.max_parallel_parts": "{{Number($event.target.value)}}", "hasChanges": true } }]
+                                            }
+                                        ]
+                                    },
+                                    {
+                                        "type": "basic", "name": "Div", "props": { "className": "space-y-2" },
+                                        "children": [
+                                            { "type": "basic", "name": "Label", "text": "Part 재시도" },
+                                            {
+                                                "type": "basic", "name": "Input",
+                                                "props": { "type": "number", "min": 0, "max": 5, "value": "{{_local.form?.max_part_retries ?? 3}}", "className": "input w-full" },
+                                                "actions": [{ "type": "change", "handler": "setState", "params": { "target": "local", "form.max_part_retries": "{{Number($event.target.value)}}", "hasChanges": true } }]
+                                            }
+                                        ]
+                                    },
+                                    {
+                                        "type": "basic", "name": "Div", "props": { "className": "space-y-2" },
+                                        "children": [
+                                            { "type": "basic", "name": "Label", "text": "상태 조회 간격(ms)" },
+                                            {
+                                                "type": "basic", "name": "Input",
+                                                "props": { "type": "number", "min": 250, "max": 10000, "step": 250, "value": "{{_local.form?.status_poll_interval_ms ?? 1500}}", "className": "input w-full" },
+                                                "actions": [{ "type": "change", "handler": "setState", "params": { "target": "local", "form.status_poll_interval_ms": "{{Number($event.target.value)}}", "hasChanges": true } }]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "type": "basic",
+                        "name": "Div",
+                        "props": { "className": "flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3" },
+                        "children": [
+                            {
+                                "type": "basic",
+                                "name": "P",
+                                "if": "{{_local.errors}}",
+                                "props": { "className": "text-sm text-red-600" },
+                                "text": "{{Object.values(_local.errors ?? {}).flat().join(' ')}}"
+                            },
+                            {
+                                "type": "basic",
+                                "name": "Button",
+                                "props": {
+                                    "type": "button",
+                                    "disabled": "{{!_local.hasChanges || _local.isSaving}}",
+                                    "className": "btn btn-primary sm:ml-auto"
+                                },
+                                "actions": [
+                                    {
+                                        "type": "click",
+                                        "handler": "sequence",
+                                        "params": {
+                                            "actions": [
+                                                {
+                                                    "handler": "setState",
+                                                    "params": { "target": "local", "isSaving": true, "errors": null }
+                                                },
+                                                {
+                                                    "handler": "apiCall",
+                                                    "auth_required": true,
+                                                    "target": "/api/modules/jiwonpapa-g7mediabooster/admin/settings",
+                                                    "params": {
+                                                        "method": "PUT",
+                                                        "body": "{{_local.form}}"
+                                                    },
+                                                    "onSuccess": [
+                                                        { "handler": "setState", "params": { "target": "local", "isSaving": false, "hasChanges": false } },
+                                                        { "handler": "refetchDataSource", "params": { "dataSourceId": "settings", "sync": true } },
+                                                        { "handler": "toast", "params": { "type": "success", "message": "미디어 부스터 설정을 저장했습니다." } }
+                                                    ],
+                                                    "onError": [
+                                                        { "handler": "setState", "params": { "target": "local", "isSaving": false, "errors": "{{error.errors ?? {settings: [error.message]}}}" } },
+                                                        { "handler": "toast", "params": { "type": "error", "message": "설정을 저장하지 못했습니다." } }
+                                                    ]
+                                                }
+                                            ]
+                                        }
+                                    }
+                                ],
+                                "children": [
+                                    { "type": "basic", "name": "Span", "text": "{{_local.isSaving ? '저장 중…' : '설정 저장'}}" }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+}

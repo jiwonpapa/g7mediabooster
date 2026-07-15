@@ -1,0 +1,8 @@
+.git
+target
+reports
+coverage
+tmp
+**/node_modules
+**/vendor
+**/.phpunit.cache

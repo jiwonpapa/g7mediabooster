@@ -1,0 +1,29 @@
+name: performance
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  VIPS_CONCURRENCY: 1
+
+jobs:
+  benchmark-harness:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - name: Install native runtime
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends pkg-config libvips-dev libvips-tools ffmpeg
+      - name: Record native inventory
+        run: cargo xtask native-inventory
+      - name: Run Criterion benchmarks
+        run: cargo xtask bench
+      - name: Run bounded worker load and heavy-image gates
+        run: cargo xtask load100 && cargo xtask heavy-image && cargo xtask heavy-avif
+      - name: Run Linux cgroup worker and API health gate
+        run: cargo xtask cgroup-smoke

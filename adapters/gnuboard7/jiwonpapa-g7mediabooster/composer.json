@@ -1,0 +1,23 @@
+{
+    "name": "jiwonpapa/g7mediabooster-gnuboard7",
+    "description": "Gnuboard 7 control-plane module for G7MediaBooster",
+    "type": "library",
+    "license": "Apache-2.0",
+    "require": {
+        "php": "^8.2"
+    },
+    "require-dev": {
+        "illuminate/http": "^12.0",
+        "phpunit/phpunit": "^11.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "Modules\\Jiwonpapa\\G7mediabooster\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Modules\\Jiwonpapa\\G7mediabooster\\Tests\\": "tests/"
+        }
+    }
+}
