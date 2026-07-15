@@ -43,7 +43,7 @@
 | AVIF decoder memory | PASS | 64MP AVIF peak RSS 1,221,776 KiB, 200MP AVIF full decode 전 정책 거부 |
 | tenant fair queue·backpressure | PASS | 영속 round-robin claim, global 1,000/tenant 200 활성 cap, presign 전 차단, 429 계약 |
 | Linux cgroup 부하 | PASS | CPU 2 core, memory 2GiB, PID 64, network none, API health 267/267, worker 100/100 |
-| G7 게시물 첨부 표시 | PARTIAL | G7 `e64381dd` 기준 patch 5개 clean apply, 계약 28/28, 실제 browser upload/create/update/private thumbnail·권한 403 매트릭스·asset picker와 권한·보존 G7 DB gate PASS; upstream 반영·실 provider 삭제 필요 |
+| G7 게시물 첨부 표시 | PARTIAL | G7 `e64381dd`에 patch 5개 반영, 계약 28/28+parser, 현재 checkout 첨부·권한 58/90·전체 layout 57/193·count sync 1/2와 실제 browser upload/create/update/private thumbnail·권한 403 매트릭스·asset picker·보존 gate PASS; upstream commit·실 provider 삭제 필요 |
 | G5 게시물 첨부 표시 | PASS | G5 5.6.24 계약 21/21, PHP 17/31, TS 5, MySQL 8.4·MyISAM 11/11, 실제 browser single PUT+2-part multipart→첨부 2개·private thumbnail PASS |
 
 ## 준비된 하네스

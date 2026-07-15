@@ -40,7 +40,9 @@
 계약 28/28, 변경 PHP·JSON 문법 검사를 통과했습니다. 기존 `.playwright-cli/` 등 patch 범위 밖
 사용자 파일은 수정하지 않았습니다.
 
-현재 checkout에는 테스트 전용 `.env.testing`이 없어 DB 회귀 실행은 G7의 production DB 보호
-가드에서 중단됐습니다. 격리 clean worktree의 기존 회귀 PASS는 유지되지만, 현재 checkout은
-테스트 DB 설정 후 동일 회귀를 다시 통과하고 정식 upstream 변경으로 commit되기 전까지 공식
-지원 대상으로 게시하지 않습니다.
+production DB와 분리한 임시 MySQL 8.4와 일회용 `.env.testing`으로 현재 checkout의 첨부·권한
+58 tests/90 assertions, 전체 layout extension 57/193, 첨부 수 동기화 1/2를 통과했습니다.
+이 과정에서 `prepend`가 삽입한 노드를 같은 순회에서 다시 처리하던 무한 반복을 발견해 원본
+인덱스 역순 처리로 수정했고 전체 layout 회귀로 확인했습니다. 테스트 후 컨테이너와
+`.env.testing`은 제거했습니다. 정식 upstream 변경으로 commit되기 전까지는 해당 checkout을
+공식 지원 대상으로 게시하지 않습니다.

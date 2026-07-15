@@ -1,32 +1,47 @@
 diff --git a/app/Services/LayoutExtensionService.php b/app/Services/LayoutExtensionService.php
-index cdc338c1..1cbaea90 100644
+index cdc338c1..71dbfab7 100644
 --- a/app/Services/LayoutExtensionService.php
 +++ b/app/Services/LayoutExtensionService.php
-@@ -883,23 +883,28 @@ private function applyOverlays(array $layout, int $templateId, array $targetName
+@@ -883,23 +883,34 @@ private function applyOverlays(array $layout, int $templateId, array $targetName
       */
      private function injectAtTarget(array &$components, string $targetId, string $position, array $newComponents): bool
      {
+-        foreach ($components as $index => &$component) {
+-            // 타겟 ID 발견
+-            if (($component['id'] ?? '') === $targetId) {
+-                $this->injectComponents($components, $component, $index, $position, $newComponents);
+-
+-                return true;
+-            }
+-
+-            // 자식에서 재귀 탐색
+-            if (isset($component['children']) && is_array($component['children'])) {
 +        $injected = false;
 +
-         foreach ($components as $index => &$component) {
-             // 타겟 ID 발견
-             if (($component['id'] ?? '') === $targetId) {
-                 $this->injectComponents($components, $component, $index, $position, $newComponents);
-+                $injected = true;
- 
--                return true;
-+                // 형제 배열을 변경한 뒤 같은 노드의 children까지 다시 순회하면
-+                // replace/prepend/append에서 참조가 불안정해질 수 있으므로 다음 형제로 진행합니다.
-+                continue;
-             }
- 
-             // 자식에서 재귀 탐색
-             if (isset($component['children']) && is_array($component['children'])) {
++        // prepend/append는 형제 배열 길이와 인덱스를 바꿉니다. 원본 인덱스를 뒤에서부터
++        // 처리해야 새로 삽입한 컴포넌트를 다시 타겟으로 순회하는 무한 반복을 막을 수 있습니다.
++        for ($index = count($components) - 1; $index >= 0; $index--) {
++            $component = &$components[$index];
++            $matchesTarget = ($component['id'] ?? '') === $targetId;
++
++            // replace가 아닌 경우 원래 자식의 같은 타겟도 먼저 처리합니다. 부모에 새로
++            // 추가되는 children은 이번 overlay에서 다시 처리하지 않습니다.
++            if ((! $matchesTarget || $position !== 'replace')
++                && isset($component['children'])
++                && is_array($component['children'])
++            ) {
                  if ($this->injectAtTarget($component['children'], $targetId, $position, $newComponents)) {
 -                    return true;
 +                    $injected = true;
                  }
              }
++
++            if ($matchesTarget) {
++                $this->injectComponents($components, $component, $index, $position, $newComponents);
++                $injected = true;
++            }
++
++            unset($component);
          }
  
 -        return false;
@@ -34,7 +49,7 @@ index cdc338c1..1cbaea90 100644
      }
  
      /**
-@@ -970,6 +975,8 @@ private function injectComponents(
+@@ -970,6 +981,8 @@ private function injectComponents(
       */
      private function injectPropsAtTarget(array &$components, string $targetId, array $propsToInject, ?array $injectMeta = null): bool
      {
@@ -43,16 +58,15 @@ index cdc338c1..1cbaea90 100644
          foreach ($components as &$component) {
              if (($component['id'] ?? '') === $targetId) {
                  $this->injectProps($component, $propsToInject);
-@@ -982,17 +989,19 @@ private function injectPropsAtTarget(array &$components, string $targetId, array
+@@ -982,17 +995,18 @@ private function injectPropsAtTarget(array &$components, string $targetId, array
                      $component['__injectedProps'][] = $injectMeta;
                  }
  
 -                return true;
 +                $injected = true;
-+
-+                continue;
              }
  
++            // props 주입은 형제 배열을 변경하지 않으므로 타겟 자신의 자식도 계속 순회합니다.
              if (isset($component['children']) && is_array($component['children'])) {
                  if ($this->injectPropsAtTarget($component['children'], $targetId, $propsToInject, $injectMeta)) {
 -                    return true;
@@ -67,10 +81,10 @@ index cdc338c1..1cbaea90 100644
  
      /**
 diff --git a/tests/Unit/Services/LayoutExtensionServiceTest.php b/tests/Unit/Services/LayoutExtensionServiceTest.php
-index d0ebe502..a8af19ae 100644
+index d0ebe502..c7b4d191 100644
 --- a/tests/Unit/Services/LayoutExtensionServiceTest.php
 +++ b/tests/Unit/Services/LayoutExtensionServiceTest.php
-@@ -612,6 +612,67 @@ public function test_applies_overlay_to_module_prefixed_requested_layout(): void
+@@ -612,6 +612,68 @@ public function test_applies_overlay_to_module_prefixed_requested_layout(): void
          $this->assertSame('admin_board_native_file_uploader', $result['components'][1]['id']);
      }
  
@@ -92,7 +106,7 @@ index d0ebe502..a8af19ae 100644
 +                'injections' => [
 +                    [
 +                        'target_id' => 'native_uploader',
-+                        'position' => 'replace',
++                        'position' => 'prepend',
 +                        'components' => [[
 +                            'id' => 'external_uploader',
 +                            'type' => 'basic',
@@ -131,7 +145,8 @@ index d0ebe502..a8af19ae 100644
 +
 +        foreach ($result['components'] as $renderBranch) {
 +            $this->assertSame('external_uploader', $renderBranch['children'][0]['id']);
-+            $this->assertTrue($renderBranch['children'][1]['props']['disabled']);
++            $this->assertSame('native_uploader', $renderBranch['children'][1]['id']);
++            $this->assertTrue($renderBranch['children'][2]['props']['disabled']);
 +        }
 +    }
 +
