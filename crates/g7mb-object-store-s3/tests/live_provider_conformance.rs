@@ -4,7 +4,8 @@ use std::{collections::BTreeMap, env, path::Path, process::Command, time::Durati
 
 use g7mb_application::{
     AbortMultipartRequest, CompleteMultipartRequest, CompletedPart, CreateMultipartRequest,
-    DownloadObjectRequest, ObjectStore as _, PresignPartRequest, PresignPutRequest, PutFileRequest,
+    DownloadObjectRequest, ObjectStore as _, PresignGetRequest, PresignPartRequest,
+    PresignPutRequest, PutFileRequest,
 };
 use g7mb_config::StorageSettings;
 use g7mb_domain::{ObjectKey, UploadId};
@@ -115,6 +116,18 @@ async fn live_provider_single_multipart_and_delete_conformance()
     assert_eq!(
         derivative.head(&derivative_key).await?.content_length,
         tokio::fs::metadata(&derivative_path).await?.len()
+    );
+    let signed_get = derivative
+        .presign_get(PresignGetRequest {
+            key: derivative_key.clone(),
+            expires_in: Duration::from_secs(300),
+        })
+        .await?;
+    let delivered_path = temp.path().join("delivered-thumbnail.jpg");
+    curl_get(signed_get.url.expose_secret(), &delivered_path)?;
+    assert_eq!(
+        tokio::fs::read(delivered_path).await?,
+        tokio::fs::read(&derivative_path).await?
     );
     derivative.delete(&derivative_key).await?;
 
@@ -239,4 +252,16 @@ fn curl_put(
         name.eq_ignore_ascii_case("etag")
             .then(|| value.trim().to_owned())
     }))
+}
+
+fn curl_get(signed_url: &str, output: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    let status = Command::new("curl")
+        .args(["--fail-with-body", "--silent", "--show-error", "--output"])
+        .arg(output)
+        .arg(signed_url)
+        .status()?;
+    if !status.success() {
+        return Err(std::io::Error::other("presigned object-store GET failed").into());
+    }
+    Ok(())
 }

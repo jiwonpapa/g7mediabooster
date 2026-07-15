@@ -28,7 +28,7 @@ digest-pinned 이미지 워터마크, sandbox runtime capability, 삭제·보존
 
 - presigned single PUT
 - multipart create, part PUT, complete, abort
-- HEAD, bounded GET, worker PutObject, idempotent DeleteObject
+- HEAD, bounded worker GET, private derivative presigned GET, worker PutObject, idempotent DeleteObject
 
 MinIO는 로컬 protocol gate, R2와 Lightsail은 각각 별도 실계정 profile로 판정합니다. 검증하지 않은
 ACL, Object Lock, replication, inventory, IAM/STS, SSE-KMS는 공식 지원 기능으로 게시하지 않습니다.

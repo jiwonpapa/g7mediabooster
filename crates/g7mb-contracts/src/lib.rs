@@ -301,6 +301,25 @@ pub struct UploadDerivativeResponse {
     pub byte_len: u64,
 }
 
+/// Short-lived private derivative delivery returned to the trusted PHP module.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, ToSchema)]
+pub struct DerivativeDeliveryResponse {
+    /// Upload owning the immutable derivative.
+    pub upload_id: Uuid,
+    /// Versioned transformation preset.
+    pub preset_id: String,
+    /// Stable `master` or `thumbnail` variant.
+    pub variant: String,
+    /// Sensitive provider GET URL. It must never be logged.
+    pub delivery_url: String,
+    /// Provider signature expiration.
+    pub expires_at: OffsetDateTime,
+    /// Trusted encoded content type.
+    pub content_type: String,
+    /// Exact encoded output length.
+    pub byte_len: u64,
+}
+
 /// Tenant-scoped upload and derivative status.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, ToSchema)]
 pub struct UploadStatusResponse {

@@ -17,6 +17,7 @@ flowchart LR
     Sandbox -->|"local derivative"| Worker
     Worker -->|"immutable upload"| Public["Derivative bucket / CDN"]
     Worker -->|"READY"| DB
+    G7 -->|"owner-authorized 5m GET redirect"| Public
     API -->|"signed webhook or poll"| G5
     API -->|"signed webhook or poll"| G7
 ```
@@ -73,6 +74,7 @@ semaphore를 가져 일반 JPEG/WebP latency를 밀어내지 않게 합니다.
 
 ## 신뢰할 수 있는 완료 순서
 
-파생물을 먼저 임시 key에 업로드하고 digest/크기를 확인한 뒤 최종 불변 key로 게시합니다.
-DB의 `READY`는 최종 object가 확인된 뒤에만 기록합니다. 웹훅 실패는 미디어 작업 성공을
-되돌리지 않으며 별도 delivery retry로 처리합니다.
+파생물은 source digest와 preset revision이 포함된 결정적 불변 key에 업로드합니다. 재시도는
+같은 bytes와 key를 사용하고, master와 thumbnail/poster DB 행은 한 transaction으로 기록합니다.
+DB의 `READY`는 전체 파생물 set이 기록된 뒤에만 바뀝니다. provider 성공 뒤 DB commit이
+불확실한 경우의 미참조 object는 향후 inventory 대조 대상으로 유지합니다.

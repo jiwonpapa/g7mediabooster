@@ -86,6 +86,22 @@ final class MediaBoosterClient
     /**
      * @return array<string, mixed>
      */
+    public function derivativeDelivery(string $uploadId, string $variant): array
+    {
+        $this->assertUploadId($uploadId);
+        if (! in_array($variant, ['master', 'thumbnail'], true)) {
+            throw new LogicException('invalid derivative variant');
+        }
+
+        return $this->expectObject($this->request(
+            'GET',
+            "/v1/uploads/{$uploadId}/derivatives/{$variant}/delivery",
+        ));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public function capabilities(): array
     {
         return $this->expectObject($this->request('GET', '/v1/capabilities'));

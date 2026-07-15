@@ -164,6 +164,8 @@ panorama 지원과 AVIF/HEIF 최신 포맷 지원은 유지하되 decoder별 안
 
 - raw/quarantine 버킷은 private이며 CDN 공개를 금지합니다.
 - 파생물 버킷은 별도 권한과 lifecycle을 사용합니다.
+- 기본 파생물 버킷도 private입니다. G7 사용자 소유권을 확인한 뒤 5분짜리 presigned GET만
+  반환하며 PHP는 미디어 bytes를 proxy하지 않습니다.
 - 원본 파일명은 object key에 넣지 않습니다.
 - 예시 원본 key: `raw/{tenant}/{yyyy}/{mm}/{upload_id}/source`
 - 예시 결과 key: `media/{tenant}/{upload_id}/{source_sha256}/{preset_version}/{variant}.{ext}`
@@ -188,6 +190,8 @@ key에는 preset revision과 watermark digest를 포함합니다.
 - batch 생성 응답에서 파일 정책에 따라 multipart session을 함께 생성
 - `POST /v1/uploads/{id}/parts/{part}/presign`: 제한된 part URL 생성
 - `POST /v1/uploads/{id}/multipart/complete`: part 목록 검증과 object 완료
+- `GET /v1/uploads/{id}/derivatives/{variant}/delivery`: HMAC tenant 확인 후 Ready private
+  derivative의 단기 GET URL 발급
 - `DELETE /v1/uploads/{id}/multipart`: 미완료 multipart abort
 - `POST /v1/uploads/{id}/complete`: 저장소 확인과 작업 enqueue
 - `GET /v1/uploads/{id}`: 상태와 파생물 조회
@@ -261,7 +265,7 @@ health/metrics를 제외한 모든 API는 인증과 tenant scope가 필요합니
 - 최대 100개 batch 정책과 single PUT/multipart 자동 선택
 - S3/R2 multipart create, part presign, complete, abort adapter
 - digest-pinned MinIO 컨테이너에서 실제 presigned PUT, 2-part complete, HEAD, bounded download,
-  abort session 소멸, derivative PUT S3 호환 conformance
+  abort session 소멸, derivative PUT·private presigned GET S3 호환 conformance
 - HMAC timestamp, nonce replay 차단, body SHA-256 검증
 - SQLite batch·upload·multipart session 영속화와 lease queue
 - multipart part 번호·정확한 길이·완료 순서 검증

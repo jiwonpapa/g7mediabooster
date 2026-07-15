@@ -1,5 +1,6 @@
 //! Application ports shared by API and infrastructure adapters.
 
+pub mod delivery;
 pub mod lifecycle;
 pub mod policies;
 pub mod processing;
@@ -33,6 +34,24 @@ pub struct PresignedUpload {
     pub url: SecretString,
     /// Headers covered by the signature.
     pub required_headers: BTreeMap<String, String>,
+    /// Absolute expiration time.
+    pub expires_at: OffsetDateTime,
+}
+
+/// Request for one short-lived private derivative URL.
+#[derive(Clone, Debug)]
+pub struct PresignGetRequest {
+    /// Immutable server-generated derivative key.
+    pub key: ObjectKey,
+    /// Short URL validity period.
+    pub expires_in: Duration,
+}
+
+/// Sensitive private object URL returned only after application authorization.
+#[derive(Clone, Debug)]
+pub struct PresignedDownload {
+    /// Redacted-on-debug signed URL.
+    pub url: SecretString,
     /// Absolute expiration time.
     pub expires_at: OffsetDateTime,
 }
@@ -157,6 +176,16 @@ pub trait ObjectStore: Send + Sync {
         &self,
         request: PresignPutRequest,
     ) -> Result<PresignedUpload, ObjectStoreError>;
+
+    /// Produces a short-lived private GET URL for one server-owned derivative.
+    async fn presign_get(
+        &self,
+        _request: PresignGetRequest,
+    ) -> Result<PresignedDownload, ObjectStoreError> {
+        Err(ObjectStoreError::InvalidRequest(
+            "private derivative delivery is unavailable".to_owned(),
+        ))
+    }
 
     /// Starts one resumable multipart upload.
     async fn create_multipart(

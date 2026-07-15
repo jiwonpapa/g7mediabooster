@@ -6,6 +6,7 @@ namespace Modules\Jiwonpapa\G7mediabooster\Tests\Unit\Services;
 
 use Illuminate\Http\Client\Factory;
 use Illuminate\Http\Client\Request;
+use LogicException;
 use Modules\Jiwonpapa\G7mediabooster\Config\MediaBoosterConfiguration;
 use Modules\Jiwonpapa\G7mediabooster\Exceptions\MediaBoosterUpstreamException;
 use Modules\Jiwonpapa\G7mediabooster\Services\HmacRequestSigner;
@@ -138,6 +139,49 @@ final class MediaBoosterClientTest extends TestCase
             && $request->body() === ''
             && $request->header('x-g7mb-content-sha256')[0] === hash('sha256', '')
             && $request->hasHeader('x-g7mb-signature'));
+    }
+
+    public function testRequestsPrivateDerivativeDeliveryWithSignedEmptyBody(): void
+    {
+        $uploadId = '018f47f0-3333-7333-8333-333333333333';
+        $path = "/v1/uploads/{$uploadId}/derivatives/thumbnail/delivery";
+        $http = new Factory;
+        $http->fake([
+            "https://media.example.com{$path}" => $http->response([
+                'upload_id' => $uploadId,
+                'preset_id' => 'board-v1',
+                'variant' => 'thumbnail',
+                'delivery_url' => 'https://private.example.com/media/file.jpg?X-Amz-Signature=redacted',
+                'expires_at' => '2030-01-01T00:00:00Z',
+                'content_type' => 'image/jpeg',
+                'byte_len' => 512,
+            ]),
+        ]);
+
+        $delivery = $this->client($http)->derivativeDelivery($uploadId, 'thumbnail');
+
+        self::assertSame('thumbnail', $delivery['variant']);
+        $http->assertSent(fn (Request $request): bool => $request->method() === 'GET'
+            && $request->url() === "https://media.example.com{$path}"
+            && $request->body() === ''
+            && $request->header('x-g7mb-content-sha256')[0] === hash('sha256', '')
+            && $request->hasHeader('x-g7mb-signature'));
+    }
+
+    public function testRejectsArbitraryDerivativeVariantBeforeNetworkIo(): void
+    {
+        $http = new Factory;
+        $http->fake();
+
+        $this->expectException(LogicException::class);
+        try {
+            $this->client($http)->derivativeDelivery(
+                '018f47f0-3333-7333-8333-333333333333',
+                'arbitrary',
+            );
+        } finally {
+            $http->assertNothingSent();
+        }
     }
 
     private function client(Factory $http): MediaBoosterClient

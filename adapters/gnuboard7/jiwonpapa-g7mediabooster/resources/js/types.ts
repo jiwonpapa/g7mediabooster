@@ -52,6 +52,7 @@ export interface UploadStatus {
         preset_id: string;
         variant: string;
         url_path: string;
+        delivery_url: string;
         content_type: string;
         byte_len: number;
     }>;

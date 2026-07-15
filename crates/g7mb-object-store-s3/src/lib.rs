@@ -13,8 +13,8 @@ use aws_sdk_s3::{
 };
 use g7mb_application::{
     AbortMultipartRequest, CompleteMultipartRequest, CreateMultipartRequest, DownloadObjectRequest,
-    MultipartSession, ObjectMetadata, ObjectStore, ObjectStoreError, PresignPartRequest,
-    PresignPutRequest, PresignedUpload, PutFileRequest,
+    MultipartSession, ObjectMetadata, ObjectStore, ObjectStoreError, PresignGetRequest,
+    PresignPartRequest, PresignPutRequest, PresignedDownload, PresignedUpload, PutFileRequest,
 };
 use g7mb_config::StorageSettings;
 use g7mb_domain::ObjectKey;
@@ -101,6 +101,27 @@ impl ObjectStore for S3CompatibleStore {
         Ok(PresignedUpload {
             url: SecretString::from(signed.uri().to_string()),
             required_headers,
+            expires_at: OffsetDateTime::now_utc() + request.expires_in,
+        })
+    }
+
+    async fn presign_get(
+        &self,
+        request: PresignGetRequest,
+    ) -> Result<PresignedDownload, ObjectStoreError> {
+        let config = PresigningConfig::expires_in(request.expires_in).map_err(|error| {
+            ObjectStoreError::InvalidRequest(format!("invalid presign expiry: {error}"))
+        })?;
+        let signed = self
+            .client
+            .get_object()
+            .bucket(&self.bucket)
+            .key(request.key.as_str())
+            .presigned(config)
+            .await
+            .map_err(|error| ObjectStoreError::Backend(error.to_string()))?;
+        Ok(PresignedDownload {
+            url: SecretString::from(signed.uri().to_string()),
             expires_at: OffsetDateTime::now_utc() + request.expires_in,
         })
     }
@@ -408,7 +429,7 @@ mod tests {
     use std::time::Duration;
 
     use g7mb_application::{
-        CompletedPart, ObjectStore as _, PresignPartRequest, PresignPutRequest,
+        CompletedPart, ObjectStore as _, PresignGetRequest, PresignPartRequest, PresignPutRequest,
     };
     use g7mb_config::StorageSettings;
     use g7mb_domain::ObjectKey;
@@ -476,6 +497,33 @@ mod tests {
         assert!(url.contains("uploadId=opaque-upload-id"));
         assert!(url.contains("X-Amz-Signature="));
         assert!(!url.contains("test-secret"));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn presigns_private_derivative_get_without_credentials_in_the_url()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let settings = StorageSettings {
+            endpoint_url: Some("https://account-id.r2.cloudflarestorage.com".to_owned()),
+            region: "auto".to_owned(),
+            raw_bucket: "raw-private".to_owned(),
+            derivative_bucket: "media-private".to_owned(),
+            access_key_id: SecretString::from("test-access".to_owned()),
+            secret_access_key: SecretString::from("test-secret".to_owned()),
+            force_path_style: false,
+        };
+        let store = S3CompatibleStore::for_derivative_bucket(&settings).await?;
+        let signed = store
+            .presign_get(PresignGetRequest {
+                key: ObjectKey::new("media/site/upload/digest/preset/thumbnail.jpg")?,
+                expires_in: Duration::from_secs(300),
+            })
+            .await?;
+        let url = signed.url.expose_secret();
+        assert!(url.starts_with("https://media-private.account-id.r2.cloudflarestorage.com/"));
+        assert!(url.contains("X-Amz-Signature="));
+        assert!(!url.contains("test-secret"));
+        assert!(signed.expires_at > time::OffsetDateTime::now_utc());
         Ok(())
     }
 

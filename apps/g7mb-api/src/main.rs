@@ -6,6 +6,7 @@ use anyhow::Context as _;
 use clap::Parser;
 use g7mb_api::{ApiAuth, ApiState, probe_sandbox_capabilities, router};
 use g7mb_application::{
+    delivery::DerivativeDeliveryService,
     lifecycle::{LifecyclePolicy, LifecycleService},
     policies::SitePolicyService,
     uploads::{UploadCapacityPolicy, UploadIntentService},
@@ -73,7 +74,7 @@ async fn main() -> anyhow::Result<()> {
     });
     let lifecycle_service = LifecycleService::new(
         raw_store,
-        derivative_store,
+        derivative_store.clone(),
         database.clone(),
         LifecyclePolicy {
             created_reservation_ttl: Duration::from_secs(
@@ -89,6 +90,12 @@ async fn main() -> anyhow::Result<()> {
         },
     )
     .context("failed to initialize lifecycle service")?;
+    let delivery_service = DerivativeDeliveryService::new(
+        database.clone(),
+        derivative_store,
+        Duration::from_secs(5 * 60),
+    )
+    .context("failed to initialize derivative delivery")?;
     let allowed_skew_seconds = i64::try_from(settings.auth.allowed_skew_seconds)
         .context("auth clock skew exceeds signed range")?;
     let auth = ApiAuth::new(
@@ -107,6 +114,7 @@ async fn main() -> anyhow::Result<()> {
         router(
             ApiState::new(true, Some(metrics))
                 .with_capabilities(capabilities)
+                .with_derivative_delivery(delivery_service)
                 .with_lifecycle(lifecycle_service)
                 .with_upload_control(upload_service, database.clone(), auth)
                 .with_site_policy(SitePolicyService::new(

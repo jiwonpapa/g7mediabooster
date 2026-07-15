@@ -12,6 +12,7 @@
 - 이미지 EXIF/GPS/XMP/IPTC 제거, 방향·sRGB 정규화, 최대 8,192px JPEG master
 - 이미지 thumbnail·영상 poster 1,280px JPEG 및 digest/revision 불변 object key
 - 이미지 master와 thumbnail/poster가 모두 기록된 뒤에만 `Ready`가 되는 원자적 발행
+- G7 소유권 검사 뒤 private master/thumbnail을 5분 presigned GET으로 전달하는 no-store redirect
 - 위치·여백·비율·투명도가 제한된 revision 고정 워터마크
 - SQLite WAL 단일 노드 durable queue, lease 복구, backpressure, lifecycle cleanup
 - G7 관리자 설정·HMAC policy 동기화와 사용자 소유권이 적용된 제어 업로더
@@ -30,7 +31,7 @@
 
 - presigned single PUT
 - multipart create, part PUT, complete, abort
-- HEAD, bounded GET, worker PutObject, idempotent DeleteObject
+- HEAD, bounded worker GET, private derivative presigned GET, worker PutObject, idempotent DeleteObject
 
 R2와 Lightsail은 각각 실계정 conformance를 통과한 profile만 지원으로 표시합니다. ACL,
 Object Lock, replication, inventory, IAM/STS, SSE-KMS는 검증 전 지원 기능으로 게시하지 않습니다.

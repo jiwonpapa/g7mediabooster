@@ -113,7 +113,7 @@ G7 모듈은 세션·게시판 권한·첨부 연결의 진실 원천이고, Rus
   SQLite 단조 revision·settings hash, enqueue 시 revision 고정과 S3/R2 worker 재검증 구현
 - Stage B sandbox egress: Linux seccomp-BPF로 socket 계열 syscall을 전 thread에서 차단하고
   FFmpeg/FFprobe child 상속 및 실제 Linux `EPERM` 테스트 구현
-- 품질 게이트: 전체 CI와 API smoke, Rust line coverage 84.22%, G7 PHP/TS unit·build 통과
+- 품질 게이트: 전체 CI와 API smoke, Rust line coverage 84.64%, G7 PHP/TS unit·build 통과
 
 남은 핵심 게이트는 실제 R2/Lightsail credential·5GiB 검증, G7 attachment resolver·게시물
 smoke와 G7 관리자 전용 watermark asset picker browser smoke입니다. 외부 저장소 하네스와

@@ -16,6 +16,7 @@
 - presigned multipart part PUT → ETag 수집 → complete → HEAD → DELETE
 - 빈 multipart create → idempotent ABORT
 - derivative PutObject → DELETE
+- derivative presigned GET bytes 일치 → DELETE
 - 선택적으로 sparse 32MiB part를 반복 전송하는 정확한 5GiB multipart
 
 bucket 생성·IAM 변경·CORS 변경은 하지 않습니다. object key는
@@ -64,9 +65,10 @@ unset G7MB_LIVE_S3_LARGE_BYTES
 provider, region, 실행시각, elapsed, object count 0, 5GiB HEAD 길이만 보고서에 기록하고
 credential·presigned URL·bucket 실명은 남기지 않습니다.
 
-R2 통과로 제품이 쓰는 presigned PUT, multipart, HEAD, download, PutObject, idempotent delete는
-검증할 수 있습니다. 다만 AWS region redirect, IAM/STS, SSE-KMS, storage class 등 AWS 고유 동작을
-검증한 것으로 기록하지 않습니다. AWS 계정이 생기면 동일 하네스로 AWS profile만 추가합니다.
+R2 통과로 제품이 쓰는 presigned PUT, multipart, HEAD, bounded download, PutObject,
+private derivative presigned GET, idempotent delete를 검증할 수 있습니다. 다만 AWS region
+redirect, IAM/STS, SSE-KMS, storage class 등 AWS 고유 동작을 검증한 것으로 기록하지 않습니다.
+AWS 계정이 생기면 동일 하네스로 AWS profile만 추가합니다.
 
 Lightsail 통과는 제품이 사용하는 Amazon 계열 S3 object protocol 전체를 검증한 것으로
 인정합니다. 다만 동일 private bucket의 prefix 검증이므로 raw/derivative 두 버킷 IAM 격리는

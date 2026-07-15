@@ -9,7 +9,8 @@ use aws_sdk_s3::{
 };
 use g7mb_application::{
     AbortMultipartRequest, CompleteMultipartRequest, CompletedPart, CreateMultipartRequest,
-    DownloadObjectRequest, ObjectStore as _, PresignPartRequest, PresignPutRequest, PutFileRequest,
+    DownloadObjectRequest, ObjectStore as _, PresignGetRequest, PresignPartRequest,
+    PresignPutRequest, PutFileRequest,
 };
 use g7mb_config::StorageSettings;
 use g7mb_domain::ObjectKey;
@@ -133,6 +134,18 @@ async fn minio_single_multipart_abort_download_and_derivative_conformance()
         derivative.head(&derivative_key).await?.content_length,
         stored.content_length
     );
+    let signed_get = derivative
+        .presign_get(PresignGetRequest {
+            key: derivative_key.clone(),
+            expires_in: Duration::from_secs(60),
+        })
+        .await?;
+    let delivered_path = temp.path().join("delivered-thumbnail.jpg");
+    curl_get(signed_get.url.expose_secret(), &delivered_path)?;
+    assert_eq!(
+        tokio::fs::read(delivered_path).await?,
+        b"\xff\xd8\xff\xe0conformance"
+    );
     derivative.delete(&derivative_key).await?;
     assert!(derivative.head(&derivative_key).await.is_err());
     // S3 DeleteObject is idempotent, which cleanup lease recovery depends on.
@@ -216,4 +229,16 @@ fn curl_put(
         name.eq_ignore_ascii_case("etag")
             .then(|| value.trim().to_owned())
     }))
+}
+
+fn curl_get(signed_url: &str, output: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    let status = Command::new("curl")
+        .args(["--fail-with-body", "--silent", "--show-error", "--output"])
+        .arg(output)
+        .arg(signed_url)
+        .status()?;
+    if !status.success() {
+        return Err(std::io::Error::other("presigned object-store GET failed").into());
+    }
+    Ok(())
 }

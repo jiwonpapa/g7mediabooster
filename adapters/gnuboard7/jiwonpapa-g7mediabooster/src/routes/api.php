@@ -47,6 +47,10 @@ Route::prefix('boards/{slug}/uploads')
         Route::get('{uploadId}', [UploadController::class, 'status'])
             ->whereUuid('uploadId')
             ->name('status');
+        Route::get('{uploadId}/derivatives/{variant}', [UploadController::class, 'derivative'])
+            ->whereUuid('uploadId')
+            ->whereIn('variant', ['master', 'thumbnail'])
+            ->name('derivatives.delivery');
         Route::delete('{uploadId}', [UploadController::class, 'delete'])
             ->whereUuid('uploadId')
             ->name('delete');

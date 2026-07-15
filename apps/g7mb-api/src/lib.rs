@@ -15,6 +15,7 @@ use axum::{
 };
 use g7mb_application::{
     CompletedPart, NonceStore, NonceStoreError, WatermarkPosition,
+    delivery::{DerivativeDeliveryError, DerivativeDeliveryService},
     lifecycle::{DeletionRequestError, DeletionRequestOutcome, LifecycleService},
     policies::{
         PublishPolicyOutcome, PublishSitePolicy, PublishSitePolicyError, RequestedWatermarkPolicy,
@@ -28,10 +29,11 @@ use g7mb_application::{
 use g7mb_auth::{SignedRequest, sha256_hex, verify};
 use g7mb_contracts::{
     CapabilitiesResponse, CompleteMultipartUploadRequest, CreateUploadBatchRequest,
-    CreateUploadBatchResponse, ErrorResponse, HealthResponse, PresignUploadPartRequest,
-    PresignUploadPartResponse, PublishSitePolicyRequest, SitePolicySnapshotResponse,
-    SitePolicyWatermarkPosition, SitePolicyWatermarkResponse, UploadDerivativeResponse,
-    UploadIntentResponse, UploadKind, UploadMethod, UploadStatusResponse, UploadStatusValue,
+    CreateUploadBatchResponse, DerivativeDeliveryResponse, ErrorResponse, HealthResponse,
+    PresignUploadPartRequest, PresignUploadPartResponse, PublishSitePolicyRequest,
+    SitePolicySnapshotResponse, SitePolicyWatermarkPosition, SitePolicyWatermarkResponse,
+    UploadDerivativeResponse, UploadIntentResponse, UploadKind, UploadMethod, UploadStatusResponse,
+    UploadStatusValue,
 };
 use g7mb_domain::{MediaKind, UploadId, UploadTransfer};
 use metrics_exporter_prometheus::PrometheusHandle;
@@ -59,6 +61,7 @@ pub struct ApiState {
     policy_service: Option<SitePolicyService>,
     capabilities: Option<CapabilitiesResponse>,
     lifecycle_service: Option<LifecycleService>,
+    delivery_service: Option<DerivativeDeliveryService>,
 }
 
 impl ApiState {
@@ -74,6 +77,7 @@ impl ApiState {
             policy_service: None,
             capabilities: None,
             lifecycle_service: None,
+            delivery_service: None,
         }
     }
 
@@ -111,6 +115,13 @@ impl ApiState {
         self.lifecycle_service = Some(lifecycle_service);
         self
     }
+
+    /// Adds private derivative delivery after startup validation.
+    #[must_use]
+    pub fn with_derivative_delivery(mut self, delivery_service: DerivativeDeliveryService) -> Self {
+        self.delivery_service = Some(delivery_service);
+        self
+    }
 }
 
 impl fmt::Debug for ApiState {
@@ -125,6 +136,7 @@ impl fmt::Debug for ApiState {
             .field("policy_service", &self.policy_service.is_some())
             .field("capabilities", &self.capabilities.is_some())
             .field("lifecycle_service", &self.lifecycle_service.is_some())
+            .field("delivery_service", &self.delivery_service.is_some())
             .finish()
     }
 }
@@ -188,6 +200,10 @@ pub fn router(state: ApiState, body_limit_bytes: usize) -> Router {
         .route(
             "/v1/uploads/{upload_id}",
             get(get_upload_status).delete(request_upload_deletion),
+        )
+        .route(
+            "/v1/uploads/{upload_id}/derivatives/{variant}/delivery",
+            get(get_derivative_delivery),
         )
         .with_state(state)
         .layer(DefaultBodyLimit::max(body_limit_bytes))
@@ -852,6 +868,60 @@ async fn get_upload_status(
 }
 
 #[utoipa::path(
+    get,
+    path = "/v1/uploads/{upload_id}/derivatives/{variant}/delivery",
+    tag = "uploads",
+    params(
+        ("upload_id" = uuid::Uuid, Path, description = "Upload reservation identifier"),
+        ("variant" = String, Path, description = "Server-published master or thumbnail variant")
+    ),
+    responses(
+        (status = 200, description = "Short-lived tenant-authorized private derivative URL", body = DerivativeDeliveryResponse),
+        (status = 400, description = "Malformed path or signing headers", body = ErrorResponse),
+        (status = 401, description = "HMAC authentication failed", body = ErrorResponse),
+        (status = 404, description = "Upload or derivative not found", body = ErrorResponse),
+        (status = 409, description = "Upload is not Ready or deletion is pending", body = ErrorResponse),
+        (status = 503, description = "Storage or durable state unavailable", body = ErrorResponse)
+    )
+)]
+async fn get_derivative_delivery(
+    State(state): State<ApiState>,
+    Path((upload_id, variant)): Path<(String, String)>,
+    OriginalUri(uri): OriginalUri,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    let result = async {
+        let upload_id = upload_id
+            .parse::<UploadId>()
+            .map_err(|_| ApiFailure::invalid_path())?;
+        let tenant_id =
+            authenticate_request(&state, &headers, &body, "GET", path_and_query(&uri)).await?;
+        let delivery = state
+            .delivery_service
+            .as_ref()
+            .ok_or_else(ApiFailure::not_ready)?
+            .presign(&tenant_id, upload_id, &variant)
+            .await
+            .map_err(ApiFailure::from_delivery)?;
+        Ok::<_, ApiFailure>(DerivativeDeliveryResponse {
+            upload_id: upload_id.as_uuid(),
+            preset_id: delivery.preset_id,
+            variant: delivery.variant,
+            delivery_url: delivery.url.expose_secret().to_owned(),
+            expires_at: delivery.expires_at,
+            content_type: delivery.content_type,
+            byte_len: delivery.byte_len,
+        })
+    }
+    .await;
+    match result {
+        Ok(response) => (StatusCode::OK, Json(response)).into_response(),
+        Err(failure) => failure.into_response(&headers),
+    }
+}
+
+#[utoipa::path(
     delete,
     path = "/v1/uploads/{upload_id}",
     tag = "uploads",
@@ -1131,6 +1201,26 @@ impl ApiFailure {
         }
     }
 
+    fn from_delivery(error: DerivativeDeliveryError) -> Self {
+        match error {
+            DerivativeDeliveryError::InvalidTenant
+            | DerivativeDeliveryError::InvalidPolicy
+            | DerivativeDeliveryError::ObjectStore(_)
+            | DerivativeDeliveryError::Repository(_) => Self::not_ready(),
+            DerivativeDeliveryError::InvalidVariant => Self::invalid_path(),
+            DerivativeDeliveryError::NotFound => Self {
+                status: StatusCode::NOT_FOUND,
+                code: "DERIVATIVE_NOT_FOUND",
+                message: "Requested derivative was not found.",
+            },
+            DerivativeDeliveryError::NotReady => Self {
+                status: StatusCode::CONFLICT,
+                code: "DERIVATIVE_NOT_READY",
+                message: "Requested derivative is not deliverable.",
+            },
+        }
+    }
+
     fn from_deletion(error: DeletionRequestError) -> Self {
         match error {
             DeletionRequestError::InvalidTenant | DeletionRequestError::Backend(_) => {
@@ -1178,6 +1268,7 @@ fn required_header<'a>(headers: &'a HeaderMap, name: &'static str) -> Result<&'a
         abort_multipart_upload,
         confirm_single_upload,
         get_upload_status,
+        get_derivative_delivery,
         request_upload_deletion
     ),
     components(schemas(
@@ -1200,7 +1291,8 @@ fn required_header<'a>(headers: &'a HeaderMap, name: &'static str) -> Result<&'a
         g7mb_contracts::CompletedUploadPart,
         UploadStatusResponse,
         UploadStatusValue,
-        UploadDerivativeResponse
+        UploadDerivativeResponse,
+        DerivativeDeliveryResponse
     )),
     tags(
         (name = "health", description = "Liveness and dependency readiness"),
@@ -1220,6 +1312,7 @@ mod tests {
             Arc,
             atomic::{AtomicU64, Ordering},
         },
+        time::Duration,
     };
 
     use async_trait::async_trait;
@@ -1230,15 +1323,17 @@ mod tests {
     use g7mb_application::{
         AbortMultipartRequest, CompleteMultipartRequest, CreateMultipartRequest,
         DownloadObjectRequest, MultipartSession, ObjectMetadata, ObjectStore, ObjectStoreError,
-        PresignPartRequest, PresignPutRequest, PresignedUpload, PutFileRequest,
+        PresignGetRequest, PresignPartRequest, PresignPutRequest, PresignedDownload,
+        PresignedUpload, PutFileRequest,
+        delivery::DerivativeDeliveryService,
         lifecycle::{LifecyclePolicy, LifecycleService},
         policies::SitePolicyService,
         uploads::{UploadCapacityPolicy, UploadIntentService},
     };
     use g7mb_auth::{SignedRequest, sha256_hex, sign};
     use g7mb_contracts::{
-        CapabilitiesResponse, CreateUploadBatchResponse, SitePolicySnapshotResponse, UploadMethod,
-        UploadStatusResponse, UploadStatusValue,
+        CapabilitiesResponse, CreateUploadBatchResponse, DerivativeDeliveryResponse,
+        SitePolicySnapshotResponse, UploadMethod, UploadStatusResponse, UploadStatusValue,
     };
     use g7mb_domain::{ObjectKey, UploadBatchPolicy, UploadId};
     use g7mb_persistence_sqlite::SqliteStore;
@@ -1263,6 +1358,19 @@ mod tests {
             Ok(PresignedUpload {
                 url: SecretString::from(format!("https://storage.invalid/{}", request.key)),
                 required_headers: BTreeMap::new(),
+                expires_at: OffsetDateTime::now_utc() + request.expires_in,
+            })
+        }
+
+        async fn presign_get(
+            &self,
+            request: PresignGetRequest,
+        ) -> Result<PresignedDownload, ObjectStoreError> {
+            Ok(PresignedDownload {
+                url: SecretString::from(format!(
+                    "https://private-storage.invalid/{}?signed=redacted",
+                    request.key
+                )),
                 expires_at: OffsetDateTime::now_utc() + request.expires_in,
             })
         }
@@ -1605,6 +1713,117 @@ mod tests {
         let limited_body = limited.into_body().collect().await?.to_bytes();
         let error = serde_json::from_slice::<g7mb_contracts::ErrorResponse>(&limited_body)?;
         assert_eq!(error.code, "UPLOAD_CAPACITY_EXHAUSTED");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn signed_ready_derivative_delivery_returns_only_a_short_lived_private_url()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let database = Arc::new(SqliteStore::connect("sqlite::memory:", 1).await?);
+        let upload_id = UploadId::new();
+        let now = OffsetDateTime::now_utc();
+        sqlx::query(
+            "INSERT INTO uploads
+                (id, tenant_id, object_key, declared_kind, state, expected_size_bytes,
+                 actual_size_bytes, content_type_hint, detected_content_type, source_sha256,
+                 created_at, updated_at)
+             VALUES (?, 'site-a', ?, 'image', 'ready', 4096, 4096, 'image/jpeg',
+                     'image/jpeg', ?, ?, ?)",
+        )
+        .bind(upload_id.to_string())
+        .bind(format!("raw/site-a/{upload_id}/source"))
+        .bind("a".repeat(64))
+        .bind(now.unix_timestamp())
+        .bind(now.unix_timestamp())
+        .execute(database.pool())
+        .await?;
+        for (variant, path, bytes) in [
+            (
+                "master",
+                format!("media/site-a/{upload_id}/preset/master.jpg"),
+                2048_i64,
+            ),
+            (
+                "thumbnail",
+                format!("media/site-a/{upload_id}/preset/thumbnail.jpg"),
+                512_i64,
+            ),
+        ] {
+            sqlx::query(
+                "INSERT INTO derivatives
+                    (upload_id, preset_id, variant, object_key, content_type, byte_len, sha256, created_at)
+                 VALUES (?, 'board-v1', ?, ?, 'image/jpeg', ?, ?, ?)",
+            )
+            .bind(upload_id.to_string())
+            .bind(variant)
+            .bind(path)
+            .bind(bytes)
+            .bind(if variant == "master" {
+                "b".repeat(64)
+            } else {
+                "c".repeat(64)
+            })
+            .bind(now.unix_timestamp())
+            .execute(database.pool())
+            .await?;
+        }
+        let storage = Arc::new(ApiFakeStore::default());
+        let secret = SecretString::from("0123456789abcdef0123456789abcdef".to_owned());
+        let state = ApiState::new(true, None)
+            .with_derivative_delivery(DerivativeDeliveryService::new(
+                database.clone(),
+                storage.clone(),
+                Duration::from_secs(300),
+            )?)
+            .with_upload_control(
+                UploadIntentService::new(storage, database.clone(), UploadBatchPolicy::default()),
+                database,
+                ApiAuth::new(
+                    "g7-primary".to_owned(),
+                    "site-a".to_owned(),
+                    secret.clone(),
+                    300,
+                ),
+            );
+        let path = format!("/v1/uploads/{upload_id}/derivatives/thumbnail/delivery");
+        let response = router(state.clone(), 1024)
+            .oneshot(signed_request(
+                "GET",
+                &path,
+                Vec::new(),
+                "d123456789abcdef0123456789abcdef",
+                &secret,
+            )?)
+            .await?;
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response.headers().get(header::CACHE_CONTROL),
+            Some(&header::HeaderValue::from_static("no-store"))
+        );
+        let body = response.into_body().collect().await?.to_bytes();
+        let delivery = serde_json::from_slice::<DerivativeDeliveryResponse>(&body)?;
+        assert_eq!(delivery.upload_id, upload_id.as_uuid());
+        assert_eq!(delivery.variant, "thumbnail");
+        assert_eq!(delivery.content_type, "image/jpeg");
+        assert_eq!(delivery.byte_len, 512);
+        assert!(
+            delivery
+                .delivery_url
+                .starts_with("https://private-storage.invalid/media/")
+        );
+        assert!(delivery.expires_at > OffsetDateTime::now_utc());
+
+        let invalid_path = format!("/v1/uploads/{upload_id}/derivatives/arbitrary/delivery");
+        let invalid = router(state, 1024)
+            .oneshot(signed_request(
+                "GET",
+                &invalid_path,
+                Vec::new(),
+                "e123456789abcdef0123456789abcdef",
+                &secret,
+            )?)
+            .await?;
+        assert_eq!(invalid.status(), StatusCode::BAD_REQUEST);
         Ok(())
     }
 

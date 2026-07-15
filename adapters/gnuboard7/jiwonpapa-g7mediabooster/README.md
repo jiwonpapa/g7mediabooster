@@ -12,6 +12,7 @@ Gnuboard 7.0.4+용 전용 모듈입니다. PHP는 로그인·게시판 권한·H
 - HMAC secret을 Laravel Crypt로 암호화하고 브라우저 응답에서 제거
 - upload ID를 로그인 사용자와 게시판에 묶어 수평 권한 상승 차단
 - 소유 upload의 HMAC 삭제 예약과 `deletion_pending` 상태 프록시
+- 소유 Ready master/thumbnail의 5분 private GET no-store redirect
 - Ready 이미지 upload ID 기반 워터마크 정책과 HMAC 서명 revision 동기화
 - G7 관리자 설정 레이아웃과 PHP/TypeScript 테스트 하네스
 

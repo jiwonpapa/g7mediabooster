@@ -614,6 +614,97 @@
         }
       }
     },
+    "/v1/uploads/{upload_id}/derivatives/{variant}/delivery": {
+      "get": {
+        "tags": [
+          "uploads"
+        ],
+        "operationId": "get_derivative_delivery",
+        "parameters": [
+          {
+            "name": "upload_id",
+            "in": "path",
+            "description": "Upload reservation identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "variant",
+            "in": "path",
+            "description": "Server-published master or thumbnail variant",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Short-lived tenant-authorized private derivative URL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DerivativeDeliveryResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed path or signing headers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "HMAC authentication failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Upload or derivative not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Upload is not Ready or deletion is pending",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Storage or durable state unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/uploads/{upload_id}/multipart": {
       "delete": {
         "tags": [
@@ -1021,6 +1112,53 @@
               "$ref": "#/components/schemas/UploadIntentResponse"
             },
             "description": "Response instructions in request order."
+          }
+        }
+      },
+      "DerivativeDeliveryResponse": {
+        "type": "object",
+        "description": "Short-lived private derivative delivery returned to the trusted PHP module.",
+        "required": [
+          "upload_id",
+          "preset_id",
+          "variant",
+          "delivery_url",
+          "expires_at",
+          "content_type",
+          "byte_len"
+        ],
+        "properties": {
+          "byte_len": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Exact encoded output length.",
+            "minimum": 0
+          },
+          "content_type": {
+            "type": "string",
+            "description": "Trusted encoded content type."
+          },
+          "delivery_url": {
+            "type": "string",
+            "description": "Sensitive provider GET URL. It must never be logged."
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Provider signature expiration."
+          },
+          "preset_id": {
+            "type": "string",
+            "description": "Versioned transformation preset."
+          },
+          "upload_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Upload owning the immutable derivative."
+          },
+          "variant": {
+            "type": "string",
+            "description": "Stable `master` or `thumbnail` variant."
           }
         }
       },

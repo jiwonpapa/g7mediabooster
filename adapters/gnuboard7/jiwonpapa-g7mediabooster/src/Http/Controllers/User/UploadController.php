@@ -6,6 +6,7 @@ namespace Modules\Jiwonpapa\G7mediabooster\Http\Controllers\User;
 
 use App\Http\Controllers\Api\Base\AuthBaseController;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Log;
 use Modules\Jiwonpapa\G7mediabooster\Config\MediaBoosterConfiguration;
 use Modules\Jiwonpapa\G7mediabooster\Exceptions\MediaBoosterUpstreamException;
@@ -13,11 +14,13 @@ use Modules\Jiwonpapa\G7mediabooster\Http\Requests\CompleteMultipartRequest;
 use Modules\Jiwonpapa\G7mediabooster\Http\Requests\CreateUploadBatchRequest;
 use Modules\Jiwonpapa\G7mediabooster\Http\Requests\PresignPartRequest;
 use Modules\Jiwonpapa\G7mediabooster\Services\MediaBoosterClient;
+use Modules\Jiwonpapa\G7mediabooster\Services\DerivativeDeliveryValidator;
 use Modules\Jiwonpapa\G7mediabooster\Services\UploadSessionStore;
 use Modules\Sirsoft\Board\Exceptions\BoardNotFoundException;
 use Modules\Sirsoft\Board\Services\BoardService;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Throwable;
+use UnexpectedValueException;
 
 final class UploadController extends AuthBaseController
 {
@@ -26,6 +29,7 @@ final class UploadController extends AuthBaseController
         private readonly MediaBoosterClient $client,
         private readonly MediaBoosterConfiguration $configuration,
         private readonly UploadSessionStore $sessions,
+        private readonly DerivativeDeliveryValidator $deliveryValidator,
     ) {
         parent::__construct();
     }
@@ -173,12 +177,49 @@ final class UploadController extends AuthBaseController
             if (is_string($status['state'] ?? null)) {
                 $this->sessions->markState($uploadId, $status['state']);
             }
+            if (is_array($status['derivatives'] ?? null)) {
+                $status['derivatives'] = array_map(
+                    fn (mixed $derivative): mixed => $this->withDeliveryUrl(
+                        $derivative,
+                        $slug,
+                        $uploadId,
+                    ),
+                    $status['derivatives'],
+                );
+            }
 
             return $this->success('업로드 상태를 조회했습니다.', $status);
         } catch (MediaBoosterUpstreamException $error) {
             return $this->upstreamError($error);
         } catch (Throwable $error) {
             return $this->internalFailure($error, 'status_read_failed');
+        }
+    }
+
+    public function derivative(
+        string $slug,
+        string $uploadId,
+        string $variant,
+    ): RedirectResponse|JsonResponse {
+        if (! $this->owns($uploadId, $slug)) {
+            return $this->notFound('업로드 세션을 찾을 수 없습니다.');
+        }
+
+        try {
+            $delivery = $this->client->derivativeDelivery($uploadId, $variant);
+            $url = $this->deliveryValidator->validate($delivery, $uploadId, $variant);
+
+            return new RedirectResponse($url, 302, [
+                'Cache-Control' => 'private, no-store',
+                'Referrer-Policy' => 'no-referrer',
+                'X-Content-Type-Options' => 'nosniff',
+            ]);
+        } catch (MediaBoosterUpstreamException $error) {
+            return $this->upstreamError($error);
+        } catch (UnexpectedValueException) {
+            return $this->error('미디어 처리 서버의 전달 응답이 올바르지 않습니다.', 502);
+        } catch (Throwable $error) {
+            return $this->internalFailure($error, 'derivative_delivery_failed');
         }
     }
 
@@ -213,6 +254,24 @@ final class UploadController extends AuthBaseController
     private function owns(string $uploadId, string $slug): bool
     {
         return $this->sessions->isOwnedBy($uploadId, $this->userId(), $slug);
+    }
+
+    private function withDeliveryUrl(mixed $derivative, string $slug, string $uploadId): mixed
+    {
+        if (! is_array($derivative)
+            || ! is_string($derivative['variant'] ?? null)
+            || ! in_array($derivative['variant'], ['master', 'thumbnail'], true)
+        ) {
+            return $derivative;
+        }
+        $derivative['delivery_url'] = sprintf(
+            '/api/modules/jiwonpapa-g7mediabooster/boards/%s/uploads/%s/derivatives/%s',
+            rawurlencode($slug),
+            rawurlencode($uploadId),
+            $derivative['variant'],
+        );
+
+        return $derivative;
     }
 
     private function userId(): int
