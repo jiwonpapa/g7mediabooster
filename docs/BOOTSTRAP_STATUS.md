@@ -2,7 +2,7 @@
 
 - 기준일: 2026-07-16
 - 범위: Git, Rust 워크스페이스, 기술 스펙, 개발 헌법, 필수 크레이트와 품질 하네스
-- 결론: 내부 v1 구현 완료. 외부 R2/Lightsail·5GiB와 G7 upstream/browser 승격 게이트만 남았습니다.
+- 결론: 내부 v1 구현 완료. 외부 R2/Lightsail·5GiB와 G7 upstream·권한·삭제/복원 승격 게이트만 남았습니다.
 
 ## 완료 항목
 
@@ -14,7 +14,7 @@
 | 스펙·헌법 | PASS | `SPEC.md`, `DEVELOPMENT_CONSTITUTION.md`, ADR·보안·개발 문서 |
 | 기본·전체 feature 빌드 | PASS | `cargo xtask ci` |
 | fmt/clippy/rustdoc | PASS | 경고 0 |
-| 테스트 | PASS | 공통 Rust 99개 + Linux seccomp 1개 통과, 실패 0 |
+| 테스트 | PASS | 공통 Rust 100개 + Linux seccomp 1개 통과, 실패 0 |
 | OpenAPI drift | PASS | 생성 계약과 저장본 일치 |
 | 커버리지 | PASS | 7,321/8,592 lines, 85.21%, 하한 80% |
 | 공급망 | PASS | RustSec 취약점 0, deny advisories/bans/licenses/sources 통과 |
@@ -41,7 +41,7 @@
 | AVIF decoder memory | PASS | 64MP AVIF peak RSS 1,221,776 KiB, 200MP AVIF full decode 전 정책 거부 |
 | tenant fair queue·backpressure | PASS | 영속 round-robin claim, global 1,000/tenant 200 활성 cap, presign 전 차단, 429 계약 |
 | Linux cgroup 부하 | PASS | CPU 2 core, memory 2GiB, PID 64, network none, API health 267/267, worker 100/100 |
-| G7 게시물 첨부 표시 | PARTIAL | G7 `e64381dd` 기준 patch 2개 clean apply, 계약 21/21, 핵심 PHP 48/48, core overlay 2/2, 설치·설정·user/admin form disabled smoke PASS; 실제 전송·create/update·권한·삭제/복원 필요 |
+| G7 게시물 첨부 표시 | PARTIAL | G7 `e64381dd` 기준 patch 4개 clean apply, 계약 23/23, 실제 browser single/multipart→Ready→첨부 2개 create/update 유지와 private thumbnail 302/200 PASS; upstream 반영·권한·삭제/복원 필요 |
 
 ## 준비된 하네스
 
@@ -72,8 +72,8 @@ round-trip과 전체 `cargo xtask native-smoke`를 다시 통과했습니다.
 ## 범위 경계
 
 현재 코드는 batch intent, multipart part/complete/abort, SQLite lease/heartbeat, worker 실행
-loop, 원본 검사·master+thumbnail/poster, lifecycle cleanup과 G7 관리자/브라우저 제어 업로더까지 구현됐습니다. 실제 R2/Lightsail
-conformance, G7 게시물 실제 전송·첨부 표시·권한·삭제/복원, G5, G7 관리자 전용 asset picker browser smoke,
+loop, 원본 검사·master+thumbnail/poster, lifecycle cleanup과 G7 관리자/브라우저 직접 업로더·첨부 표시까지 구현됐습니다. 실제 R2/Lightsail
+conformance, G7 타 사용자·비밀글·삭제글 권한과 삭제/복원, G5, G7 관리자 전용 asset picker browser smoke,
 실제 S3/R2·5GiB와
 filesystem quota 증거는 구현 완료로 표시하지 않습니다. 멀티노드는 v1 범위가
 아니며 각 기능은 `SPEC.md` 완료 정의를 만족한 뒤에만 완료 처리합니다.

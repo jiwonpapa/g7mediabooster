@@ -3,7 +3,7 @@
   "injections": [
     {
       "target_id": "board_native_file_uploader",
-      "position": "prepend",
+      "position": "replace",
       "components": [
         {
           "id": "g7mb_user_uploader_mount",

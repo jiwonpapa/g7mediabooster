@@ -213,6 +213,8 @@ pub struct UploadIntentResponse {
     /// Headers that must be sent exactly as signed.
     pub required_headers: std::collections::BTreeMap<String, String>,
     /// Reservation and any returned signature expiration.
+    #[schema(value_type = String, format = DateTime)]
+    #[serde(with = "time::serde::rfc3339")]
     pub expires_at: OffsetDateTime,
 }
 
@@ -243,6 +245,8 @@ pub struct PresignUploadPartResponse {
     /// Signed request headers.
     pub required_headers: std::collections::BTreeMap<String, String>,
     /// Signature expiration.
+    #[schema(value_type = String, format = DateTime)]
+    #[serde(with = "time::serde::rfc3339")]
     pub expires_at: OffsetDateTime,
 }
 
@@ -313,6 +317,8 @@ pub struct DerivativeDeliveryResponse {
     /// Sensitive provider GET URL. It must never be logged.
     pub delivery_url: String,
     /// Provider signature expiration.
+    #[schema(value_type = String, format = DateTime)]
+    #[serde(with = "time::serde::rfc3339")]
     pub expires_at: OffsetDateTime,
     /// Trusted encoded content type.
     pub content_type: String,
@@ -335,4 +341,59 @@ pub struct UploadStatusResponse {
     pub deletion_pending: bool,
     /// Immutable derivatives available to the application.
     pub derivatives: Vec<UploadDerivativeResponse>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        DerivativeDeliveryResponse, PresignUploadPartResponse, UploadIntentResponse, UploadMethod,
+    };
+    use std::collections::BTreeMap;
+    use time::OffsetDateTime;
+    use uuid::Uuid;
+
+    #[test]
+    fn public_expiration_fields_are_rfc3339_strings() -> Result<(), Box<dyn std::error::Error>> {
+        let expires_at = OffsetDateTime::from_unix_timestamp_nanos(1_784_205_296_789_000_000)?;
+        let upload = UploadIntentResponse {
+            client_ref: "client-1".to_owned(),
+            upload_id: Uuid::nil(),
+            method: UploadMethod::SinglePut,
+            part_size_bytes: None,
+            upload_url: Some("https://storage.invalid/upload".to_owned()),
+            required_headers: BTreeMap::new(),
+            expires_at,
+        };
+        let part = PresignUploadPartResponse {
+            part_number: 1,
+            upload_url: "https://storage.invalid/part".to_owned(),
+            required_headers: BTreeMap::new(),
+            expires_at,
+        };
+        let delivery = DerivativeDeliveryResponse {
+            upload_id: Uuid::nil(),
+            preset_id: "board-default-v1".to_owned(),
+            variant: "thumbnail".to_owned(),
+            delivery_url: "https://storage.invalid/delivery".to_owned(),
+            expires_at,
+            content_type: "image/jpeg".to_owned(),
+            byte_len: 512,
+        };
+
+        for value in [
+            serde_json::to_value(&upload)?,
+            serde_json::to_value(&part)?,
+            serde_json::to_value(&delivery)?,
+        ] {
+            assert_eq!(
+                value.get("expires_at").and_then(serde_json::Value::as_str),
+                Some("2026-07-16T12:34:56.789Z")
+            );
+        }
+
+        let roundtrip =
+            serde_json::from_value::<DerivativeDeliveryResponse>(serde_json::to_value(&delivery)?)?;
+        assert_eq!(roundtrip, delivery);
+        Ok(())
+    }
 }

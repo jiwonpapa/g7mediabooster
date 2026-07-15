@@ -189,8 +189,10 @@ fn settings_from_environment() -> Result<StorageSettings, Box<dyn std::error::Er
     Ok(StorageSettings {
         endpoint_url: Some(endpoint),
         region: "us-east-1".to_owned(),
-        raw_bucket: format!("g7mb-raw-{suffix}"),
-        derivative_bucket: format!("g7mb-media-{suffix}"),
+        raw_bucket: env::var("G7MB_TEST_S3_RAW_BUCKET")
+            .unwrap_or_else(|_| format!("g7mb-raw-{suffix}")),
+        derivative_bucket: env::var("G7MB_TEST_S3_DERIVATIVE_BUCKET")
+            .unwrap_or_else(|_| format!("g7mb-media-{suffix}")),
         access_key_id: SecretString::from(access_key),
         secret_access_key: SecretString::from(secret_key),
         force_path_style: true,

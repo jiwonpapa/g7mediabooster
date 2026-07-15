@@ -37,4 +37,7 @@
 이번 smoke는 설정과 user/admin form 주입, disabled fail-safe까지 검증했습니다. Rust API와
 실제 object storage를 연결한 전송, Ready→native attachment create/update, 비밀글·삭제글
 viewer 차단, soft-delete·복원·보존 만료 삭제는 아직 실브라우저 PASS가 아닙니다. 따라서
-배포 설명에는 G7 게시물 자동 첨부 연동을 공식 지원 기능으로 게시하지 않습니다.
+이 초기 smoke만으로는 G7 게시물 자동 첨부 연동을 공식 지원 기능으로 게시하지 않습니다.
+
+이 초기 disabled smoke 뒤 실제 저장소 연결 결과는
+[G7 저장소 browser E2E](G7_STORAGE_E2E_20260716.md)에서 이어집니다.

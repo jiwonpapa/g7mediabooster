@@ -21,19 +21,23 @@
 - queue depth·oldest age·dead-letter와 worker 단계별 Prometheus 메트릭
 - provider orphan bounded audit/prune, 검증된 SQLite backup·격리 restore rehearsal
 - upload·orphan tombstone 기본 365일 보존과 bounded purge
-- G7 관리자 설정·HMAC policy 동기화, 소유권 적용 제어 API와 programmatic browser uploader
+- G7 관리자 설정·HMAC policy 동기화와 실제 브라우저 single/multipart 직접 업로드
+- Ready 결과의 G7 native attachment 연결·표시, 게시글 수정 후 첨부 유지
+- G7 권한 확인 뒤 private master/thumbnail 302 redirect와 저장소 200 전달
 
 다음 항목은 구현·실환경 검증 전 공식 지원 기능으로 게시하지 않습니다.
 
-- 실제 G7 브라우저 전송·create/update까지 아직 검증하지 않은 게시물 자동 첨부·표시·삭제/복원 연동
+- upstream patch `0001`~`0004`를 적용하지 않은 Gnuboard7 배포
+- G7 타 사용자·비밀글·삭제글 viewer, 첨부 삭제·게시글 soft-delete/복원·보존 만료 연동
 - 멀티노드, PostgreSQL queue, 임의 URL query 기반 동적 리사이즈
 - MOV/WebM release fixture, 영상 트랜스코딩·metadata 제거, HEVC/AV1 Rust 폴백
 - S3의 ACL, Object Lock, replication, inventory, IAM/STS, SSE-KMS 관리 기능
 - 실계정 conformance를 아직 통과하지 않은 R2 또는 Lightsail profile
 
-G7 module 0.3.0의 설치·관리자 설정·user/admin form 주입·disabled fail-safe는 실제 browser
-smoke를 통과했습니다. Ready→native attachment, 권한 기반 viewer redirect와 보존기간 삭제
-대조는 실제 저장소 전송과 create/update·권한·삭제/복원 smoke 전에는 공식 지원으로 승격하지 않습니다.
+G7 module 0.3.0의 설치·관리자 설정·user/admin form 주입·disabled fail-safe와 MinIO 기반 실제
+single/multipart 전송, Ready→native attachment create/update 유지, private thumbnail 전달은 격리
+browser E2E를 통과했습니다. 이 범위는 upstream patch `0001`~`0004` 적용을 전제로 공식 게시합니다.
+타 사용자·비밀글·삭제글 권한과 삭제/복원·보존기간 대조는 해당 smoke 전에는 게시하지 않습니다.
 
 ## 공식 object storage 지원 범위
 

@@ -18,7 +18,9 @@
 3. PHP가 원격 파일 바이트를 읽지 않는 `AttachmentService::authorizeDelivery()`
 4. download/preview URL filter, 영상 poster URL, 사용자·관리자 form의 안정적인 layout extension ID
 5. 모듈 접두사가 붙은 다른 모듈 레이아웃에도 overlay를 적용하는 G7 core 계약
-6. 저장소·URL filter·module overlay 회귀 테스트와 `sirsoft-board` 버전/변경 이력 동기화
+6. 조건부 partial이 같은 안정 ID를 재사용할 때 모든 일치 분기에 overlay를 적용하는 계약
+7. ID 일괄 연결 뒤 `attachments_count`를 같은 트랜잭션에서 재계산하는 계약
+8. 저장소·URL filter·module overlay 회귀 테스트와 `sirsoft-board` 버전/변경 이력 동기화
 
 기존 patch가 admin FormRequest만 보강하고 실제 사용자 PostController가 쓰는 `User/*Request`를
 놓친 문제를 현재 기준에서 수정했습니다. 계약 검증기는 admin·user 경로를 각각 검사합니다.
@@ -31,6 +33,10 @@ git apply --check /path/to/G7MediaBooster/adapters/gnuboard7/upstream-contract/0
 git apply /path/to/G7MediaBooster/adapters/gnuboard7/upstream-contract/0001-*.patch
 git apply --check /path/to/G7MediaBooster/adapters/gnuboard7/upstream-contract/0002-*.patch
 git apply /path/to/G7MediaBooster/adapters/gnuboard7/upstream-contract/0002-*.patch
+git apply --check /path/to/G7MediaBooster/adapters/gnuboard7/upstream-contract/0003-*.patch
+git apply /path/to/G7MediaBooster/adapters/gnuboard7/upstream-contract/0003-*.patch
+git apply --check /path/to/G7MediaBooster/adapters/gnuboard7/upstream-contract/0004-*.patch
+git apply /path/to/G7MediaBooster/adapters/gnuboard7/upstream-contract/0004-*.patch
 
 /path/to/G7MediaBooster/scripts/verify-gnuboard7-media-contract.sh "$PWD"
 php artisan test \
@@ -39,7 +45,9 @@ php artisan test \
   modules/_bundled/sirsoft-board/tests/Unit/AttachmentServiceTest.php \
   modules/_bundled/sirsoft-board/tests/Unit/AttachmentUrlFilterTest.php
 php artisan test tests/Unit/Services/LayoutExtensionServiceTest.php \
-  --filter='module_prefixed_requested_layout|applies_overlay_at_correct_position'
+  --filter='module_prefixed_requested_layout|every_matching_target'
+php artisan test modules/_bundled/sirsoft-board/tests/Feature/CountSyncIntegrationTest.php \
+  --filter='post_create_with_attachment_ids_syncs_attachments_count'
 ```
 
 dirty 작업 트리에는 바로 적용하지 않습니다. 먼저 별도 브랜치나 깨끗한 worktree에서

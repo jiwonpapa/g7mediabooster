@@ -1,0 +1,140 @@
+diff --git a/app/Services/LayoutExtensionService.php b/app/Services/LayoutExtensionService.php
+index cdc338c1..1cbaea90 100644
+--- a/app/Services/LayoutExtensionService.php
++++ b/app/Services/LayoutExtensionService.php
+@@ -883,23 +883,28 @@ private function applyOverlays(array $layout, int $templateId, array $targetName
+      */
+     private function injectAtTarget(array &$components, string $targetId, string $position, array $newComponents): bool
+     {
++        $injected = false;
++
+         foreach ($components as $index => &$component) {
+             // 타겟 ID 발견
+             if (($component['id'] ?? '') === $targetId) {
+                 $this->injectComponents($components, $component, $index, $position, $newComponents);
++                $injected = true;
+ 
+-                return true;
++                // 형제 배열을 변경한 뒤 같은 노드의 children까지 다시 순회하면
++                // replace/prepend/append에서 참조가 불안정해질 수 있으므로 다음 형제로 진행합니다.
++                continue;
+             }
+ 
+             // 자식에서 재귀 탐색
+             if (isset($component['children']) && is_array($component['children'])) {
+                 if ($this->injectAtTarget($component['children'], $targetId, $position, $newComponents)) {
+-                    return true;
++                    $injected = true;
+                 }
+             }
+         }
+ 
+-        return false;
++        return $injected;
+     }
+ 
+     /**
+@@ -970,6 +975,8 @@ private function injectComponents(
+      */
+     private function injectPropsAtTarget(array &$components, string $targetId, array $propsToInject, ?array $injectMeta = null): bool
+     {
++        $injected = false;
++
+         foreach ($components as &$component) {
+             if (($component['id'] ?? '') === $targetId) {
+                 $this->injectProps($component, $propsToInject);
+@@ -982,17 +989,19 @@ private function injectPropsAtTarget(array &$components, string $targetId, array
+                     $component['__injectedProps'][] = $injectMeta;
+                 }
+ 
+-                return true;
++                $injected = true;
++
++                continue;
+             }
+ 
+             if (isset($component['children']) && is_array($component['children'])) {
+                 if ($this->injectPropsAtTarget($component['children'], $targetId, $propsToInject, $injectMeta)) {
+-                    return true;
++                    $injected = true;
+                 }
+             }
+         }
+ 
+-        return false;
++        return $injected;
+     }
+ 
+     /**
+diff --git a/tests/Unit/Services/LayoutExtensionServiceTest.php b/tests/Unit/Services/LayoutExtensionServiceTest.php
+index d0ebe502..a8af19ae 100644
+--- a/tests/Unit/Services/LayoutExtensionServiceTest.php
++++ b/tests/Unit/Services/LayoutExtensionServiceTest.php
+@@ -612,6 +612,67 @@ public function test_applies_overlay_to_module_prefixed_requested_layout(): void
+         $this->assertSame('admin_board_native_file_uploader', $result['components'][1]['id']);
+     }
+ 
++    /**
++     * 조건부 폼이 같은 partial을 여러 번 재사용하면 렌더 시점에는 한 분기만 보이지만,
++     * 병합된 JSON 트리에는 같은 안정 ID가 여러 개 존재한다. 모든 일치 노드에 컴포넌트와
++     * props를 적용해야 basic/gallery/card 어느 분기에서도 확장이 빠지지 않는다.
++     */
++    public function test_applies_component_and_props_injections_to_every_matching_target(): void
++    {
++        LayoutExtension::create([
++            'template_id' => $this->template->id,
++            'extension_type' => LayoutExtensionType::Overlay,
++            'target_name' => 'board/form',
++            'source_type' => LayoutSourceType::Module,
++            'source_identifier' => 'sirsoft-marketing',
++            'content' => [
++                'target_layout' => 'board/form',
++                'injections' => [
++                    [
++                        'target_id' => 'native_uploader',
++                        'position' => 'replace',
++                        'components' => [[
++                            'id' => 'external_uploader',
++                            'type' => 'basic',
++                            'name' => 'Div',
++                        ]],
++                    ],
++                    [
++                        'target_id' => 'submit_button',
++                        'position' => 'inject_props',
++                        'props' => ['disabled' => true],
++                    ],
++                ],
++            ],
++            'priority' => 100,
++            'is_active' => true,
++        ]);
++
++        $branch = static fn (): array => [
++            'type' => 'basic',
++            'name' => 'Div',
++            'children' => [
++                ['id' => 'native_uploader', 'type' => 'basic', 'name' => 'Div'],
++                [
++                    'id' => 'submit_button',
++                    'type' => 'basic',
++                    'name' => 'Button',
++                    'props' => ['disabled' => false],
++                ],
++            ],
++        ];
++
++        $result = $this->service->applyExtensions([
++            'layout_name' => 'board/form',
++            'components' => [$branch(), $branch(), $branch()],
++        ], $this->template->id);
++
++        foreach ($result['components'] as $renderBranch) {
++            $this->assertSame('external_uploader', $renderBranch['children'][0]['id']);
++            $this->assertTrue($renderBranch['children'][1]['props']['disabled']);
++        }
++    }
++
+     /**
+      * Overlay 확장이 호스트 레이아웃 init_actions 뒤에 초기화 액션을 병합한다.
+      *

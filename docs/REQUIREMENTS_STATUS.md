@@ -11,8 +11,8 @@
 | 3 동영상 업로드 | PASS | MP4/H.264 직접 업로드·검사·master·poster | MOV/WebM은 release fixture 전 공식 게시 제외 |
 | 4 최신 포맷 | PASS | JPEG/PNG/GIF/WebP/AVIF/HEIC·HEIF runtime decode gate | JPEG XL, 영상 HEVC/AV1은 v1 제외 |
 | 5 진짜 파일·보안 | PASS | signature, 실제 decode/ffprobe, digest, hard limit, no-network sandbox | ClamAV·moderation은 선택 hook |
-| 6 G7 연동 | PARTIAL | patch 2개 clean apply, 계약 21/21·핵심 PHP 48/48·core overlay 2/2, module PHP 55/137·TS 17, 격리 설치·설정·user/admin form disabled smoke PASS | patch 정식 반영, 실제 저장소 전송과 사용자/권한별 create/update/삭제/복원 browser smoke |
-| 7 다중 업로드 | PASS | 1~100개, 파일·part·전체 연결 bounded 병렬 처리 | 실 브라우저/provider 부하 재측정 |
+| 6 G7 연동 | PARTIAL | patch 4개 clean apply, 계약 23/23, module gate PASS, 격리 설치·설정과 실제 browser single/multipart→Ready→첨부 2개 create/update 유지→private thumbnail 302/200 PASS | patch 정식 반영, 타 사용자·비밀글·삭제글 권한과 삭제/복원 browser smoke |
+| 7 다중 업로드 | PASS | 1~100개 bounded 병렬 처리, 실제 G7 브라우저에서 single PUT와 2-part multipart 동시 첨부 PASS | 실 provider 부하 재측정 |
 | 8 대용량 streaming | PARTIAL | PHP/Rust body를 거치지 않는 object storage 직접 multipart | 실계정 5GiB 중단·재개·RSS 증거 |
 | 9 EXIF 개인정보 | PASS | 이미지 orientation 적용 후 EXIF/GPS/XMP/IPTC 제거 | 영상 metadata 제거는 공식 범위 아님 |
 | 10 썸네일 | PASS | eager 1,280px JPEG, 불변 key, 원자적 Ready, private signed GET, 4MiB/60초 weighted manifest cache·singleflight·삭제 guard | 공개 CDN profile은 선택 기능이며 v1 필수 범위 아님 |
@@ -33,6 +33,6 @@
 
 ## 배포 게시 금지 항목
 
-G7 실제 저장소 전송·create/update 미검증 상태의 게시물 자동 첨부·표시·삭제/복원, 멀티노드/PostgreSQL, 임의 동적 리사이즈, 영상 트랜스코딩·metadata 제거,
+upstream patch 미적용 G7, 미검증 G7 권한·삭제/복원, 멀티노드/PostgreSQL, 임의 동적 리사이즈, 영상 트랜스코딩·metadata 제거,
 MOV/WebM release 지원, S3 관리 기능 전체, 실계정 conformance 전 R2/Lightsail profile은 공식
 지원 기능으로 게시하지 않습니다.

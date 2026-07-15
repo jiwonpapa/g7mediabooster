@@ -80,7 +80,7 @@ final class BridgeContractSourceTest extends TestCase
         self::assertIsArray($uploader);
         self::assertIsArray($submit);
         self::assertSame($uploaderTarget, $uploader['target_id'] ?? null);
-        self::assertSame('prepend', $uploader['position'] ?? null);
+        self::assertSame('replace', $uploader['position'] ?? null);
         self::assertSame(
             'jiwonpapa-g7mediabooster.mountUploader',
             $uploader['components'][0]['lifecycle']['onMount'][0]['handler'] ?? null,

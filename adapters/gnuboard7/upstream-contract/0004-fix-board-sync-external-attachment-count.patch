@@ -1,0 +1,80 @@
+diff --git a/modules/_bundled/sirsoft-board/src/Services/PostService.php b/modules/_bundled/sirsoft-board/src/Services/PostService.php
+index fb075edb..c191fafc 100644
+--- a/modules/_bundled/sirsoft-board/src/Services/PostService.php
++++ b/modules/_bundled/sirsoft-board/src/Services/PostService.php
+@@ -795,6 +795,10 @@ private function linkAttachments(
+                 throw new AccessDeniedHttpException(__('auth.scope_denied'));
+             }
+             if ($linkedCount > 0) {
++                // ID 일괄 연결은 Eloquent 모델 이벤트와 after_link 훅을 우회하므로
++                // 상세/목록 응답의 attachments_count를 트랜잭션 안에서 직접 동기화합니다.
++                $this->postRepository->recalculateAttachmentsCount($postId);
++
+                 Log::info("{$context} 시 첨부파일 ID로 연결 완료", [
+                     'board_slug' => $slug,
+                     'post_id' => $postId,
+diff --git a/modules/_bundled/sirsoft-board/tests/Feature/CountSyncIntegrationTest.php b/modules/_bundled/sirsoft-board/tests/Feature/CountSyncIntegrationTest.php
+index 66fd6798..e4f68d08 100644
+--- a/modules/_bundled/sirsoft-board/tests/Feature/CountSyncIntegrationTest.php
++++ b/modules/_bundled/sirsoft-board/tests/Feature/CountSyncIntegrationTest.php
+@@ -5,8 +5,10 @@
+ // ModuleTestCase를 수동으로 require (autoload 전에 로드 필요)
+ require_once __DIR__.'/../ModuleTestCase.php';
+ 
++use App\Models\User;
+ use Illuminate\Support\Facades\DB;
+ use Illuminate\Support\Facades\Queue;
++use Modules\Sirsoft\Board\Models\Attachment;
+ use Modules\Sirsoft\Board\Models\Board;
+ use Modules\Sirsoft\Board\Services\CommentService;
+ use Modules\Sirsoft\Board\Services\PostService;
+@@ -228,6 +230,49 @@ public function test_post_create_increments_board_posts_count(): void
+         );
+     }
+ 
++    /**
++     * ID 기반 임시 첨부 연결은 bulk update라 모델 훅을 발화하지 않는다.
++     * 게시글 생성 응답 시점에 attachments_count가 실제 연결 수와 같아야 한다.
++     */
++    public function test_post_create_with_attachment_ids_syncs_attachments_count(): void
++    {
++        $user = User::factory()->create();
++        $this->actingAs($user);
++
++        $attachment = Attachment::create([
++            'board_id' => 0,
++            'post_id' => null,
++            'temp_key' => null,
++            'original_filename' => 'external.jpg',
++            'stored_filename' => 'external.jpg',
++            'disk' => 'external-media',
++            'path' => '019f66a7-0000-7000-8000-000000000001',
++            'mime_type' => 'image/jpeg',
++            'size' => 1024,
++            'collection' => 'post_attachments',
++            'order' => 1,
++            'created_by' => $user->id,
++        ]);
++
++        $post = app(PostService::class)->createPost(
++            $this->slug,
++            [
++                'user_id' => $user->id,
++                'title' => '외부 첨부 카운트',
++                'content' => '본문',
++                'content_mode' => 'text',
++                'author_name' => $user->name,
++                'ip_address' => '127.0.0.1',
++                'is_notice' => false,
++                'is_secret' => false,
++            ],
++            attachmentIds: [$attachment->id],
++        );
++
++        $this->assertSame(1, $post->refresh()->attachments_count);
++        $this->assertSame($post->id, $attachment->refresh()->post_id);
++    }
++
+     /**
+      * drift 상태에서 댓글 생성 훅이 발화되면 카운트가 정확히 재동기화되어야 합니다.
+      * (Listener 는 증분 연산이 아닌 COUNT(*) 재계산 방식이라 drift 복구 가능)

@@ -13,6 +13,7 @@ admin_attachments="$board/resources/layouts/admin/partials/admin_board_post_form
 admin_form="$board/resources/layouts/admin/admin_board_post_form.json"
 user_store_request="$board/src/Http/Requests/User/StorePostRequest.php"
 user_update_request="$board/src/Http/Requests/User/UpdatePostRequest.php"
+layout_extension_service="$root/app/Services/LayoutExtensionService.php"
 failures=0
 
 require_pattern() {
@@ -36,6 +37,9 @@ require_pattern "$board/src/Repositories/AttachmentRepository.php" \
 require_pattern "$board/src/Services/PostService.php" \
   '\$linkedCount !== count\(\$normalizedIds\)' \
   'all-or-nothing attachment link check'
+require_pattern "$board/src/Services/PostService.php" \
+  'recalculateAttachmentsCount\(\$postId\)' \
+  'bulk attachment link synchronizes post count'
 require_pattern "$board/src/Http/Controllers/User/PostController.php" \
   'attachmentIds: \$attachmentIds' \
   'user create passes attachment IDs'
@@ -85,10 +89,13 @@ require_pattern "$admin_attachments" '"id": "admin_board_native_file_uploader"' 
   'admin attachment uploader layout target'
 require_pattern "$admin_form" '"id": "footer_save_button"' \
   'admin submit layout target'
+require_pattern "$layout_extension_service" \
+  'return \$injected;' \
+  'layout overlay applies to every matching target'
 
 if (( failures > 0 )); then
   echo "Gnuboard7 media contract: FAIL ($failures missing)" >&2
   exit 1
 fi
 
-echo "Gnuboard7 media contract: PASS (21/21)"
+echo "Gnuboard7 media contract: PASS (23/23)"

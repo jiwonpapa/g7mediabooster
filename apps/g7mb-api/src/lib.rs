@@ -2109,6 +2109,8 @@ mod tests {
             Some(&header::HeaderValue::from_static("no-store"))
         );
         let body = response.into_body().collect().await?.to_bytes();
+        let raw_delivery = serde_json::from_slice::<serde_json::Value>(&body)?;
+        assert!(raw_delivery["expires_at"].is_string());
         let delivery = serde_json::from_slice::<DerivativeDeliveryResponse>(&body)?;
         assert_eq!(delivery.upload_id, upload_id.as_uuid());
         assert_eq!(delivery.variant, "thumbnail");

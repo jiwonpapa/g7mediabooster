@@ -80,3 +80,14 @@ jobs:
         run: docker version
       - name: Run pinned MinIO S3 protocol conformance
         run: cargo xtask storage-conformance
+
+  full-stack-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - name: Install native runtime
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends pkg-config libvips-dev libvips-tools ffmpeg
+      - name: Run actual API, MinIO, worker, and sandbox media flow
+        run: cargo xtask full-stack-smoke

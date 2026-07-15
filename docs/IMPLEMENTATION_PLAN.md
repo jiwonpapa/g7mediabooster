@@ -119,8 +119,9 @@ G7 모듈은 세션·게시판 권한·첨부 연결의 진실 원천이고, Rus
   FFmpeg/FFprobe child 상속 및 실제 Linux `EPERM` 테스트 구현
 - 품질 게이트: 전체 CI와 API smoke, Rust line coverage 84.64%, G7 PHP/TS unit·build 통과
 
-남은 핵심 게이트는 실제 R2/Lightsail credential·5GiB 검증, G7 upstream merge·실제 저장소
-전송·create/update·권한·삭제/복원 smoke와 G7 관리자 전용 watermark asset picker browser smoke입니다. 외부 저장소 하네스와
+남은 핵심 게이트는 실제 R2/Lightsail credential·5GiB 검증, G7 upstream merge·권한·삭제/복원
+smoke와 G7 관리자 전용 watermark asset picker browser smoke입니다. G7 MinIO 기반 실제 저장소
+전송·create/update·private thumbnail 전달은 통과했습니다. 외부 저장소 하네스와
 2026-07-16 실행 인계서는 구현됐습니다.
 
 ### 단계 0 — 계약 변경
@@ -199,16 +200,18 @@ bounded 동시성, 진행률·취소·재시도·ETag/abort, Ready polling·nati
 권한 기반 preview/download와 관리자 capability proxy가 구현됐습니다. PHP는 file body를
 받지 않습니다. upstream patch가 실제 G7에 반영되기 전에는 runtime 계약 검사로 fail-closed 합니다.
 
-준비한 G7 공개 확장 계약은 네 개입니다.
+준비한 G7 공개 확장 계약은 여섯 개입니다.
 
 1. 사용자·관리자 첨부 UI와 submit을 겨냥하는 안정적인 layout extension ID
 2. CDN/Rust URL을 반환하는 download/preview URL filter와 byte-free 권한 검사
 3. `attachment_ids`의 owner·list·최대 수·전건 일치 연결
 4. module-prefixed 레이아웃에도 다른 모듈 overlay를 적용하는 core 요청명 계약
+5. 조건부 partial의 모든 동일 target에 overlay를 적용하는 core 병합 계약
+6. `attachment_ids` bulk link 직후 게시글 첨부 수를 동기화하는 계약
 
-이는 현재 G7 기준 `sirsoft-board` 1.2.0과 core patch, 21항목 검증기로 고정했습니다. 설치·설정·
-user/admin form disabled smoke는 통과했으며 실제 저장소 전송과 create/update·권한·삭제/복원
-smoke 전에는 공식 지원으로 게시하지 않습니다.
+이는 현재 G7 기준 `sirsoft-board` 1.2.0과 patch 4개, 23항목 검증기로 고정했습니다. 설치·설정,
+user/admin form과 MinIO 기반 실제 single/multipart 전송·create/update·private thumbnail 전달은
+통과했습니다. upstream 미반영 배포와 미검증 권한·삭제/복원은 공식 지원으로 게시하지 않습니다.
 
 #### 썸네일 URL·캐시
 

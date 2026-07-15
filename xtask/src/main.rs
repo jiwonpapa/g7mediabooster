@@ -54,6 +54,8 @@ enum Harness {
     CgroupSmoke,
     /// Run live S3-compatible single/multipart/abort conformance against pinned MinIO.
     StorageConformance,
+    /// Run API, MinIO, worker, and native sandbox through real single and multipart media jobs.
+    FullStackSmoke,
     /// Run credential-gated conformance against an existing S3-compatible provider bucket.
     LiveStorageConformance,
     /// Prove online snapshot, SHA-256, retention, read-only verify, and isolated restore.
@@ -94,6 +96,7 @@ fn main() -> anyhow::Result<()> {
         Harness::HeavyAvif => run("bash", ["scripts/heavy-avif.sh"]),
         Harness::CgroupSmoke => run("bash", ["scripts/cgroup-smoke.sh"]),
         Harness::StorageConformance => run("bash", ["scripts/storage-conformance.sh"]),
+        Harness::FullStackSmoke => run("bash", ["scripts/full-stack-smoke.sh"]),
         Harness::LiveStorageConformance => run("bash", ["scripts/live-storage-conformance.sh"]),
         Harness::DatabaseRecovery => cargo([
             "test",
