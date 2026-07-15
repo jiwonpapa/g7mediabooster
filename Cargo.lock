@@ -1274,6 +1274,7 @@ dependencies = [
  "g7mb-domain",
  "secrecy",
  "sqlx",
+ "tempfile",
  "thiserror 2.0.18",
  "time",
  "tokio",

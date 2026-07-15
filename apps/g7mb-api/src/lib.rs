@@ -1350,6 +1350,7 @@ mod tests {
     #[derive(Default)]
     struct ApiFakeStore {
         head_length: AtomicU64,
+        puts: AtomicU64,
     }
 
     #[async_trait]
@@ -1358,6 +1359,7 @@ mod tests {
             &self,
             request: PresignPutRequest,
         ) -> Result<PresignedUpload, ObjectStoreError> {
+            self.puts.fetch_add(1, Ordering::Relaxed);
             Ok(PresignedUpload {
                 url: SecretString::from(format!("https://storage.invalid/{}", request.key)),
                 required_headers: BTreeMap::new(),
@@ -1663,17 +1665,22 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn signed_batch_returns_stable_backpressure_before_more_presigns()
+    async fn signed_batch_byte_quota_returns_stable_backpressure_before_more_presigns()
     -> Result<(), Box<dyn std::error::Error>> {
         let database = Arc::new(SqliteStore::connect("sqlite::memory:", 1).await?);
         let storage = Arc::new(ApiFakeStore::default());
         let secret = SecretString::from("0123456789abcdef0123456789abcdef".to_owned());
-        let service =
-            UploadIntentService::new(storage, database.clone(), UploadBatchPolicy::default())
-                .with_capacity_policy(UploadCapacityPolicy {
-                    max_active_global: 1,
-                    max_active_per_tenant: 1,
-                });
+        let service = UploadIntentService::new(
+            storage.clone(),
+            database.clone(),
+            UploadBatchPolicy::default(),
+        )
+        .with_capacity_policy(UploadCapacityPolicy {
+            max_active_global: 10,
+            max_active_per_tenant: 10,
+            max_reserved_bytes_global: 1024,
+            max_reserved_bytes_per_tenant: 1024,
+        });
         let state = ApiState::new(true, None).with_upload_control(
             service,
             database,
@@ -1702,6 +1709,7 @@ mod tests {
             )?)
             .await?;
         assert_eq!(first.status(), StatusCode::CREATED);
+        assert_eq!(storage.puts.load(Ordering::Relaxed), 1);
 
         let limited = router(state, 1024 * 1024)
             .oneshot(signed_request(
@@ -1716,6 +1724,7 @@ mod tests {
         let limited_body = limited.into_body().collect().await?.to_bytes();
         let error = serde_json::from_slice::<g7mb_contracts::ErrorResponse>(&limited_body)?;
         assert_eq!(error.code, "UPLOAD_CAPACITY_EXHAUSTED");
+        assert_eq!(storage.puts.load(Ordering::Relaxed), 1);
         Ok(())
     }
 

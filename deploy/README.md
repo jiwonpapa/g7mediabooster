@@ -16,6 +16,7 @@
 - 썸네일 bytes가 아닌 immutable manifest만 기본 4MiB·60초로 제한하는 LRU/frequency cache와 singleflight
 - 위치·여백·비율·투명도가 제한된 revision 고정 워터마크
 - SQLite WAL 단일 노드 durable queue, lease 복구, backpressure, lifecycle cleanup
+- 전역·tenant retained-source byte quota와 tombstone 완료 후 용량 반환
 - G7 관리자 설정·HMAC policy 동기화, 소유권 적용 제어 API와 programmatic browser uploader
 
 다음 항목은 구현·실환경 검증 전 공식 지원 기능으로 게시하지 않습니다.

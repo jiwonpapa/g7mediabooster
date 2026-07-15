@@ -85,6 +85,7 @@ API/PHP 프로세스는 원본 전체를 메모리에 적재하지 않습니다.
 - part 기본 크기: 32 MiB, 공급자 하한·상한 안에서 조정
 - bulk lane: 10개 초과 또는 batch 합계 256 MiB 초과
 - 활성 upload 예약: global 1,000개, tenant별 200개
+- 보존 source 예약량: global 1TiB, tenant별 100GiB
 
 숫자는 hard cap이 아니라 안전한 초기 기본값이며 실제 p95/RSS 측정으로 조정합니다. 연결,
 task, channel, retry는 모두 bounded여야 합니다.
@@ -103,8 +104,10 @@ CREATED -> UPLOADED -> QUARANTINED -> PROCESSING -> READY
 - 동일 `upload_id + preset_version`은 하나의 활성 작업만 가집니다.
 - lease 만료 작업은 재시도하고 최대 횟수 초과 시 dead-letter 상태로 둡니다.
 - tenant별 마지막 claim sequence를 영속화해 backlog가 큰 tenant의 독점을 막습니다.
-- batch 생성 전과 원자적 DB 저장 시 활성 예약 capacity를 검사하며 초과 시 presign 없이
+- batch 생성 전과 원자적 DB 저장 시 활성 개수와 보존 source byte capacity를 검사하며 초과 시 presign 없이
   `429 UPLOAD_CAPACITY_EXHAUSTED`를 반환합니다.
+- byte quota는 `created`부터 `ready`·`rejected`·`failed`·삭제 대기까지 예약 크기를 유지하고,
+  원격 객체 정리가 끝나 `deleted` tombstone이 저장된 뒤에만 반환합니다.
 
 ## 6. 포맷 계약
 

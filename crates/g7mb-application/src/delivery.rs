@@ -424,6 +424,7 @@ mod tests {
             &self,
             _tenant_id: &str,
             _additional_uploads: usize,
+            _additional_bytes: u64,
             _capacity: UploadCapacityPolicy,
         ) -> Result<bool, UploadRepositoryError> {
             Ok(true)

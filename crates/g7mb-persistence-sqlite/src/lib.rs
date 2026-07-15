@@ -486,9 +486,10 @@ impl UploadRepository for SqliteStore {
         &self,
         tenant_id: &str,
         additional_uploads: usize,
+        additional_bytes: u64,
         capacity: UploadCapacityPolicy,
     ) -> Result<bool, UploadRepositoryError> {
-        if tenant_id.is_empty() || additional_uploads == 0 {
+        if tenant_id.is_empty() || additional_uploads == 0 || additional_bytes == 0 {
             return Err(UploadRepositoryError::Backend(
                 "capacity preflight input is invalid".to_owned(),
             ));
@@ -509,7 +510,31 @@ impl UploadRepository for SqliteStore {
         .fetch_one(&self.pool)
         .await
         .map_err(upload_backend)?;
-        capacity_allows(global, tenant, additional_uploads, capacity)
+        let global_bytes = sqlx::query_scalar::<_, i64>(
+            "SELECT reserved_bytes FROM storage_usage_global WHERE singleton = 1",
+        )
+        .fetch_one(&self.pool)
+        .await
+        .map_err(upload_backend)?;
+        let tenant_bytes = sqlx::query_scalar::<_, i64>(
+            "SELECT COALESCE(
+                (SELECT reserved_bytes FROM tenant_storage_usage WHERE tenant_id = ?),
+                0
+             )",
+        )
+        .bind(tenant_id)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(upload_backend)?;
+        capacity_allows(
+            global,
+            tenant,
+            global_bytes,
+            tenant_bytes,
+            additional_uploads,
+            additional_bytes,
+            capacity,
+        )
     }
 
     async fn save_batch(
@@ -531,7 +556,7 @@ impl UploadRepository for SqliteStore {
         let file_count = i64::try_from(batch.uploads.len()).map_err(|_| {
             UploadRepositoryError::Backend("batch file count exceeds SQLite range".to_owned())
         })?;
-        let total_size = i64::try_from(total_size).map_err(|_| {
+        let total_size_sql = i64::try_from(total_size).map_err(|_| {
             UploadRepositoryError::Backend("batch byte total exceeds SQLite range".to_owned())
         })?;
         let timestamp = batch.created_at.unix_timestamp();
@@ -556,7 +581,31 @@ impl UploadRepository for SqliteStore {
         .fetch_one(&mut *transaction)
         .await
         .map_err(upload_backend)?;
-        if !capacity_allows(global, tenant, batch.uploads.len(), capacity)? {
+        let global_bytes = sqlx::query_scalar::<_, i64>(
+            "SELECT reserved_bytes FROM storage_usage_global WHERE singleton = 1",
+        )
+        .fetch_one(&mut *transaction)
+        .await
+        .map_err(upload_backend)?;
+        let tenant_bytes = sqlx::query_scalar::<_, i64>(
+            "SELECT COALESCE(
+                (SELECT reserved_bytes FROM tenant_storage_usage WHERE tenant_id = ?),
+                0
+             )",
+        )
+        .bind(&batch.tenant_id)
+        .fetch_one(&mut *transaction)
+        .await
+        .map_err(upload_backend)?;
+        if !capacity_allows(
+            global,
+            tenant,
+            global_bytes,
+            tenant_bytes,
+            batch.uploads.len(),
+            total_size,
+            capacity,
+        )? {
             return Err(UploadRepositoryError::CapacityExhausted);
         }
 
@@ -566,7 +615,7 @@ impl UploadRepository for SqliteStore {
         .bind(batch.batch_id.to_string())
         .bind(&batch.tenant_id)
         .bind(file_count)
-        .bind(total_size)
+        .bind(total_size_sql)
         .bind(timestamp)
         .bind(timestamp)
         .execute(&mut *transaction)
@@ -1429,7 +1478,10 @@ fn queue_backend(error: impl std::fmt::Display) -> JobQueueError {
 fn capacity_allows(
     global: i64,
     tenant: i64,
+    global_bytes: i64,
+    tenant_bytes: i64,
     additional_uploads: usize,
+    additional_bytes: u64,
     capacity: UploadCapacityPolicy,
 ) -> Result<bool, UploadRepositoryError> {
     let global = usize::try_from(global).map_err(|_| {
@@ -1438,10 +1490,21 @@ fn capacity_allows(
     let tenant = usize::try_from(tenant).map_err(|_| {
         UploadRepositoryError::Backend("tenant active upload count is invalid".to_owned())
     })?;
+    let global_bytes = u64::try_from(global_bytes).map_err(|_| {
+        UploadRepositoryError::Backend("global reserved byte count is invalid".to_owned())
+    })?;
+    let tenant_bytes = u64::try_from(tenant_bytes).map_err(|_| {
+        UploadRepositoryError::Backend("tenant reserved byte count is invalid".to_owned())
+    })?;
     if additional_uploads == 0
+        || additional_bytes == 0
         || capacity.max_active_global == 0
         || capacity.max_active_per_tenant == 0
         || capacity.max_active_per_tenant > capacity.max_active_global
+        || capacity.max_reserved_bytes_global == 0
+        || capacity.max_reserved_bytes_per_tenant == 0
+        || capacity.max_reserved_bytes_per_tenant > capacity.max_reserved_bytes_global
+        || capacity.max_reserved_bytes_global > i64::MAX as u64
     {
         return Err(UploadRepositoryError::Backend(
             "upload capacity policy is invalid".to_owned(),
@@ -1452,7 +1515,13 @@ fn capacity_allows(
         .is_some_and(|next| next <= capacity.max_active_global)
         && tenant
             .checked_add(additional_uploads)
-            .is_some_and(|next| next <= capacity.max_active_per_tenant))
+            .is_some_and(|next| next <= capacity.max_active_per_tenant)
+        && global_bytes
+            .checked_add(additional_bytes)
+            .is_some_and(|next| next <= capacity.max_reserved_bytes_global)
+        && tenant_bytes
+            .checked_add(additional_bytes)
+            .is_some_and(|next| next <= capacity.max_reserved_bytes_per_tenant))
 }
 
 fn upload_backend(error: impl std::fmt::Display) -> UploadRepositoryError {
@@ -2221,11 +2290,13 @@ mod tests {
         let capacity = UploadCapacityPolicy {
             max_active_global: 2,
             max_active_per_tenant: 1,
+            max_reserved_bytes_global: 1024 * 1024,
+            max_reserved_bytes_per_tenant: 1024 * 1024,
         };
         let tenant_a = single_image_batch("tenant-a", 1_800_000_000)?;
         store.save_batch(&tenant_a, capacity).await?;
-        assert!(!store.has_capacity("tenant-a", 1, capacity).await?);
-        assert!(store.has_capacity("tenant-b", 1, capacity).await?);
+        assert!(!store.has_capacity("tenant-a", 1, 1024, capacity).await?);
+        assert!(store.has_capacity("tenant-b", 1, 1024, capacity).await?);
 
         let tenant_a_overflow = single_image_batch("tenant-a", 1_800_000_001)?;
         assert!(matches!(
@@ -2234,12 +2305,93 @@ mod tests {
         ));
         let tenant_b = single_image_batch("tenant-b", 1_800_000_001)?;
         store.save_batch(&tenant_b, capacity).await?;
-        assert!(!store.has_capacity("tenant-c", 1, capacity).await?);
+        assert!(!store.has_capacity("tenant-c", 1, 1024, capacity).await?);
 
         sqlx::query("UPDATE uploads SET state = 'ready' WHERE tenant_id = 'tenant-a'")
             .execute(store.pool())
             .await?;
-        assert!(store.has_capacity("tenant-c", 1, capacity).await?);
+        assert!(store.has_capacity("tenant-c", 1, 1024, capacity).await?);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn reserved_byte_quota_is_atomic_and_reclaimed_only_after_tombstone()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let directory = tempfile::tempdir()?;
+        let database_url = format!("sqlite://{}", directory.path().join("quota.db").display());
+        let store = SqliteStore::connect(&database_url, 4).await?;
+        let capacity = UploadCapacityPolicy {
+            max_active_global: 10,
+            max_active_per_tenant: 10,
+            max_reserved_bytes_global: 1024,
+            max_reserved_bytes_per_tenant: 1024,
+        };
+        let first = single_image_batch("tenant-a", 1_800_000_000)?;
+        let second = single_image_batch("tenant-a", 1_800_000_001)?;
+
+        let (first_result, second_result) = tokio::join!(
+            store.save_batch(&first, capacity),
+            store.save_batch(&second, capacity)
+        );
+        assert_ne!(first_result.is_ok(), second_result.is_ok());
+        let rejected = if first_result.is_err() {
+            &first_result
+        } else {
+            &second_result
+        };
+        assert!(matches!(
+            rejected,
+            Err(UploadRepositoryError::CapacityExhausted)
+        ));
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>(
+                "SELECT reserved_bytes FROM storage_usage_global WHERE singleton = 1"
+            )
+            .fetch_one(store.pool())
+            .await?,
+            1024
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>(
+                "SELECT reserved_bytes FROM tenant_storage_usage WHERE tenant_id = 'tenant-a'"
+            )
+            .fetch_one(store.pool())
+            .await?,
+            1024
+        );
+
+        let accepted_upload_id = if first_result.is_ok() {
+            first.uploads[0].upload_id
+        } else {
+            second.uploads[0].upload_id
+        };
+        sqlx::query("UPDATE uploads SET state = 'ready' WHERE id = ?")
+            .bind(accepted_upload_id.to_string())
+            .execute(store.pool())
+            .await?;
+        assert!(!store.has_capacity("tenant-a", 1, 1024, capacity).await?);
+        sqlx::query("UPDATE uploads SET delete_requested_at = ? WHERE id = ?")
+            .bind(1_800_000_002_i64)
+            .bind(accepted_upload_id.to_string())
+            .execute(store.pool())
+            .await?;
+        assert!(!store.has_capacity("tenant-a", 1, 1024, capacity).await?);
+        sqlx::query("UPDATE uploads SET state = 'deleted', deleted_at = ? WHERE id = ?")
+            .bind(1_800_000_003_i64)
+            .bind(accepted_upload_id.to_string())
+            .execute(store.pool())
+            .await?;
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>(
+                "SELECT reserved_bytes FROM storage_usage_global WHERE singleton = 1"
+            )
+            .fetch_one(store.pool())
+            .await?,
+            0
+        );
+        assert!(store.has_capacity("tenant-a", 1, 1024, capacity).await?);
+        let replacement = single_image_batch("tenant-a", 1_800_000_004)?;
+        store.save_batch(&replacement, capacity).await?;
         Ok(())
     }
 

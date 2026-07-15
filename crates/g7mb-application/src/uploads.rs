@@ -81,6 +81,10 @@ pub struct UploadCapacityPolicy {
     pub max_active_global: usize,
     /// Maximum active reservations owned by one tenant.
     pub max_active_per_tenant: usize,
+    /// Maximum retained source bytes across the single-node service.
+    pub max_reserved_bytes_global: u64,
+    /// Maximum retained source bytes owned by one tenant.
+    pub max_reserved_bytes_per_tenant: u64,
 }
 
 impl Default for UploadCapacityPolicy {
@@ -88,6 +92,8 @@ impl Default for UploadCapacityPolicy {
         Self {
             max_active_global: 1_000,
             max_active_per_tenant: 200,
+            max_reserved_bytes_global: 1024 * 1024 * 1024 * 1024,
+            max_reserved_bytes_per_tenant: 100 * 1024 * 1024 * 1024,
         }
     }
 }
@@ -97,6 +103,10 @@ impl UploadCapacityPolicy {
         self.max_active_global > 0
             && self.max_active_per_tenant > 0
             && self.max_active_per_tenant <= self.max_active_global
+            && self.max_reserved_bytes_global > 0
+            && self.max_reserved_bytes_per_tenant > 0
+            && self.max_reserved_bytes_per_tenant <= self.max_reserved_bytes_global
+            && self.max_reserved_bytes_global <= i64::MAX as u64
     }
 }
 
@@ -119,6 +129,7 @@ pub trait UploadRepository: Send + Sync {
         &self,
         tenant_id: &str,
         additional_uploads: usize,
+        additional_bytes: u64,
         capacity: UploadCapacityPolicy,
     ) -> Result<bool, UploadRepositoryError>;
 
@@ -356,12 +367,22 @@ impl UploadIntentService {
             })
             .collect::<Vec<_>>();
         let transfers = self.policy.plan(&candidates)?;
+        let additional_bytes = request
+            .files
+            .iter()
+            .try_fold(0_u64, |total, file| total.checked_add(file.content_length))
+            .ok_or(CreateUploadBatchError::Backpressure)?;
         if !self.capacity.is_valid() {
             return Err(CreateUploadBatchError::Backpressure);
         }
         if !self
             .repository
-            .has_capacity(&request.tenant_id, request.files.len(), self.capacity)
+            .has_capacity(
+                &request.tenant_id,
+                request.files.len(),
+                additional_bytes,
+                self.capacity,
+            )
             .await?
         {
             return Err(CreateUploadBatchError::Backpressure);
@@ -898,6 +919,7 @@ mod tests {
             &self,
             _tenant_id: &str,
             _additional_uploads: usize,
+            _additional_bytes: u64,
             _capacity: UploadCapacityPolicy,
         ) -> Result<bool, UploadRepositoryError> {
             Ok(!self.capacity_exhausted.load(Ordering::Relaxed))

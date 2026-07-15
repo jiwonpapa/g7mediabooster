@@ -254,9 +254,11 @@ active_sandbox_processes × native_threads <= allocated_cpu_cores
 - systemd/cgroup `CPUQuota`, `MemoryMax`, `TasksMax`, 임시 디스크 quota 적용
 - 서버 capacity를 넘으면 queue에서 새 작업을 선점하지 않고 API는 backpressure를 반환
 
-API active reservation 기본값은 global 1,000개, tenant별 200개입니다. batch 생성 전에 먼저
-검사해 불필요한 provider session을 만들지 않고, 저장 시 `BEGIN IMMEDIATE` 안에서 다시 검사해
-경합 우회도 막습니다. 초과 응답은 `429 UPLOAD_CAPACITY_EXHAUSTED`입니다. 만료된 multipart와
+API active reservation 기본값은 global 1,000개, tenant별 200개이며, retained source byte
+quota 기본값은 global 1TiB, tenant별 100GiB입니다. batch 생성 전에 먼저 검사해 불필요한
+provider session을 만들지 않고, 저장 시 `BEGIN IMMEDIATE` 안에서 다시 검사해 경합 우회도
+막습니다. SQLite trigger가 O(1) 전역·tenant 사용량 counter를 원자 갱신하며 삭제 대기 중에는
+용량을 반환하지 않습니다. 초과 응답은 `429 UPLOAD_CAPACITY_EXHAUSTED`입니다. 만료된 multipart와
 created reservation의 자동 abort, rejected/failed 보존 정리와 사용자 삭제 예약은 Stage E
 lifecycle worker로 구현했습니다.
 
@@ -264,7 +266,8 @@ lifecycle worker로 구현했습니다.
 
 - 완료: 미완료 multipart 자동 abort, 사용자 삭제 예약, rejected/failed 원본 보존 만료,
   derivative/raw 객체 정리, G7 soft-delete 보존 대조, tombstone, bounded lease/retry/attempt 상한
-- 남음: orphan inventory 대조, tenant 저장용량 quota, rate limit, tombstone 장기 보존·복구 정책
+- 완료: 전역·tenant retained source byte quota, 원자적 경합 차단, tombstone 이후 용량 반환
+- 남음: orphan inventory 대조, rate limit, tombstone 장기 보존·복구 정책
 - digest 중복 제거는 tenant 내부에서만 수행해 파일 존재 여부 oracle 방지
 - private media signed delivery, CDN purge, cache stampede 방지
 - queue wait/decode/transform/upload p95, RSS, CPU, temp disk, reject code 관측

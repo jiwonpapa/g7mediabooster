@@ -71,6 +71,8 @@ async fn main() -> anyhow::Result<()> {
     .with_capacity_policy(UploadCapacityPolicy {
         max_active_global: settings.upload.max_active_uploads_global,
         max_active_per_tenant: settings.upload.max_active_uploads_per_tenant,
+        max_reserved_bytes_global: settings.upload.max_reserved_bytes_global,
+        max_reserved_bytes_per_tenant: settings.upload.max_reserved_bytes_per_tenant,
     });
     let lifecycle_service = LifecycleService::new(
         raw_store,

@@ -46,6 +46,8 @@ impl Settings {
             .set_default("upload.max_parts_per_file", 4_i64)?
             .set_default("upload.max_active_uploads_global", 1_000_i64)?
             .set_default("upload.max_active_uploads_per_tenant", 200_i64)?
+            .set_default("upload.max_reserved_bytes_global", 1_099_511_627_776_i64)?
+            .set_default("upload.max_reserved_bytes_per_tenant", 107_374_182_400_i64)?
             .set_default("storage.region", "auto")?
             .set_default("storage.force_path_style", false)?
             .set_default("database.url", "sqlite://data/g7mb.db")?
@@ -124,6 +126,10 @@ impl Settings {
             || self.upload.max_active_uploads_global < self.upload.max_batch_files
             || self.upload.max_active_uploads_per_tenant < self.upload.max_batch_files
             || self.upload.max_active_uploads_per_tenant > self.upload.max_active_uploads_global
+            || self.upload.max_reserved_bytes_global < self.upload.max_batch_bytes
+            || self.upload.max_reserved_bytes_per_tenant < self.upload.max_batch_bytes
+            || self.upload.max_reserved_bytes_per_tenant > self.upload.max_reserved_bytes_global
+            || self.upload.max_reserved_bytes_global > i64::MAX as u64
         {
             return Err(ConfigError::Message(
                 "upload settings violate bounded multi-upload limits".to_owned(),
@@ -251,6 +257,10 @@ pub struct UploadSettings {
     pub max_active_uploads_global: usize,
     /// Maximum active reservations for one authenticated tenant.
     pub max_active_uploads_per_tenant: usize,
+    /// Maximum retained source bytes across this service.
+    pub max_reserved_bytes_global: u64,
+    /// Maximum retained source bytes owned by one authenticated tenant.
+    pub max_reserved_bytes_per_tenant: u64,
 }
 
 /// S3-compatible storage configuration.
@@ -450,6 +460,39 @@ asset_sha256 = "NOT-A-SHA256"
             Err(error) => error,
         };
         assert!(error.to_string().contains("watermark settings"));
+        Ok(())
+    }
+
+    #[test]
+    fn reserved_storage_quota_must_cover_one_batch_and_fit_sqlite()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let file = NamedTempFile::new()?;
+        fs::write(
+            file.path(),
+            r#"
+[storage]
+raw_bucket = "raw"
+derivative_bucket = "media"
+access_key_id = "test-access"
+secret_access_key = "test-secret"
+
+[auth]
+key_id = "g7-primary"
+tenant_id = "site-a"
+hmac_secret = "0123456789abcdef0123456789abcdef"
+
+[upload]
+max_reserved_bytes_global = 21474836480
+max_reserved_bytes_per_tenant = 1024
+"#,
+        )?;
+        let error = match Settings::load(Some(file.path())) {
+            Ok(_) => {
+                return Err(std::io::Error::other("invalid quota was accepted").into());
+            }
+            Err(error) => error,
+        };
+        assert!(error.to_string().contains("upload settings"));
         Ok(())
     }
 

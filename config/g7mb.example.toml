@@ -19,6 +19,9 @@ max_browser_connections = 8
 max_parts_per_file = 4
 max_active_uploads_global = 1000
 max_active_uploads_per_tenant = 200
+# Includes created, ready, rejected, failed, and deletion-pending sources.
+max_reserved_bytes_global = 1099511627776
+max_reserved_bytes_per_tenant = 107374182400
 
 [storage]
 # Cloudflare R2: https://<ACCOUNT_ID>.r2.cloudflarestorage.com
