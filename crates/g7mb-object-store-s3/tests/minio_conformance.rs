@@ -9,8 +9,8 @@ use aws_sdk_s3::{
 };
 use g7mb_application::{
     AbortMultipartRequest, CompleteMultipartRequest, CompletedPart, CreateMultipartRequest,
-    DownloadObjectRequest, ListObjectsRequest, ObjectStore as _, PresignGetRequest,
-    PresignPartRequest, PresignPutRequest, PutFileRequest,
+    DownloadObjectRequest, ListObjectsRequest, ObjectStore as _, ObjectStoreError,
+    PresignGetRequest, PresignPartRequest, PresignPutRequest, PutFileRequest,
 };
 use g7mb_config::StorageSettings;
 use g7mb_domain::ObjectKey;
@@ -101,7 +101,7 @@ async fn minio_single_multipart_abort_download_and_derivative_conformance()
     assert_eq!(raw.head(&multipart_key).await?.content_length, total_length);
     let downloaded = temp.path().join("downloaded.bin");
     raw.download_to(DownloadObjectRequest {
-        key: multipart_key,
+        key: multipart_key.clone(),
         destination: downloaded.clone(),
         expected_length: total_length,
         max_length: total_length,
@@ -173,11 +173,34 @@ async fn minio_single_multipart_abort_download_and_derivative_conformance()
             .any(|object| object.key == derivative_key.as_str())
     );
     derivative.delete(&derivative_key).await?;
-    assert!(derivative.head(&derivative_key).await.is_err());
+    assert!(matches!(
+        derivative.head(&derivative_key).await,
+        Err(ObjectStoreError::NotFound)
+    ));
     // S3 DeleteObject is idempotent, which cleanup lease recovery depends on.
     derivative.delete(&derivative_key).await?;
+    raw.delete(&multipart_key).await?;
     raw.delete(&single_key).await?;
-    assert!(raw.head(&single_key).await.is_err());
+    assert!(matches!(
+        raw.head(&single_key).await,
+        Err(ObjectStoreError::NotFound)
+    ));
+    assert!(matches!(
+        raw.head(&multipart_key).await,
+        Err(ObjectStoreError::NotFound)
+    ));
+    let missing_download = temp.path().join("missing.bin");
+    assert!(matches!(
+        raw.download_to(DownloadObjectRequest {
+            key: single_key,
+            destination: missing_download.clone(),
+            expected_length: 1,
+            max_length: 1,
+        })
+        .await,
+        Err(ObjectStoreError::NotFound)
+    ));
+    assert!(!missing_download.exists());
     Ok(())
 }
 

@@ -1,16 +1,20 @@
 //! Credential-gated AWS S3, Lightsail, and Cloudflare R2 protocol conformance.
 
-use std::{collections::BTreeMap, env, path::Path, process::Command, time::Duration};
+use std::{collections::BTreeMap, env, path::Path, process::Command, sync::Arc, time::Duration};
 
+use g7mb_application::ObjectStoreError;
 use g7mb_application::{
     AbortMultipartRequest, CompleteMultipartRequest, CompletedPart, CreateMultipartRequest,
     DownloadObjectRequest, ListObjectsRequest, ObjectStore as _, PresignGetRequest,
     PresignPartRequest, PresignPutRequest, PutFileRequest,
+    lifecycle::{DeletionRequestOutcome, LifecyclePolicy, LifecycleService},
 };
 use g7mb_config::StorageSettings;
 use g7mb_domain::{ObjectKey, UploadId};
 use g7mb_object_store_s3::S3CompatibleStore;
+use g7mb_persistence_sqlite::SqliteStore;
 use secrecy::{ExposeSecret as _, SecretString};
+use time::OffsetDateTime;
 
 const FIVE_GIB: u64 = 5 * 1024 * 1024 * 1024;
 
@@ -19,7 +23,7 @@ const FIVE_GIB: u64 = 5 * 1024 * 1024 * 1024;
 async fn live_provider_single_multipart_and_delete_conformance()
 -> Result<(), Box<dyn std::error::Error>> {
     let settings = settings_from_environment()?;
-    let label = env::var("G7MB_LIVE_S3_LABEL").unwrap_or_else(|_| "external".to_owned());
+    let label = provider_label_from_environment()?;
     let requested_bytes = env::var("G7MB_LIVE_S3_LARGE_BYTES")
         .ok()
         .map(|value| value.parse::<u64>())
@@ -157,11 +161,202 @@ async fn live_provider_single_multipart_and_delete_conformance()
     );
     derivative.delete(&derivative_key).await?;
 
+    assert_object_missing(&raw, &single_key).await?;
+    assert_object_missing(&raw, &multipart_key).await?;
+    assert_object_missing(&derivative, &derivative_key).await?;
+
     eprintln!(
-        "live-provider-conformance PASS label={label} multipart_bytes={requested_bytes} large_5gib={}",
+        "live-provider-conformance PASS label={label} multipart_bytes={requested_bytes} large_5gib={} object_count=0",
         requested_bytes == FIVE_GIB
     );
     Ok(())
+}
+
+#[tokio::test]
+#[ignore = "requires explicit S3-compatible provider credentials and an existing bucket"]
+async fn live_provider_lifecycle_retention_and_delete_conformance()
+-> Result<(), Box<dyn std::error::Error>> {
+    let settings = settings_from_environment()?;
+    let label = provider_label_from_environment()?;
+    let raw = Arc::new(S3CompatibleStore::for_raw_bucket(&settings).await?);
+    let derivative = Arc::new(S3CompatibleStore::for_derivative_bucket(&settings).await?);
+    let ready_upload_id = UploadId::new();
+    let rejected_upload_id = UploadId::new();
+    let ready_raw_key = ObjectKey::new(format!("raw/live-retention/{ready_upload_id}/source"))?;
+    let rejected_raw_key =
+        ObjectKey::new(format!("raw/live-retention/{rejected_upload_id}/source"))?;
+    let derivative_key = ObjectKey::new(format!(
+        "media/live-retention/{ready_upload_id}/board-v1/thumbnail.jpg"
+    ))?;
+    let temp = tempfile::tempdir()?;
+    let source_path = temp.path().join("source.bin");
+    let derivative_path = temp.path().join("thumbnail.jpg");
+    tokio::fs::write(&source_path, b"g7mb-live-retention-source").await?;
+    tokio::fs::write(
+        &derivative_path,
+        b"\xff\xd8\xff\xe0g7mb-live-retention-thumbnail",
+    )
+    .await?;
+
+    let result: Result<(), Box<dyn std::error::Error>> = async {
+        let source_length = tokio::fs::metadata(&source_path).await?.len();
+        let derivative_length = tokio::fs::metadata(&derivative_path).await?.len();
+        raw.put_file(PutFileRequest {
+            key: ready_raw_key.clone(),
+            source: source_path.clone(),
+            content_type: "application/octet-stream".to_owned(),
+        })
+        .await?;
+        raw.put_file(PutFileRequest {
+            key: rejected_raw_key.clone(),
+            source: source_path.clone(),
+            content_type: "application/octet-stream".to_owned(),
+        })
+        .await?;
+        derivative
+            .put_file(PutFileRequest {
+                key: derivative_key.clone(),
+                source: derivative_path.clone(),
+                content_type: "image/jpeg".to_owned(),
+            })
+            .await?;
+
+        let database = Arc::new(SqliteStore::connect("sqlite::memory:", 1).await?);
+        let now = OffsetDateTime::now_utc();
+        insert_lifecycle_upload(
+            &database,
+            ready_upload_id,
+            &ready_raw_key,
+            "ready",
+            source_length,
+            now,
+        )
+        .await?;
+        insert_lifecycle_upload(
+            &database,
+            rejected_upload_id,
+            &rejected_raw_key,
+            "rejected",
+            source_length,
+            now - time::Duration::days(8),
+        )
+        .await?;
+        sqlx::query(
+            "INSERT INTO derivatives
+                (upload_id, preset_id, variant, object_key, content_type, byte_len, sha256, created_at)
+             VALUES (?, 'board-v1', 'thumbnail', ?, 'image/jpeg', ?, ?, ?)",
+        )
+        .bind(ready_upload_id.to_string())
+        .bind(derivative_key.as_str())
+        .bind(i64::try_from(derivative_length)?)
+        .bind("a".repeat(64))
+        .bind(now.unix_timestamp())
+        .execute(database.pool())
+        .await?;
+
+        let lifecycle = LifecycleService::new(
+            raw.clone(),
+            derivative.clone(),
+            database.clone(),
+            LifecyclePolicy::default(),
+        )?;
+        assert_eq!(
+            lifecycle
+                .request_deletion("live-retention", ready_upload_id)
+                .await?,
+            DeletionRequestOutcome::Accepted
+        );
+        let summary = lifecycle.run_once("live-provider-cleanup").await?;
+        assert_eq!(summary.claimed, 2);
+        assert_eq!(summary.completed, 2);
+        assert_eq!(summary.failed, 0);
+        assert_eq!(summary.dead_lettered, 0);
+        let deleted = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM uploads WHERE id IN (?, ?) AND state = 'deleted'",
+        )
+        .bind(ready_upload_id.to_string())
+        .bind(rejected_upload_id.to_string())
+        .fetch_one(database.pool())
+        .await?;
+        assert_eq!(deleted, 2);
+        assert_object_missing(&raw, &ready_raw_key).await?;
+        assert_object_missing(&raw, &rejected_raw_key).await?;
+        assert_object_missing(&derivative, &derivative_key).await?;
+        Ok(())
+    }
+    .await;
+
+    let cleanup_ready = raw.delete(&ready_raw_key).await;
+    let cleanup_rejected = raw.delete(&rejected_raw_key).await;
+    let cleanup_derivative = derivative.delete(&derivative_key).await;
+    result?;
+    cleanup_ready?;
+    cleanup_rejected?;
+    cleanup_derivative?;
+    eprintln!(
+        "live-provider-lifecycle PASS label={label} user_delete=1 retention_expired=1 tombstones=2 object_count=0"
+    );
+    Ok(())
+}
+
+async fn insert_lifecycle_upload(
+    database: &SqliteStore,
+    upload_id: UploadId,
+    object_key: &ObjectKey,
+    state: &str,
+    source_length: u64,
+    timestamp: OffsetDateTime,
+) -> Result<(), Box<dyn std::error::Error>> {
+    sqlx::query(
+        "INSERT INTO uploads
+            (id, tenant_id, object_key, declared_kind, state, expected_size_bytes,
+             content_type_hint, transfer_kind, created_at, updated_at)
+         VALUES (?, 'live-retention', ?, 'image', ?, ?, 'image/jpeg',
+                 'single_put', ?, ?)",
+    )
+    .bind(upload_id.to_string())
+    .bind(object_key.as_str())
+    .bind(state)
+    .bind(i64::try_from(source_length)?)
+    .bind(timestamp.unix_timestamp())
+    .bind(timestamp.unix_timestamp())
+    .execute(database.pool())
+    .await?;
+    Ok(())
+}
+
+async fn assert_object_missing(
+    store: &S3CompatibleStore,
+    key: &ObjectKey,
+) -> Result<(), Box<dyn std::error::Error>> {
+    match store.head(key).await {
+        Err(ObjectStoreError::NotFound) => Ok(()),
+        Ok(_) => Err(std::io::Error::other("provider object remained after cleanup").into()),
+        Err(error) => Err(error.into()),
+    }
+}
+
+fn provider_label_from_environment() -> Result<String, Box<dyn std::error::Error>> {
+    let label = env::var("G7MB_LIVE_S3_LABEL").unwrap_or_else(|_| "external".to_owned());
+    if !valid_provider_label(&label) {
+        return Err(std::io::Error::other("live provider label is invalid").into());
+    }
+    Ok(label)
+}
+
+fn valid_provider_label(label: &str) -> bool {
+    !label.is_empty()
+        && label.len() <= 64
+        && label
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
+}
+
+#[test]
+fn live_provider_label_is_log_safe() {
+    assert!(valid_provider_label("r2-production_1"));
+    assert!(!valid_provider_label("r2\nforged-log"));
+    assert!(!valid_provider_label(""));
 }
 
 async fn upload_sparse_multipart(

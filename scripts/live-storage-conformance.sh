@@ -74,5 +74,4 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 cargo test --locked --package g7mb-object-store-s3 \
     --test live_provider_conformance \
-    live_provider_single_multipart_and_delete_conformance \
-    -- --ignored --exact --nocapture
+    -- --ignored --nocapture --test-threads=1

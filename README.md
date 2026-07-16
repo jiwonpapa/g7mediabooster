@@ -98,6 +98,7 @@ cargo xtask supply-chain
 - [G7 module 0.4.1 관리자 ZIP 설치 계약](docs/evidence/G7_MODULE_ZIP_INSTALL_20260716.md)
 - [Spec 1.1 요구사항 1~17 완료 감사](docs/COMPLETION_AUDIT_20260716.md)
 - [Spec 1.1 내부 인수 게이트 재검증](docs/evidence/INTERNAL_REVALIDATION_20260716.md)
+- [실 provider lifecycle 삭제 하네스](docs/evidence/LIVE_PROVIDER_LIFECYCLE_HARNESS_20260716.md)
 - [워터마크 계약](docs/WATERMARK.md)
 - [미디어 수명주기·삭제](docs/LIFECYCLE.md)
 - [Provider orphan inventory](docs/ORPHAN_INVENTORY.md)

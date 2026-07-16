@@ -737,14 +737,24 @@ impl ObjectStore for S3CompatibleStore {
     }
 
     async fn head(&self, key: &ObjectKey) -> Result<ObjectMetadata, ObjectStoreError> {
-        let output = self
+        let output = match self
             .client
             .head_object()
             .bucket(&self.bucket)
             .key(key.as_str())
             .send()
             .await
-            .map_err(|error| ObjectStoreError::Backend(error.to_string()))?;
+        {
+            Ok(output) => output,
+            Err(error)
+                if error
+                    .as_service_error()
+                    .is_some_and(|error| error.is_not_found()) =>
+            {
+                return Err(ObjectStoreError::NotFound);
+            }
+            Err(error) => return Err(ObjectStoreError::Backend(error.to_string())),
+        };
         let signed_length = output.content_length().unwrap_or_default();
         let content_length = u64::try_from(signed_length).map_err(|_| {
             ObjectStoreError::Backend("storage returned a negative content length".to_owned())
@@ -765,14 +775,24 @@ impl ObjectStore for S3CompatibleStore {
                 "download length violates the worker byte cap".to_owned(),
             ));
         }
-        let output = self
+        let output = match self
             .client
             .get_object()
             .bucket(&self.bucket)
             .key(request.key.as_str())
             .send()
             .await
-            .map_err(|error| ObjectStoreError::Backend(error.to_string()))?;
+        {
+            Ok(output) => output,
+            Err(error)
+                if error
+                    .as_service_error()
+                    .is_some_and(|error| error.is_no_such_key()) =>
+            {
+                return Err(ObjectStoreError::NotFound);
+            }
+            Err(error) => return Err(ObjectStoreError::Backend(error.to_string())),
+        };
         let reported_length = output
             .content_length()
             .and_then(|length| u64::try_from(length).ok());

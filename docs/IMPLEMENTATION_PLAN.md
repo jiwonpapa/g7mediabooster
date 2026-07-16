@@ -304,6 +304,8 @@ lifecycle worker로 구현했습니다.
 - 완료: queue depth·oldest age·dead-letter·worker outcome과 download/inspect/transform/upload/
   commit 단계별 latency, resource wait, reject code의 low-cardinality Prometheus 관측
 - 완료: upload·orphan tombstone 기본 365일 보존과 한 실행 최대 100개 bounded purge
+- 완료: 실 provider credential gate가 Ready 사용자 삭제와 rejected 보존 만료를 실제 SQLite
+  lease로 처리하고 derivative→raw 삭제·tombstone·`HEAD NotFound`를 검증하도록 구현
 - 선택 후속: tenant 내부 digest 중복 제거, CDN purge, ClamAV/moderation hook,
   영상 metadata 제거/remux. v1 공식 기능에는 포함하지 않음
 

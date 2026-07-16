@@ -53,5 +53,9 @@ systemctl list-timers g7mediabooster-cleanup.timer
 journalctl -u g7mediabooster-cleanup.service
 ```
 
+실 provider 승격 시 `cargo xtask live-storage-conformance`가 임시 SQLite에 Ready 사용자 삭제와
+8일 지난 rejected 원본을 만들고 실제 lifecycle lease를 실행합니다. derivative→raw 삭제,
+tombstone 2건과 각 key의 `HEAD NotFound`를 모두 확인하며 credential이 없을 때는 실행하지 않습니다.
+
 현재 구현은 단일 노드 SQLite lease 기준입니다. PostgreSQL이나 멀티노드는 v1 범위가 아니며,
 동시 수동 실행과 프로세스 강제 종료 복구는 같은 SQLite lease/CAS가 보호합니다.
