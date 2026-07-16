@@ -1,12 +1,13 @@
 //! AWS S3, Lightsail, and Cloudflare R2 adapter using the official AWS SDK for Rust.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use async_trait::async_trait;
 use aws_credential_types::Credentials;
 use aws_sdk_s3::{
     Client,
     config::{BehaviorVersion, Region},
+    error::ProvideErrorMetadata as _,
     presigning::PresigningConfig,
     primitives::ByteStream,
     types,
@@ -18,7 +19,7 @@ use g7mb_application::{
     PresignedDownload, PresignedUpload, PutFileRequest,
 };
 use g7mb_config::StorageSettings;
-use g7mb_domain::ObjectKey;
+use g7mb_domain::{ObjectKey, UploadId};
 use secrecy::{ExposeSecret, SecretString};
 use time::OffsetDateTime;
 
@@ -27,6 +28,36 @@ use time::OffsetDateTime;
 pub struct S3CompatibleStore {
     client: Client,
     bucket: String,
+}
+
+/// Result of an idempotent bucket and CORS bootstrap.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BucketBootstrapReport {
+    /// Bucket name checked or created.
+    pub bucket: String,
+    /// Whether this invocation created the bucket.
+    pub created: bool,
+    /// Whether the managed browser CORS rule was installed or replaced.
+    pub cors_configured: bool,
+}
+
+/// Result of a destructive-only-to-canary-keys live runtime check.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct StorageCanaryReport {
+    /// Unique buckets checked.
+    pub buckets_checked: usize,
+    /// Whether single-object PUT/HEAD/GET/LIST/DELETE passed.
+    pub single_object: bool,
+    /// Whether multipart create/upload/complete and abort passed.
+    pub multipart: bool,
+}
+
+/// S3-compatible control-plane helper used only by the installation CLI.
+#[derive(Clone, Debug)]
+pub struct S3StorageAdmin {
+    client: Client,
+    region: String,
+    custom_endpoint: bool,
 }
 
 impl S3CompatibleStore {
@@ -49,27 +80,487 @@ impl S3CompatibleStore {
             ));
         }
 
-        let credentials = Credentials::new(
-            settings.access_key_id.expose_secret(),
-            settings.secret_access_key.expose_secret(),
-            None,
-            None,
-            "g7mb-static-config",
-        );
-        let mut service_config = aws_sdk_s3::config::Builder::new()
-            .behavior_version(BehaviorVersion::latest())
-            .region(Region::new(settings.region.clone()))
-            .credentials_provider(credentials)
-            .force_path_style(settings.force_path_style);
-        if let Some(endpoint_url) = &settings.endpoint_url {
-            service_config = service_config.endpoint_url(endpoint_url);
-        }
-
         Ok(Self {
-            client: Client::from_conf(service_config.build()),
+            client: build_client(settings),
             bucket,
         })
     }
+}
+
+impl S3StorageAdmin {
+    /// Builds an administrator client from the same runtime credentials and endpoint.
+    pub fn new(settings: &StorageSettings) -> Self {
+        Self {
+            client: build_client(settings),
+            region: settings.region.clone(),
+            custom_endpoint: settings.endpoint_url.is_some(),
+        }
+    }
+
+    /// Checks or creates each configured bucket and merges one managed browser CORS rule.
+    pub async fn bootstrap(
+        &self,
+        settings: &StorageSettings,
+        create_missing: bool,
+        cors_origins: &[String],
+    ) -> Result<Vec<BucketBootstrapReport>, ObjectStoreError> {
+        if cors_origins.len() > 32 {
+            return Err(ObjectStoreError::InvalidRequest(
+                "CORS origin count exceeds 32".to_owned(),
+            ));
+        }
+        let buckets = unique_buckets(settings)?;
+        let mut reports = Vec::with_capacity(buckets.len());
+        for bucket in buckets {
+            let created = self.ensure_bucket(&bucket, create_missing).await?;
+            let cors_configured = if cors_origins.is_empty() {
+                false
+            } else {
+                self.merge_cors(&bucket, cors_origins).await?;
+                true
+            };
+            reports.push(BucketBootstrapReport {
+                bucket,
+                created,
+                cors_configured,
+            });
+        }
+        Ok(reports)
+    }
+
+    /// Executes bounded live runtime operations and removes every created canary object.
+    pub async fn canary(
+        &self,
+        settings: &StorageSettings,
+    ) -> Result<StorageCanaryReport, ObjectStoreError> {
+        let buckets = unique_buckets(settings)?;
+        for (index, bucket) in buckets.iter().enumerate() {
+            let prefix = if index == 0 { "raw/" } else { "media/" };
+            self.canary_bucket(bucket, prefix).await?;
+        }
+        Ok(StorageCanaryReport {
+            buckets_checked: buckets.len(),
+            single_object: true,
+            multipart: true,
+        })
+    }
+
+    async fn ensure_bucket(
+        &self,
+        bucket: &str,
+        create_missing: bool,
+    ) -> Result<bool, ObjectStoreError> {
+        match self.client.head_bucket().bucket(bucket).send().await {
+            Ok(_) => return Ok(false),
+            Err(error) if !create_missing => {
+                return Err(ObjectStoreError::Backend(format!(
+                    "bucket {bucket} is unavailable: {error}"
+                )));
+            }
+            Err(_) => {}
+        }
+
+        let mut request = self.client.create_bucket().bucket(bucket);
+        if !self.custom_endpoint && self.region != "us-east-1" {
+            let configuration = types::CreateBucketConfiguration::builder()
+                .location_constraint(types::BucketLocationConstraint::from(self.region.as_str()))
+                .build();
+            request = request.create_bucket_configuration(configuration);
+        }
+        request.send().await.map_err(|error| {
+            ObjectStoreError::Backend(format!("failed to create bucket {bucket}: {error}"))
+        })?;
+        self.client
+            .head_bucket()
+            .bucket(bucket)
+            .send()
+            .await
+            .map_err(|error| {
+                ObjectStoreError::Backend(format!(
+                    "created bucket {bucket} did not pass HEAD: {error}"
+                ))
+            })?;
+        Ok(true)
+    }
+
+    async fn merge_cors(&self, bucket: &str, origins: &[String]) -> Result<(), ObjectStoreError> {
+        const RULE_ID: &str = "g7mediabooster-browser-v1";
+        let mut rules = match self.client.get_bucket_cors().bucket(bucket).send().await {
+            Ok(output) => output.cors_rules.unwrap_or_default(),
+            Err(error)
+                if matches!(
+                    error.as_service_error().and_then(|value| value.code()),
+                    Some("NoSuchCORSConfiguration" | "NoSuchCORS")
+                ) =>
+            {
+                Vec::new()
+            }
+            Err(error) => {
+                return Err(ObjectStoreError::Backend(format!(
+                    "failed to read CORS for bucket {bucket}: {error}"
+                )));
+            }
+        };
+        rules = merge_managed_cors_rules(rules, origins).map_err(|error| match error {
+            ObjectStoreError::InvalidRequest(message) => ObjectStoreError::InvalidRequest(format!(
+                "bucket {bucket} CORS cannot be updated: {message}"
+            )),
+            other => other,
+        })?;
+        let configuration = types::CorsConfiguration::builder()
+            .set_cors_rules(Some(rules))
+            .build()
+            .map_err(|error| ObjectStoreError::InvalidRequest(error.to_string()))?;
+        self.client
+            .put_bucket_cors()
+            .bucket(bucket)
+            .cors_configuration(configuration)
+            .send()
+            .await
+            .map_err(|error| {
+                ObjectStoreError::Backend(format!(
+                    "failed to configure CORS for bucket {bucket}: {error}"
+                ))
+            })?;
+        let verified = self
+            .client
+            .get_bucket_cors()
+            .bucket(bucket)
+            .send()
+            .await
+            .map_err(|error| {
+                ObjectStoreError::Backend(format!(
+                    "failed to verify CORS for bucket {bucket}: {error}"
+                ))
+            })?;
+        let managed = verified
+            .cors_rules()
+            .iter()
+            .find(|rule| rule.id() == Some(RULE_ID))
+            .ok_or_else(|| {
+                ObjectStoreError::Backend(format!(
+                    "bucket {bucket} did not retain the managed CORS rule"
+                ))
+            })?;
+        if managed.allowed_origins() != origins
+            || !["GET", "PUT", "HEAD"].iter().all(|method| {
+                managed
+                    .allowed_methods()
+                    .iter()
+                    .any(|value| value == method)
+            })
+            || !managed
+                .expose_headers()
+                .iter()
+                .any(|header| header.eq_ignore_ascii_case("etag"))
+        {
+            return Err(ObjectStoreError::Backend(format!(
+                "bucket {bucket} retained an incomplete managed CORS rule"
+            )));
+        }
+        Ok(())
+    }
+
+    async fn canary_bucket(&self, bucket: &str, prefix: &str) -> Result<(), ObjectStoreError> {
+        let run_id = UploadId::new();
+        let root = format!("{prefix}g7mb-canary/{run_id}");
+        let single_key = format!("{root}/single");
+        let multipart_key = format!("{root}/multipart");
+        let abort_key = format!("{root}/abort");
+        let single_body = b"g7mediabooster-storage-canary-v1".to_vec();
+
+        self.client
+            .put_object()
+            .bucket(bucket)
+            .key(&single_key)
+            .content_type("application/octet-stream")
+            .body(ByteStream::from(single_body.clone()))
+            .send()
+            .await
+            .map_err(|error| ObjectStoreError::Backend(format!("canary PUT failed: {error}")))?;
+        let result = async {
+            let head = self
+                .client
+                .head_object()
+                .bucket(bucket)
+                .key(&single_key)
+                .send()
+                .await
+                .map_err(|error| {
+                    ObjectStoreError::Backend(format!("canary HEAD failed: {error}"))
+                })?;
+            if head.content_length() != Some(i64::try_from(single_body.len()).unwrap_or(-1)) {
+                return Err(ObjectStoreError::ContentLengthMismatch);
+            }
+            let body = self
+                .client
+                .get_object()
+                .bucket(bucket)
+                .key(&single_key)
+                .send()
+                .await
+                .map_err(|error| ObjectStoreError::Backend(format!("canary GET failed: {error}")))?
+                .body
+                .collect()
+                .await
+                .map_err(|error| {
+                    ObjectStoreError::Backend(format!("canary GET body failed: {error}"))
+                })?
+                .into_bytes();
+            if body.as_ref() != single_body.as_slice() {
+                return Err(ObjectStoreError::ContentLengthMismatch);
+            }
+            let listed = self
+                .client
+                .list_objects_v2()
+                .bucket(bucket)
+                .prefix(&root)
+                .max_keys(10)
+                .send()
+                .await
+                .map_err(|error| {
+                    ObjectStoreError::Backend(format!("canary LIST failed: {error}"))
+                })?;
+            if !listed
+                .contents()
+                .iter()
+                .any(|object| object.key() == Some(single_key.as_str()))
+            {
+                return Err(ObjectStoreError::Backend(
+                    "canary LIST did not return the uploaded object".to_owned(),
+                ));
+            }
+            self.complete_canary_multipart(bucket, &multipart_key)
+                .await?;
+            self.abort_canary_multipart(bucket, &abort_key).await?;
+            Ok(())
+        }
+        .await;
+
+        let cleanup_keys = [&single_key, &multipart_key, &abort_key];
+        let mut cleanup_error = None;
+        for key in cleanup_keys {
+            if let Err(error) = self
+                .client
+                .delete_object()
+                .bucket(bucket)
+                .key(key)
+                .send()
+                .await
+            {
+                cleanup_error = Some(ObjectStoreError::Backend(format!(
+                    "canary cleanup DELETE failed: {error}"
+                )));
+            }
+        }
+        result?;
+        if let Some(error) = cleanup_error {
+            return Err(error);
+        }
+        Ok(())
+    }
+
+    async fn complete_canary_multipart(
+        &self,
+        bucket: &str,
+        key: &str,
+    ) -> Result<(), ObjectStoreError> {
+        let created = self
+            .client
+            .create_multipart_upload()
+            .bucket(bucket)
+            .key(key)
+            .content_type("application/octet-stream")
+            .send()
+            .await
+            .map_err(|error| {
+                ObjectStoreError::Backend(format!("canary multipart create failed: {error}"))
+            })?;
+        let upload_id = created
+            .upload_id()
+            .ok_or_else(|| {
+                ObjectStoreError::Backend("canary multipart returned no upload id".to_owned())
+            })?
+            .to_owned();
+        let result = async {
+            let bodies = [vec![0x47_u8; 5 * 1024 * 1024], b"g7mb-final-part".to_vec()];
+            let expected_length = bodies.iter().try_fold(0_i64, |total, body| {
+                i64::try_from(body.len())
+                    .ok()
+                    .and_then(|length| total.checked_add(length))
+                    .ok_or_else(|| {
+                        ObjectStoreError::Backend(
+                            "canary multipart content length overflow".to_owned(),
+                        )
+                    })
+            })?;
+            let mut parts = Vec::with_capacity(bodies.len());
+            for (index, body) in bodies.into_iter().enumerate() {
+                let part_number = i32::try_from(index + 1).map_err(|_| {
+                    ObjectStoreError::Backend("canary multipart part overflow".to_owned())
+                })?;
+                let uploaded = self
+                    .client
+                    .upload_part()
+                    .bucket(bucket)
+                    .key(key)
+                    .upload_id(&upload_id)
+                    .part_number(part_number)
+                    .body(ByteStream::from(body))
+                    .send()
+                    .await
+                    .map_err(|error| {
+                        ObjectStoreError::Backend(format!(
+                            "canary multipart part {part_number} failed: {error}"
+                        ))
+                    })?;
+                let etag = uploaded.e_tag().ok_or_else(|| {
+                    ObjectStoreError::Backend(format!(
+                        "canary multipart part {part_number} returned no ETag"
+                    ))
+                })?;
+                parts.push(
+                    types::CompletedPart::builder()
+                        .part_number(part_number)
+                        .e_tag(etag)
+                        .build(),
+                );
+            }
+            let upload = types::CompletedMultipartUpload::builder()
+                .set_parts(Some(parts))
+                .build();
+            self.client
+                .complete_multipart_upload()
+                .bucket(bucket)
+                .key(key)
+                .upload_id(&upload_id)
+                .multipart_upload(upload)
+                .send()
+                .await
+                .map_err(|error| {
+                    ObjectStoreError::Backend(format!("canary multipart complete failed: {error}"))
+                })?;
+            let head = self
+                .client
+                .head_object()
+                .bucket(bucket)
+                .key(key)
+                .send()
+                .await
+                .map_err(|error| {
+                    ObjectStoreError::Backend(format!("canary multipart HEAD failed: {error}"))
+                })?;
+            if head.content_length() != Some(expected_length) {
+                return Err(ObjectStoreError::ContentLengthMismatch);
+            }
+            Ok(())
+        }
+        .await;
+        if result.is_err() {
+            let _abort_result = self
+                .client
+                .abort_multipart_upload()
+                .bucket(bucket)
+                .key(key)
+                .upload_id(&upload_id)
+                .send()
+                .await;
+        }
+        result
+    }
+
+    async fn abort_canary_multipart(
+        &self,
+        bucket: &str,
+        key: &str,
+    ) -> Result<(), ObjectStoreError> {
+        let created = self
+            .client
+            .create_multipart_upload()
+            .bucket(bucket)
+            .key(key)
+            .send()
+            .await
+            .map_err(|error| {
+                ObjectStoreError::Backend(format!("canary multipart abort create failed: {error}"))
+            })?;
+        let upload_id = created.upload_id().ok_or_else(|| {
+            ObjectStoreError::Backend("canary abort returned no upload id".to_owned())
+        })?;
+        self.client
+            .abort_multipart_upload()
+            .bucket(bucket)
+            .key(key)
+            .upload_id(upload_id)
+            .send()
+            .await
+            .map_err(|error| {
+                ObjectStoreError::Backend(format!("canary multipart abort failed: {error}"))
+            })?;
+        Ok(())
+    }
+}
+
+fn build_client(settings: &StorageSettings) -> Client {
+    let credentials = Credentials::new(
+        settings.access_key_id.expose_secret(),
+        settings.secret_access_key.expose_secret(),
+        None,
+        None,
+        "g7mb-static-config",
+    );
+    let mut service_config = aws_sdk_s3::config::Builder::new()
+        .behavior_version(BehaviorVersion::latest())
+        .region(Region::new(settings.region.clone()))
+        .credentials_provider(credentials)
+        .force_path_style(settings.force_path_style);
+    if let Some(endpoint_url) = &settings.endpoint_url {
+        service_config = service_config.endpoint_url(endpoint_url);
+    }
+    Client::from_conf(service_config.build())
+}
+
+fn unique_buckets(settings: &StorageSettings) -> Result<Vec<String>, ObjectStoreError> {
+    let buckets = BTreeSet::from([
+        settings.raw_bucket.clone(),
+        settings.derivative_bucket.clone(),
+    ]);
+    if buckets.iter().any(String::is_empty) {
+        return Err(ObjectStoreError::InvalidRequest(
+            "bucket must not be empty".to_owned(),
+        ));
+    }
+    Ok(buckets.into_iter().collect())
+}
+
+fn managed_cors_rule(origins: &[String]) -> Result<types::CorsRule, ObjectStoreError> {
+    types::CorsRule::builder()
+        .id("g7mediabooster-browser-v1")
+        .set_allowed_headers(Some(vec!["content-type".to_owned(), "x-amz-*".to_owned()]))
+        .set_allowed_methods(Some(vec![
+            "GET".to_owned(),
+            "PUT".to_owned(),
+            "HEAD".to_owned(),
+        ]))
+        .set_allowed_origins(Some(origins.to_vec()))
+        .set_expose_headers(Some(vec!["ETag".to_owned()]))
+        .max_age_seconds(3600)
+        .build()
+        .map_err(|error| ObjectStoreError::InvalidRequest(error.to_string()))
+}
+
+fn merge_managed_cors_rules(
+    mut rules: Vec<types::CorsRule>,
+    origins: &[String],
+) -> Result<Vec<types::CorsRule>, ObjectStoreError> {
+    rules.retain(|rule| rule.id() != Some("g7mediabooster-browser-v1"));
+    if rules.len() >= 100 {
+        return Err(ObjectStoreError::InvalidRequest(
+            "provider already has the maximum 100 CORS rules".to_owned(),
+        ));
+    }
+    rules.push(managed_cors_rule(origins)?);
+    Ok(rules)
 }
 
 #[async_trait]
@@ -492,6 +983,7 @@ fn validate_completed_parts(
 mod tests {
     use std::time::Duration;
 
+    use aws_sdk_s3::types;
     use g7mb_application::{
         CompletedPart, ListObjectsRequest, ObjectStore as _, ObjectStoreError, PresignGetRequest,
         PresignPartRequest, PresignPutRequest,
@@ -512,7 +1004,9 @@ mod tests {
             raw_bucket: "raw-private".to_owned(),
             derivative_bucket: "media".to_owned(),
             access_key_id: SecretString::from("test-access".to_owned()),
+            access_key_id_file: None,
             secret_access_key: SecretString::from("test-secret".to_owned()),
+            secret_access_key_file: None,
             force_path_style: false,
         };
         let store = S3CompatibleStore::for_raw_bucket(&settings).await?;
@@ -544,7 +1038,9 @@ mod tests {
             raw_bucket: "raw-private".to_owned(),
             derivative_bucket: "media".to_owned(),
             access_key_id: SecretString::from("test-access".to_owned()),
+            access_key_id_file: None,
             secret_access_key: SecretString::from("test-secret".to_owned()),
+            secret_access_key_file: None,
             force_path_style: false,
         };
         let store = S3CompatibleStore::for_raw_bucket(&settings).await?;
@@ -574,7 +1070,9 @@ mod tests {
             raw_bucket: "raw-private".to_owned(),
             derivative_bucket: "media-private".to_owned(),
             access_key_id: SecretString::from("test-access".to_owned()),
+            access_key_id_file: None,
             secret_access_key: SecretString::from("test-secret".to_owned()),
+            secret_access_key_file: None,
             force_path_style: false,
         };
         let store = S3CompatibleStore::for_derivative_bucket(&settings).await?;
@@ -607,6 +1105,56 @@ mod tests {
         assert!(result.is_err());
     }
 
+    #[test]
+    fn managed_browser_cors_rule_is_bounded_and_exposes_multipart_etag() {
+        let origins = vec!["https://example.com".to_owned()];
+        let rule = super::managed_cors_rule(&origins);
+        assert!(rule.is_ok());
+        let Some(rule) = rule.ok() else {
+            return;
+        };
+        assert_eq!(rule.id(), Some("g7mediabooster-browser-v1"));
+        assert_eq!(rule.allowed_origins(), origins);
+        assert_eq!(rule.allowed_methods(), ["GET", "PUT", "HEAD"]);
+        assert_eq!(rule.allowed_headers(), ["content-type", "x-amz-*"]);
+        assert_eq!(rule.expose_headers(), ["ETag"]);
+        assert_eq!(rule.max_age_seconds(), Some(3600));
+    }
+
+    #[test]
+    fn managed_cors_merge_preserves_unrelated_rules_and_replaces_its_own_rule() {
+        let existing = types::CorsRule::builder()
+            .id("operator-rule")
+            .allowed_methods("GET")
+            .allowed_origins("https://static.example.com")
+            .build();
+        assert!(existing.is_ok());
+        let Some(existing) = existing.ok() else {
+            return;
+        };
+        let origins = vec!["https://example.com".to_owned()];
+        let first = super::merge_managed_cors_rules(vec![existing.clone()], &origins);
+        assert!(first.is_ok());
+        let Some(first) = first.ok() else {
+            return;
+        };
+        assert_eq!(first.len(), 2);
+        let second = super::merge_managed_cors_rules(first, &origins);
+        assert!(second.is_ok());
+        let Some(second) = second.ok() else {
+            return;
+        };
+        assert_eq!(second.len(), 2);
+        assert!(second.iter().any(|rule| rule.id() == Some("operator-rule")));
+        assert_eq!(
+            second
+                .iter()
+                .filter(|rule| rule.id() == Some("g7mediabooster-browser-v1"))
+                .count(),
+            1
+        );
+    }
+
     #[tokio::test]
     async fn inventory_rejects_arbitrary_prefixes_before_network_io()
     -> Result<(), Box<dyn std::error::Error>> {
@@ -616,7 +1164,9 @@ mod tests {
             raw_bucket: "raw-private".to_owned(),
             derivative_bucket: "media".to_owned(),
             access_key_id: SecretString::from("test-access".to_owned()),
+            access_key_id_file: None,
             secret_access_key: SecretString::from("test-secret".to_owned()),
+            secret_access_key_file: None,
             force_path_style: false,
         };
         let store = S3CompatibleStore::for_raw_bucket(&settings).await?;

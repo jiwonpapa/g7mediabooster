@@ -53,3 +53,13 @@ G7 module 0.4.0 배포 압축본은 module commit `b118240`에 고정해 122,811
 SHA-256 `53b4dc1c…d026`으로 재현했습니다. 배포 설명 자동화는
 `deploy/official-features-v1.json`의 `publishable_features`만 사용하며, R2/Lightsail 실계정과
 실 provider 보존 삭제는 `withheld_until_verified`에 남겨둡니다.
+
+## 설치·비밀값 경로 보강
+
+`g7mbctl setup` 대화형 CUI와 비대화형 file-input 모드를 추가했습니다. R2 Account ID endpoint
+파생, 공급자 profile, bucket/CORS bootstrap, bounded single/multipart canary, 설정 충돌 사전검사,
+파일별 원자 교체와 재실행 멱등성을 구현했습니다. 일반 TOML은 secret file 경로만 보유하고,
+systemd는 세 root-only source를 `LoadCredential=`로 서비스별 격리 경로에 전달합니다.
+
+외부 값이 없는 설치는 `--defer-storage`로 명시하며 `PENDING`을 출력합니다. 이 경우 코드 구현은
+완료지만 R2/Lightsail 공식 지원 증거는 아니므로 요구사항 2의 `PARTIAL` 판정은 유지합니다.

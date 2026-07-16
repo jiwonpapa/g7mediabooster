@@ -10,7 +10,7 @@ use g7mb_application::{
     lifecycle::{LifecyclePolicy, LifecycleService},
 };
 use g7mb_config::{Settings, WatermarkPositionSetting};
-use g7mb_object_store_s3::S3CompatibleStore;
+use g7mb_object_store_s3::{S3CompatibleStore, S3StorageAdmin};
 use g7mb_persistence_sqlite::{SqliteStore, backup::verify_database_file};
 use g7mb_worker::{
     ProcessSandboxProbe, RunOutcome, SourceValidationWorker, WatermarkPolicy, WorkerPolicy,
@@ -34,8 +34,12 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Command {
-    /// Verify configuration, SQLite, S3/R2 client construction, and native tools.
-    Doctor,
+    /// Verify configuration, SQLite, live S3/R2 runtime operations, and native tools.
+    Doctor {
+        /// Only constructs storage clients; skips destructive-only-to-canary-key network checks.
+        #[arg(long)]
+        offline: bool,
+    },
     /// Runs bounded source-validation slots until SIGINT/SIGTERM.
     Run {
         /// Stable process identifier; slot suffixes are added automatically.
@@ -96,7 +100,7 @@ async fn main() -> anyhow::Result<()> {
     g7mb_telemetry::init_tracing()?;
     let cli = Cli::parse();
     match cli.command {
-        Command::Doctor => doctor(&cli.config).await,
+        Command::Doctor { offline } => doctor(&cli.config, offline).await,
         Command::Run { worker_id } => run(&cli.config, &worker_id).await,
         Command::Once { worker_id } => once(&cli.config, &worker_id).await,
         Command::Cleanup { worker_id } => cleanup(&cli.config, &worker_id).await,
@@ -669,7 +673,7 @@ async fn build_worker(settings: &Settings) -> anyhow::Result<SourceValidationWor
     .context("worker policy is invalid")
 }
 
-async fn doctor(path: &std::path::Path) -> anyhow::Result<()> {
+async fn doctor(path: &std::path::Path, offline: bool) -> anyhow::Result<()> {
     let settings = Settings::load(Some(path)).context("failed to load configuration")?;
     let _database = SqliteStore::connect(&settings.database.url, settings.database.max_connections)
         .await
@@ -680,6 +684,18 @@ async fn doctor(path: &std::path::Path) -> anyhow::Result<()> {
     let _derivative_store = S3CompatibleStore::for_derivative_bucket(&settings.storage)
         .await
         .context("failed to initialize derivative object store")?;
+    if !offline {
+        let report = S3StorageAdmin::new(&settings.storage)
+            .canary(&settings.storage)
+            .await
+            .context("live S3/R2 runtime canary failed")?;
+        tracing::info!(
+            buckets = report.buckets_checked,
+            single_object = report.single_object,
+            multipart = report.multipart,
+            "storage runtime canary passed"
+        );
+    }
     let reports = g7mb_media::native_tool_report().await?;
     for report in &reports {
         tracing::info!(tool = %report.tool, version = %report.version, healthy = report.healthy, warning = ?report.warning, "native tool report");

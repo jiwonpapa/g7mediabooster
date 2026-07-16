@@ -77,10 +77,16 @@ Lightsail 단일 bucket access key를 쓸 때는 같은 private bucket 안의 `r
 
 설치 전 다음 경로와 전용 사용자를 만듭니다.
 
-- 설정: `/etc/g7mediabooster/g7mb.toml` (`root:g7mediabooster`, `0640`)
+- 일반 설정: `/etc/g7mediabooster/g7mb.toml` (`root:g7mediabooster`, `0640`)
+- root-only credential source: `/etc/g7mediabooster/credentials/` (`root:root`, `0700`, 파일 `0600`)
 - 상태·SQLite·임시파일: `/var/lib/g7mediabooster`
-- 실행 파일: `/usr/local/bin/g7mb-api`, `/usr/local/bin/g7mb-worker`
+- 실행 파일: `/usr/local/bin/g7mbctl`, `/usr/local/bin/g7mb-api`, `/usr/local/bin/g7mb-worker`
 - 자격 증명 없는 실행 파일: `/usr/local/libexec/g7mb-sandbox`
+
+최초 설정은 `sudo g7mbctl setup` CUI로 생성합니다. systemd unit은 root-only source를
+`LoadCredential=`로 서비스 전용 메모리 파일에 전달합니다. 데몬·PHP·브라우저는 입력을 받거나
+S3/R2 비밀값을 공유하지 않습니다. 상세 절차는 [설치·저장소 설정](../docs/SETUP_CUI.md)을
+따릅니다.
 
 `g7mediabooster-cleanup.timer`는 15분마다 최대 설정 batch만 처리합니다. 동일 oneshot unit은
 systemd가 중복 실행하지 않으며, SQLite lease가 수동 실행·강제 종료 후 재선점도 보호합니다.

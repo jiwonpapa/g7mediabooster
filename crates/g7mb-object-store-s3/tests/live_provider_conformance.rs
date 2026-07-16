@@ -239,7 +239,9 @@ fn settings_from_environment() -> Result<StorageSettings, Box<dyn std::error::Er
         raw_bucket: env::var("G7MB_LIVE_S3_RAW_BUCKET")?,
         derivative_bucket: env::var("G7MB_LIVE_S3_DERIVATIVE_BUCKET")?,
         access_key_id: SecretString::from(env::var("G7MB_LIVE_S3_ACCESS_KEY")?),
+        access_key_id_file: None,
         secret_access_key: SecretString::from(env::var("G7MB_LIVE_S3_SECRET_KEY")?),
+        secret_access_key_file: None,
         force_path_style,
     })
 }

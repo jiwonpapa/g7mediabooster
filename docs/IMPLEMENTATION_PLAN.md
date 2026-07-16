@@ -137,6 +137,11 @@ G7 모듈은 세션·게시판 권한·첨부 연결의 진실 원천이고, Rus
 실브라우저 권한 매트릭스와 관리자 watermark asset picker는 통과했습니다. 외부 저장소 하네스와
 2026-07-16 실행 인계서는 구현됐습니다.
 
+설치 설정은 `g7mbctl setup` CUI로 보강했습니다. 비밀값 hidden input·root-only 분리 파일,
+systemd `LoadCredential`, R2 endpoint 자동 파생, 기존 CORS 보존 병합, bucket create/check와
+single/multipart canary, 비대화형 file input, 충돌 사전검사·멱등 재실행을 구현했습니다. 외부 값이
+없으면 `--defer-storage`로 설정만 저장하고 실 provider bootstrap/doctor는 다음 실행으로 넘깁니다.
+
 ### 단계 0 — 계약 변경
 
 - `SPEC.md`를 1.1로 올리고 SQLite queue, batch/multipart, G7 module, high-res tier를 확정

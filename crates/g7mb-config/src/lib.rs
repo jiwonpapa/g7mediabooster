@@ -1,6 +1,10 @@
 //! Typed, redacted configuration loaded from TOML and environment variables.
 
-use std::{net::SocketAddr, path::Path};
+use std::{
+    fs,
+    net::SocketAddr,
+    path::{Path, PathBuf},
+};
 
 use config::{Config, ConfigError, Environment, File, FileFormat};
 use secrecy::{ExposeSecret as _, SecretString};
@@ -103,7 +107,7 @@ impl Settings {
             builder = builder.add_source(File::from(path).format(FileFormat::Toml).required(true));
         }
 
-        let settings: Self = builder
+        let mut settings: Self = builder
             .add_source(
                 Environment::with_prefix("G7MB")
                     .prefix_separator("__")
@@ -112,8 +116,28 @@ impl Settings {
             )
             .build()?
             .try_deserialize()?;
+        settings.resolve_secret_files()?;
         settings.validate()?;
         Ok(settings)
+    }
+
+    fn resolve_secret_files(&mut self) -> Result<(), ConfigError> {
+        resolve_secret(
+            &mut self.auth.hmac_secret,
+            self.auth.hmac_secret_file.as_deref(),
+            "auth.hmac_secret",
+        )?;
+        resolve_secret(
+            &mut self.storage.access_key_id,
+            self.storage.access_key_id_file.as_deref(),
+            "storage.access_key_id",
+        )?;
+        resolve_secret(
+            &mut self.storage.secret_access_key,
+            self.storage.secret_access_key_file.as_deref(),
+            "storage.secret_access_key",
+        )?;
+        Ok(())
     }
 
     fn validate(&self) -> Result<(), ConfigError> {
@@ -137,6 +161,21 @@ impl Settings {
         {
             return Err(ConfigError::Message(
                 "auth settings violate identifier, secret, or clock-skew limits".to_owned(),
+            ));
+        }
+        if self.storage.raw_bucket.is_empty()
+            || self.storage.raw_bucket.len() > 255
+            || self.storage.derivative_bucket.is_empty()
+            || self.storage.derivative_bucket.len() > 255
+            || self.storage.region.is_empty()
+            || self.storage.region.len() > 128
+            || self.storage.access_key_id.expose_secret().is_empty()
+            || self.storage.access_key_id.expose_secret().len() > 256
+            || self.storage.secret_access_key.expose_secret().is_empty()
+            || self.storage.secret_access_key.expose_secret().len() > 1024
+        {
+            return Err(ConfigError::Message(
+                "storage settings violate bucket, region, or credential limits".to_owned(),
             ));
         }
         if self.upload.max_batch_files == 0
@@ -253,6 +292,72 @@ impl Settings {
     }
 }
 
+fn empty_secret() -> SecretString {
+    SecretString::from(String::new())
+}
+
+fn resolve_secret(
+    inline: &mut SecretString,
+    path: Option<&Path>,
+    setting_name: &str,
+) -> Result<(), ConfigError> {
+    let inline_present = !inline.expose_secret().is_empty();
+    let Some(path) = path else {
+        return Ok(());
+    };
+    if inline_present {
+        return Err(ConfigError::Message(format!(
+            "{setting_name} and {setting_name}_file are mutually exclusive"
+        )));
+    }
+    if !path.is_absolute() {
+        return Err(ConfigError::Message(format!(
+            "{setting_name}_file must be an absolute path"
+        )));
+    }
+    let metadata = fs::symlink_metadata(path).map_err(|error| {
+        ConfigError::Message(format!("failed to inspect {setting_name}_file: {error}"))
+    })?;
+    if !metadata.file_type().is_file() || metadata.file_type().is_symlink() {
+        return Err(ConfigError::Message(format!(
+            "{setting_name}_file must be a regular non-symlink file"
+        )));
+    }
+    if metadata.len() == 0 || metadata.len() > 4096 {
+        return Err(ConfigError::Message(format!(
+            "{setting_name}_file violates the 1..=4096 byte limit"
+        )));
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+
+        if metadata.permissions().mode() & 0o037 != 0 {
+            return Err(ConfigError::Message(format!(
+                "{setting_name}_file must not be writable by group or accessible by others"
+            )));
+        }
+    }
+    let bytes = fs::read(path).map_err(|error| {
+        ConfigError::Message(format!("failed to read {setting_name}_file: {error}"))
+    })?;
+    let value = String::from_utf8(bytes).map_err(|_| {
+        ConfigError::Message(format!("{setting_name}_file must contain UTF-8 text"))
+    })?;
+    let value = value.trim_end_matches(['\r', '\n']);
+    if value.is_empty()
+        || value.len() > 4096
+        || value.contains(['\r', '\n', '\0'])
+        || value.trim() != value
+    {
+        return Err(ConfigError::Message(format!(
+            "{setting_name}_file contains an invalid secret value"
+        )));
+    }
+    *inline = SecretString::from(value.to_owned());
+    Ok(())
+}
+
 /// HTTP server configuration.
 #[derive(Clone, Debug, Deserialize)]
 pub struct ServerSettings {
@@ -276,7 +381,11 @@ pub struct AuthSettings {
     /// Tenant/site identifier used in object keys and state isolation.
     pub tenant_id: String,
     /// HMAC-SHA256 secret, redacted in debug output.
+    #[serde(default = "empty_secret")]
     pub hmac_secret: SecretString,
+    /// Absolute root-owned file containing the HMAC secret.
+    #[serde(default)]
+    pub hmac_secret_file: Option<PathBuf>,
     /// Maximum absolute request clock skew.
     pub allowed_skew_seconds: u64,
 }
@@ -322,9 +431,17 @@ pub struct StorageSettings {
     /// Derivative output bucket.
     pub derivative_bucket: String,
     /// Static access key identifier, redacted in debug output.
+    #[serde(default = "empty_secret")]
     pub access_key_id: SecretString,
+    /// Absolute root-owned file containing the access key identifier.
+    #[serde(default)]
+    pub access_key_id_file: Option<PathBuf>,
     /// Static secret key, redacted in debug output.
+    #[serde(default = "empty_secret")]
     pub secret_access_key: SecretString,
+    /// Absolute root-owned file containing the secret access key.
+    #[serde(default)]
+    pub secret_access_key_file: Option<PathBuf>,
     /// Enables path-style requests for compatible local services.
     pub force_path_style: bool,
 }
@@ -457,7 +574,7 @@ mod tests {
     use std::fs;
 
     use secrecy::ExposeSecret;
-    use tempfile::NamedTempFile;
+    use tempfile::{NamedTempFile, tempdir};
 
     use super::Settings;
 
@@ -487,6 +604,67 @@ hmac_secret = "0123456789abcdef0123456789abcdef"
         );
         let debug = format!("{settings:?}");
         assert!(!debug.contains("test-secret"));
+        Ok(())
+    }
+
+    #[test]
+    fn loads_root_owned_secret_files_and_rejects_inline_conflicts()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let directory = tempdir()?;
+        let access = directory.path().join("access");
+        let secret = directory.path().join("secret");
+        let hmac = directory.path().join("hmac");
+        fs::write(&access, "test-access\n")?;
+        fs::write(&secret, "test-secret\n")?;
+        fs::write(&hmac, "0123456789abcdef0123456789abcdef\n")?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt as _;
+
+            for path in [&access, &secret, &hmac] {
+                fs::set_permissions(path, fs::Permissions::from_mode(0o600))?;
+            }
+        }
+        let config = directory.path().join("g7mb.toml");
+        fs::write(
+            &config,
+            format!(
+                r#"
+[storage]
+raw_bucket = "raw"
+derivative_bucket = "media"
+access_key_id_file = "{}"
+secret_access_key_file = "{}"
+
+[auth]
+key_id = "g7-primary"
+tenant_id = "site-a"
+hmac_secret_file = "{}"
+"#,
+                access.display(),
+                secret.display(),
+                hmac.display()
+            ),
+        )?;
+        let settings = Settings::load(Some(&config))?;
+        assert_eq!(
+            settings.storage.access_key_id.expose_secret(),
+            "test-access"
+        );
+        assert_eq!(
+            settings.auth.hmac_secret.expose_secret(),
+            "0123456789abcdef0123456789abcdef"
+        );
+
+        let conflicted = fs::read_to_string(&config)?.replace(
+            "access_key_id_file =",
+            "access_key_id = \"inline\"\naccess_key_id_file =",
+        );
+        fs::write(&config, conflicted)?;
+        let error = Settings::load(Some(&config))
+            .err()
+            .ok_or_else(|| std::io::Error::other("inline/file conflict was accepted"))?;
+        assert!(error.to_string().contains("mutually exclusive"));
         Ok(())
     }
 

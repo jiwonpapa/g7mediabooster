@@ -53,6 +53,15 @@ cargo xtask coverage
 cargo xtask supply-chain
 ```
 
+운영 설치의 설정과 비밀값은 직접 TOML에 입력하지 않고 CUI로 생성합니다.
+
+```bash
+sudo /usr/local/bin/g7mbctl setup
+```
+
+외부 계정 연결을 미룬 설치, R2/AWS S3/Lightsail/범용 S3 profile, 비대화형 자동화는
+[설치·저장소 설정 문서](docs/SETUP_CUI.md)를 따릅니다.
+
 공급망 도구가 없다면 먼저 다음을 실행합니다.
 
 ```bash
@@ -78,6 +87,7 @@ cargo xtask supply-chain
 - [Gnuboard 7 upstream 첨부 계약 patch](adapters/gnuboard7/upstream-contract/README.md)
 - [Gnuboard 7 실제 저장소 browser E2E](docs/evidence/G7_STORAGE_E2E_20260716.md)
 - [정확한 5GiB·G7 정책 종단 증거](docs/evidence/LARGE_MULTIPART_AND_G7_POLICY_20260716.md)
+- [CUI 설정·storage bootstrap 구현 증거](docs/evidence/SETUP_CUI_AND_STORAGE_BOOTSTRAP_20260716.md)
 - [MOV/H.264 runtime·worker 종단 증거](docs/evidence/MOV_H264_E2E_20260716.md)
 - [G7 module 0.4.0 재현 배포 산출물](docs/evidence/G7_MODULE_PACKAGE_20260716.md)
 - [Spec 1.1 요구사항 1~17 완료 감사](docs/COMPLETION_AUDIT_20260716.md)
@@ -86,6 +96,7 @@ cargo xtask supply-chain
 - [Provider orphan inventory](docs/ORPHAN_INVENTORY.md)
 - [SQLite backup·restore](docs/BACKUP_RESTORE.md)
 - [운영 관측·API 보호](docs/OPERATIONS.md)
+- [`g7mbctl` 설치·저장소 설정](docs/SETUP_CUI.md)
 - [R2/Lightsail 외부 검증 인계서](docs/EXTERNAL_VALIDATION_20260716.md)
 - [핵심 기술 결정](docs/adr/0001-rust-libvips-ffmpeg.md)
 - [멀티업로드와 단일 서버 queue 결정](docs/adr/0002-multi-upload-single-server-queue.md)

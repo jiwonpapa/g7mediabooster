@@ -9,6 +9,12 @@ Group=g7mediabooster
 ExecStart=/usr/local/bin/g7mb-worker --config /etc/g7mediabooster/g7mb.toml database backup
 TimeoutStartSec=15min
 UMask=0077
+LoadCredential=g7mb-storage-access-key-id:/etc/g7mediabooster/credentials/storage-access-key-id
+LoadCredential=g7mb-storage-secret-access-key:/etc/g7mediabooster/credentials/storage-secret-access-key
+LoadCredential=g7mb-hmac-secret:/etc/g7mediabooster/credentials/g7-hmac-secret
+Environment=G7MB__STORAGE__ACCESS_KEY_ID_FILE=%d/g7mb-storage-access-key-id
+Environment=G7MB__STORAGE__SECRET_ACCESS_KEY_FILE=%d/g7mb-storage-secret-access-key
+Environment=G7MB__AUTH__HMAC_SECRET_FILE=%d/g7mb-hmac-secret
 
 StateDirectory=g7mediabooster
 ReadWritePaths=/var/lib/g7mediabooster

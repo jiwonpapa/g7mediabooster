@@ -14,7 +14,7 @@ use g7mb_application::{
 };
 use g7mb_config::StorageSettings;
 use g7mb_domain::ObjectKey;
-use g7mb_object_store_s3::S3CompatibleStore;
+use g7mb_object_store_s3::{S3CompatibleStore, S3StorageAdmin};
 use secrecy::{ExposeSecret as _, SecretString};
 
 #[tokio::test]
@@ -181,6 +181,34 @@ async fn minio_single_multipart_abort_download_and_derivative_conformance()
     Ok(())
 }
 
+#[tokio::test]
+#[ignore = "requires the repository MinIO container harness"]
+async fn minio_admin_bucket_bootstrap_and_runtime_canary_are_idempotent()
+-> Result<(), Box<dyn std::error::Error>> {
+    let mut settings = settings_from_environment()?;
+    settings.raw_bucket.push_str("-admin");
+    settings.derivative_bucket = settings.raw_bucket.clone();
+    let admin = S3StorageAdmin::new(&settings);
+    // MinIO's pinned S3 surface does not implement PutBucketCors. Provider CORS is
+    // covered by rule unit tests and the credential-gated R2/AWS bootstrap.
+    let origins = Vec::new();
+
+    let first = admin.bootstrap(&settings, true, &origins).await?;
+    assert_eq!(first.len(), 1);
+    assert!(first[0].created);
+    assert!(!first[0].cors_configured);
+    let second = admin.bootstrap(&settings, true, &origins).await?;
+    assert_eq!(second.len(), 1);
+    assert!(!second[0].created);
+    assert!(!second[0].cors_configured);
+
+    let report = admin.canary(&settings).await?;
+    assert_eq!(report.buckets_checked, 1);
+    assert!(report.single_object);
+    assert!(report.multipart);
+    Ok(())
+}
+
 fn settings_from_environment() -> Result<StorageSettings, Box<dyn std::error::Error>> {
     let endpoint = env::var("G7MB_TEST_S3_ENDPOINT")?;
     let access_key = env::var("G7MB_TEST_S3_ACCESS_KEY")?;
@@ -194,7 +222,9 @@ fn settings_from_environment() -> Result<StorageSettings, Box<dyn std::error::Er
         derivative_bucket: env::var("G7MB_TEST_S3_DERIVATIVE_BUCKET")
             .unwrap_or_else(|_| format!("g7mb-media-{suffix}")),
         access_key_id: SecretString::from(access_key),
+        access_key_id_file: None,
         secret_access_key: SecretString::from(secret_key),
+        secret_access_key_file: None,
         force_path_style: true,
     })
 }

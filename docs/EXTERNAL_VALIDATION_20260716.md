@@ -23,6 +23,11 @@
 bucket 생성·IAM 변경·CORS 변경은 하지 않습니다. object key는
 `raw/conformance/{uuid}`와 `media/conformance/{uuid}` 아래에서만 생성합니다.
 
+설치 경로의 `g7mbctl storage bootstrap`은 별도로 구현됐습니다. 이 명령은 권한이 있을 때
+bucket을 생성하고 기존 CORS를 보존한 채 MediaBooster 관리 규칙을 병합합니다. 이어서
+`g7mbctl storage doctor`가 bounded single/multipart canary를 실행합니다. 공식 provider 승격은
+이 간편검사만이 아니라 아래 전체 presigned conformance까지 통과해야 합니다.
+
 ## 공통 환경값
 
 ```bash
@@ -49,6 +54,13 @@ Lightsail bucket access key는 버킷 단위이므로 단일 버킷 검증에서
 ## 내일 실행 순서
 
 ```bash
+# 설치 CUI에서 --defer-storage를 선택했다면 bucket/CORS와 bounded canary부터 완료
+sudo g7mbctl storage bootstrap \
+  --config /etc/g7mediabooster/g7mb.toml \
+  --create-missing \
+  --origin https://실제-G7-origin
+sudo g7mbctl storage doctor --config /etc/g7mediabooster/g7mb.toml
+
 # 0. secret을 출력하지 않는 환경값·HTTPS·도구·크기 preflight
 export G7MB_LIVE_S3_PREFLIGHT_ONLY=true
 cargo xtask live-storage-conformance

@@ -42,6 +42,8 @@ enum Harness {
     NativeSmoke,
     /// Start the API binary and verify live, ready, capability, and header responses.
     ApiSmoke,
+    /// Generate an offline production config twice and prove secret separation/idempotence.
+    SetupSmoke,
     /// Install and verify the Gnuboard 7 PHP/TypeScript adapter harness.
     G7Adapter,
     /// Build the reproducible Gnuboard 7 module archive and SHA-256 file.
@@ -100,6 +102,7 @@ fn main() -> anyhow::Result<()> {
         Harness::Miri => miri(),
         Harness::NativeSmoke => run("bash", ["scripts/native-smoke.sh"]),
         Harness::ApiSmoke => run("bash", ["scripts/api-smoke.sh"]),
+        Harness::SetupSmoke => run("bash", ["scripts/setup-cli-smoke.sh"]),
         Harness::G7Adapter => g7_adapter(),
         Harness::G7ModulePackage => run("bash", ["scripts/package-g7-module.sh"]),
         Harness::G5Adapter => g5_adapter(),
@@ -175,6 +178,7 @@ fn quick() -> anyhow::Result<()> {
 fn ci() -> anyhow::Result<()> {
     quick()?;
     openapi(OpenApiAction::Check)?;
+    run("bash", ["scripts/setup-cli-smoke.sh"])?;
     run("bash", ["scripts/live-storage-preflight-smoke.sh"])?;
     run("bash", ["scripts/package-g7-module.sh"])?;
     bench(true)
