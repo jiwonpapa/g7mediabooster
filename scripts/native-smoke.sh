@@ -86,20 +86,26 @@ if base64 --decode <tests/fixtures/private-exif.jpg.b64 >"$TMP/private-exif.jpg"
 else
     base64 -D <tests/fixtures/private-exif.jpg.b64 >"$TMP/private-exif.jpg"
 fi
-cargo run --quiet --locked --package g7mb-sandbox --features native-vips -- \
-    image-thumbnail \
-    --input "$TMP/private-exif.jpg" \
-    --output "$TMP/sanitized.jpg" \
-    --max-edge 8 \
-    --format jpeg \
-    --threads 1
-sanitized_metadata="$(vipsheader -a "$TMP/sanitized.jpg" 2>/dev/null)"
-if [[ "$sanitized_metadata" == *"PrivateCamera"* \
-    || "$sanitized_metadata" == *"exif-data"* \
-    || "$sanitized_metadata" == *"GPSLatitude"* ]]; then
-    echo "sanitized image retained private metadata" >&2
-    exit 1
-fi
+for format in jpeg webp avif png; do
+    output="$TMP/sanitized.$format"
+    if [[ "$format" == "jpeg" ]]; then
+        output="$TMP/sanitized.jpg"
+    fi
+    cargo run --quiet --locked --package g7mb-sandbox --features native-vips -- \
+        image-thumbnail \
+        --input "$TMP/private-exif.jpg" \
+        --output "$output" \
+        --max-edge 8 \
+        --format "$format" \
+        --threads 1
+    sanitized_metadata="$(vipsheader -a "$output" 2>/dev/null)"
+    if [[ "$sanitized_metadata" == *"PrivateCamera"* \
+        || "$sanitized_metadata" == *"exif-data"* \
+        || "$sanitized_metadata" == *"GPSLatitude"* ]]; then
+        echo "sanitized $format image retained private metadata" >&2
+        exit 1
+    fi
+done
 
 image_probe="$(cargo run --quiet --locked --package g7mb-sandbox --features native-vips -- \
     probe \

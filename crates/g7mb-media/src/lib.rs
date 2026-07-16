@@ -949,31 +949,21 @@ pub mod vips {
                         ..ops::JpegsaveOptions::default()
                     },
                 ),
-                ImageOutputFormat::Webp => ops::webpsave_with_opts(
-                    &image,
-                    output,
-                    &ops::WebpsaveOptions {
-                        q: 80,
-                        smart_subsample: true,
-                        effort: 4,
-                        keep: ops::ForeignKeep::None,
-                        profile: None,
-                        ..ops::WebpsaveOptions::default()
-                    },
-                ),
-                ImageOutputFormat::Avif => ops::heifsave_with_opts(
-                    &image,
-                    output,
-                    &ops::HeifsaveOptions {
-                        q: 50,
-                        bitdepth: 8,
-                        compression: ops::ForeignHeifCompression::Av1,
-                        effort: 4,
-                        keep: ops::ForeignKeep::None,
-                        profile: None,
-                        ..ops::HeifsaveOptions::default()
-                    },
-                ),
+                // The generated 8.18 bindings pass every known optional
+                // property. libvips 8.15 rejects that call when newer WebP or
+                // HEIF properties are absent. Filename options let libvips
+                // parse only this stable subset while preserving streaming
+                // file output and metadata stripping.
+                ImageOutputFormat::Webp => image.image_write_to_file(&filename_with_options(
+                    request.output,
+                    "webp",
+                    "Q=80,smart-subsample,effort=4,strip",
+                )?),
+                ImageOutputFormat::Avif => image.image_write_to_file(&filename_with_options(
+                    request.output,
+                    "avif",
+                    "Q=50,bitdepth=8,compression=av1,effort=4,strip",
+                )?),
                 ImageOutputFormat::Png => ops::pngsave_with_opts(
                     &image,
                     output,
@@ -987,6 +977,31 @@ pub mod vips {
             }
             .map_err(|error| MediaError::Vips(format!("encode: {error:?}")))
         }
+    }
+
+    fn filename_with_options(
+        output: &std::path::Path,
+        expected_extension: &str,
+        options: &str,
+    ) -> Result<String, MediaError> {
+        let output_extension = output
+            .extension()
+            .and_then(std::ffi::OsStr::to_str)
+            .ok_or_else(|| {
+                MediaError::InvalidRequest("image output extension is required".to_owned())
+            })?;
+        if !output_extension.eq_ignore_ascii_case(expected_extension) {
+            return Err(MediaError::InvalidRequest(format!(
+                "image output extension must be .{expected_extension}"
+            )));
+        }
+        let output = output.to_str().ok_or(MediaError::NonUtf8Path)?;
+        if output.contains(['[', ']']) {
+            return Err(MediaError::InvalidRequest(
+                "image output path contains libvips option delimiters".to_owned(),
+            ));
+        }
+        Ok(format!("{output}[{options}]"))
     }
 
     fn apply_watermark(
@@ -1065,6 +1080,29 @@ pub mod vips {
             },
         )
         .map_err(|error| MediaError::Vips(format!("watermark composite: {error:?}")))
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use std::path::Path;
+
+        use super::filename_with_options;
+
+        #[test]
+        fn filename_options_require_matching_safe_output_paths() -> Result<(), super::MediaError> {
+            let encoded = filename_with_options(
+                Path::new("/private/job/thumbnail.webp"),
+                "webp",
+                "Q=80,strip",
+            )?;
+            assert_eq!(encoded, "/private/job/thumbnail.webp[Q=80,strip]");
+            assert!(filename_with_options(Path::new("thumbnail.jpg"), "webp", "strip").is_err());
+            assert!(
+                filename_with_options(Path::new("job[unsafe]/thumbnail.webp"), "webp", "strip")
+                    .is_err()
+            );
+            Ok(())
+        }
     }
 }
 

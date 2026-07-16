@@ -4,11 +4,16 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PID=""
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/g7mb-api.XXXXXX")"
+LOG="$TMP/api.log"
 
 cleanup() {
+    local exit_status="$?"
     if [[ -n "$PID" ]]; then
         kill "$PID" 2>/dev/null || true
         wait "$PID" 2>/dev/null || true
+    fi
+    if (( exit_status != 0 )) && [[ -s "$LOG" ]]; then
+        tail -n 120 "$LOG" >&2
     fi
     rm -rf "$TMP"
 }
@@ -18,7 +23,7 @@ cd "$ROOT"
 cargo build --quiet --locked --package g7mb-api
 export G7MB__DATABASE__URL="sqlite://$TMP/g7mb.db"
 export G7MB__WORKER__SANDBOX_BINARY="$ROOT/tests/fixtures/fake-capability-sandbox.sh"
-target/debug/g7mb-api --config config/g7mb.example.toml >"${TMPDIR:-/tmp}/g7mb-api-smoke.log" 2>&1 &
+target/debug/g7mb-api --config config/g7mb.example.toml >"$LOG" 2>&1 &
 PID="$!"
 
 for _attempt in $(seq 1 50); do
