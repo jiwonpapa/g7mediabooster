@@ -18,11 +18,39 @@ user_update_request="$board/src/Http/Requests/User/UpdatePostRequest.php"
 layout_extension_service="$root/app/Services/LayoutExtensionService.php"
 failures=0
 
+search_quiet() {
+  local pattern="$1"
+  local file="$2"
+  if command -v rg >/dev/null 2>&1; then
+    rg -q -- "$pattern" "$file"
+  else
+    grep -Eq -- "$pattern" "$file"
+  fi
+}
+
+count_matches() {
+  local pattern="$1"
+  local file="$2"
+  if command -v rg >/dev/null 2>&1; then
+    rg -c -- "$pattern" "$file"
+  else
+    grep -Ec -- "$pattern" "$file"
+  fi
+}
+
+list_patched_paths() {
+  if command -v rg >/dev/null 2>&1; then
+    rg --no-filename '^\+\+\+ b/' "$patch_root"/*.patch
+  else
+    grep -hE '^\+\+\+ b/' "$patch_root"/*.patch
+  fi
+}
+
 require_pattern() {
   local file="$1"
   local pattern="$2"
   local label="$3"
-  if [[ ! -f "$file" ]] || ! rg -q -- "$pattern" "$file"; then
+  if [[ ! -f "$file" ]] || ! search_quiet "$pattern" "$file"; then
     echo "FAIL: $label" >&2
     failures=$((failures + 1))
   else
@@ -37,7 +65,7 @@ require_pattern_count_at_least() {
   local label="$4"
   local count=0
   if [[ -f "$file" ]]; then
-    count="$(rg -c -- "$pattern" "$file" || true)"
+    count="$(count_matches "$pattern" "$file" || true)"
   fi
   if [[ ! "$count" =~ ^[0-9]+$ ]] || (( count < minimum )); then
     echo "FAIL: $label" >&2
@@ -169,7 +197,7 @@ else
         ;;
     esac
   done < <(
-    rg --no-filename '^\+\+\+ b/' "$patch_root"/*.patch \
+    list_patched_paths \
       | sed 's#^+++ b/##' \
       | sort -u
   )
