@@ -36,7 +36,7 @@ final readonly class MediaBoosterConfiguration
     public static function fromArray(array $settings): self
     {
         $enabled = filter_var($settings['enabled'] ?? false, FILTER_VALIDATE_BOOL);
-        $endpoint = self::validatedEndpoint((string) ($settings['control_endpoint'] ?? 'http://127.0.0.1:8080'));
+        $endpoint = self::validatedEndpoint((string) ($settings['control_endpoint'] ?? 'http://127.0.0.1:8088'));
         $keyId = (string) ($settings['key_id'] ?? 'g7-primary');
         $secret = (string) ($settings['hmac_secret'] ?? '');
 

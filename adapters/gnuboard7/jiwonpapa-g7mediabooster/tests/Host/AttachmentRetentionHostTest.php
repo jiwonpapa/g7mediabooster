@@ -133,7 +133,7 @@ final class AttachmentRetentionHostTest extends BoardTestCase
         $this->actingAs($admin);
         $request = UpdateSettingsRequest::create('/admin/settings', 'PUT', [
             'enabled' => false,
-            'control_endpoint' => 'http://127.0.0.1:8080',
+            'control_endpoint' => 'http://127.0.0.1:8088',
             'key_id' => 'g7-primary',
             'hmac_secret' => '',
             'timeout_seconds' => 15,

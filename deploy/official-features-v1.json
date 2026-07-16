@@ -4,7 +4,7 @@
   "release_status": "candidate",
   "module": {
     "identifier": "jiwonpapa-g7mediabooster",
-    "version": "0.4.0",
+    "version": "0.4.1",
     "gnuboard7": ">=7.0.4",
     "sirsoft_board": ">=1.2.0"
   },

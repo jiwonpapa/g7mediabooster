@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.1 - 2026-07-16
+
+- 설치 직후 G7 제어 endpoint 기본값을 Rust API/CUI의 `http://127.0.0.1:8088`과 일치시켰습니다.
+
 ## 0.4.0 - 2026-07-16
 
 - MP4에 더해 MOV/H.264를 실제 runtime·worker·private delivery fixture로 검증하고 업로더에 공개했습니다.

@@ -5,7 +5,7 @@
         "ko": "G7 미디어 부스터",
         "en": "G7 Media Booster"
     },
-    "version": "0.4.0",
+    "version": "0.4.1",
     "license": "Apache-2.0",
     "description": {
         "ko": "S3/R2 직접 멀티업로드와 격리된 미디어 가공을 연결합니다.",

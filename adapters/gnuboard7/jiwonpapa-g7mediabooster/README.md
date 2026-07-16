@@ -36,6 +36,8 @@ modules/jiwonpapa-g7mediabooster
 검증한 뒤 G7의 표준 모듈 설치·활성화 절차를 사용합니다. 설치 시
 `g7mb_upload_sessions`, attachment bridge, retention queue migration이 실행되고 관리자 메뉴에 `미디어 부스터`가 추가됩니다.
 Rust API의 `key_id`, HMAC secret, tenant 설정은 G7 관리자 값과 정확히 맞아야 합니다.
+같은 서버의 표준 설치 기본 endpoint는 Rust API/CUI와 동일한 `http://127.0.0.1:8088`입니다.
+리버스 프록시나 별도 서버를 쓰는 경우에만 관리자 화면에서 HTTPS origin으로 변경합니다.
 
 ## Object storage CORS
 

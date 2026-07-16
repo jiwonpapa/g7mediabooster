@@ -66,7 +66,7 @@ final class Configuration
 
         return new self(
             enabled: $enabled,
-            endpoint: rtrim($read('G7MB_G5_ENDPOINT', 'http://127.0.0.1:8080'), '/'),
+            endpoint: rtrim($read('G7MB_G5_ENDPOINT', 'http://127.0.0.1:8088'), '/'),
             keyId: $read('G7MB_G5_KEY_ID', 'g5-disabled'),
             hmacSecret: $read('G7MB_G5_HMAC_SECRET'),
             connectTimeoutSeconds: self::integer($read('G7MB_G5_CONNECT_TIMEOUT_SECONDS', '2'), 2),

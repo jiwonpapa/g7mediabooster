@@ -16,7 +16,7 @@ final class MediaBoosterConfigurationTest extends TestCase
         $configuration = MediaBoosterConfiguration::fromArray([]);
 
         self::assertFalse($configuration->enabled);
-        self::assertSame('http://127.0.0.1:8080', $configuration->endpoint);
+        self::assertSame('http://127.0.0.1:8088', $configuration->endpoint);
         self::assertSame('g7-primary', $configuration->keyId);
         self::assertSame('', $configuration->hmacSecret);
     }
@@ -38,12 +38,12 @@ final class MediaBoosterConfigurationTest extends TestCase
         $settings = $this->validSettings();
         $settings['enabled'] = false;
         $settings['hmac_secret'] = '';
-        $settings['control_endpoint'] = 'http://127.12.3.4:8080/';
+        $settings['control_endpoint'] = 'http://127.12.3.4:8088/';
 
         $configuration = MediaBoosterConfiguration::fromArray($settings);
 
         self::assertFalse($configuration->enabled);
-        self::assertSame('http://127.12.3.4:8080', $configuration->endpoint);
+        self::assertSame('http://127.12.3.4:8088', $configuration->endpoint);
     }
 
     /** @return iterable<string, array{string}> */

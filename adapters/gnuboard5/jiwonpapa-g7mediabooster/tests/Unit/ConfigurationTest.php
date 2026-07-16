@@ -17,6 +17,7 @@ final class ConfigurationTest extends TestCase
         $configuration = Configuration::fromEnvironment(['G7MB_G5_ENABLED' => 'false']);
 
         self::assertFalse($configuration->enabled);
+        self::assertSame('http://127.0.0.1:8088', $configuration->endpoint);
         self::assertSame(8, $configuration->maxParallelFiles);
     }
 

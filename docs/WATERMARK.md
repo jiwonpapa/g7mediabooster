@@ -37,7 +37,7 @@ G7 관리자는 같은 tenant에서 안전 검사를 통과한 Ready PNG·WebP·
 현재 revision을 SQLite job에 고정하므로 정책이 변경돼도 재시도 결과가 바뀌지 않습니다.
 worker는 고정된 object key를 S3/R2에서 exact-length download하고 digest를 다시 확인합니다.
 
-G7 0.4.0 관리 화면은 upload ID 수동 입력을 허용하지 않습니다. 현재 관리자가 최근 7일 안에
+G7 0.4.1 관리 화면은 upload ID 수동 입력을 허용하지 않습니다. 현재 관리자가 최근 7일 안에
 직접 업로드한 Ready PNG·WebP·JPEG 중 encoded 16MiB 이하 자산만 선택기로 노출합니다. 다른
 사용자, 삭제 대기, 미처리, 허용하지 않은 형식·크기는 PHP catalog 단계에서 제외됩니다.
 설정 저장 API도 catalog에 없는 UUID를 422로 거부해 UI 우회를 허용하지 않습니다.
