@@ -28,7 +28,7 @@
 | 이미지·영상 poster 워터마크 | PASS | bounded 합성, SHA-256 pin, revision+digest key, fail-closed worker와 실제 MP4 경로 |
 | sandbox egress | PASS | Linux seccomp socket 계열 차단, native child 상속, 컨테이너 EPERM 테스트 |
 | G7 제어 업로더 | PASS | PHP 57 tests/153 assertions, TS 21 tests, 100개 bounded 전송 후 Ready polling·native attachment materialization, MP4/MOV 계약, form state 연결, capability·삭제·private delivery proxy·관리자 asset picker, typecheck·Vite build 통과 |
-| G7 module 배포 산출물 | PASS | 0.4.1 관리자 설치 ZIP 149,966 bytes, SHA-256 `a667232a…a6a3`; 실행 간 재현성·실제 G7 ZipInstallHelper·dev dependency/test 제외·공식 기능 manifest fail-closed |
+| G7 module 배포 산출물 | PASS | 0.4.2 source·versioned activation capability·실제 G7 ZipInstallHelper·dev dependency/test 제외·공식 기능 manifest fail-closed; 새 archive hash는 커밋 후 재생성 |
 | 런타임 capability | PASS | 필수 image 6 input/4 output, MP4/MOV H.264 poster, OpenH264 폴백 보고와 API startup fail-closed |
 | G7 site policy | PASS | HMAC PUT/GET, Ready asset pin, 단조 revision, job 고정·worker exact revision 적용 |
 | G7 policy 종단 | PASS | 실제 PHP HMAC client→Rust API revision 1→worker 워터마크 출력→revision 2 해제·원본 출력 복원 |
@@ -44,7 +44,7 @@
 | AVIF decoder memory | PASS | 64MP AVIF peak RSS 1,221,776 KiB, 200MP AVIF full decode 전 정책 거부 |
 | tenant fair queue·backpressure | PASS | 영속 round-robin claim, global 1,000/tenant 200 활성 cap, presign 전 차단, 429 계약 |
 | Linux cgroup 부하 | PASS | CPU 2 core, memory 2GiB, PID 64, network none, API health 665/665, worker 100/100, peak 1,782,890,496 bytes |
-| G7 게시물 첨부 표시 | PARTIAL | G7 `e64381dd`에 patch 5개 반영, 계약 28/28+parser, 현재 checkout 첨부·권한 58/90·전체 layout 57/193·count sync 1/2와 실제 browser upload/create/update/private thumbnail·권한 403 매트릭스·asset picker·보존 gate PASS; upstream commit·실 provider 삭제 필요 |
+| G7 게시물 첨부 표시 | PARTIAL | G7 `e64381dd` 기준 patch 6개 clean apply, 계약 29/29+parser+activation, 기존 checkout 첨부·권한 58/90·전체 layout 57/193·count sync 1/2와 browser·권한·asset picker·보존 gate PASS; upstream commit·실 provider 삭제 필요 |
 | G5 게시물 첨부 표시 | PASS | G5 5.6.24 계약 21/21, PHP 17/31, TS 5, MySQL 8.4·MyISAM 11/11, 실제 browser single PUT+2-part multipart→첨부 2개·private thumbnail PASS |
 
 ## 준비된 하네스

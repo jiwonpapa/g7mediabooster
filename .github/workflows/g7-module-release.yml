@@ -71,6 +71,7 @@ jobs:
             adapters/gnuboard7/upstream-contract/0003-*.patch \
             adapters/gnuboard7/upstream-contract/0004-*.patch \
             adapters/gnuboard7/upstream-contract/0005-*.patch \
+            adapters/gnuboard7/upstream-contract/0006-*.patch \
             scripts/verify-gnuboard7-media-contract.sh \
             deploy/official-features-v1.json \
             --verify-tag \

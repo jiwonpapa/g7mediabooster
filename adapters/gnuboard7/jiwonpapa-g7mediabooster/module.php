@@ -5,11 +5,23 @@ declare(strict_types=1);
 namespace Modules\Jiwonpapa\G7mediabooster;
 
 use App\Extension\AbstractModule;
+use Modules\Jiwonpapa\G7mediabooster\Compatibility\Gnuboard7MediaContract;
 use Modules\Jiwonpapa\G7mediabooster\Listeners\AttachmentLifecycleListener;
 use Modules\Jiwonpapa\G7mediabooster\Listeners\AttachmentUrlListener;
 
 final class Module extends AbstractModule
 {
+    /**
+     * Refuse activation when the host only satisfies a version label but not
+     * the secure external-attachment capability used by this module.
+     */
+    public function activate(): bool
+    {
+        Gnuboard7MediaContract::assertCompatible();
+
+        return true;
+    }
+
     /** @return array<class-string> */
     public function getHookListeners(): array
     {

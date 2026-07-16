@@ -63,6 +63,18 @@ php -r '
     foreach (["cloudflare_r2_profile", "lightsail_object_storage_profile", "live_provider_retention_delete", "multi_node_postgresql"] as $required) {
         in_array($required, $withheldIds, true) || $fail("required withheld feature is missing: ".$required);
     }
+    $g7 = null;
+    foreach ($publishable as $feature) {
+        if (($feature["id"] ?? null) === "gnuboard7_module") {
+            $g7 = $feature;
+            break;
+        }
+    }
+    is_array($g7) || $fail("gnuboard7 publishable feature is missing");
+    ($g7["requires"] ?? null) === [
+        "upstream patch 0001-0006",
+        "media contract 29/29 + parser and activation validation",
+    ] || $fail("gnuboard7 activation requirements drift");
 ' "$FEATURES" "$spec_version"
 
 name="jiwonpapa-g7mediabooster-$version"

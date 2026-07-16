@@ -44,6 +44,7 @@ final class BridgeContractSourceTest extends TestCase
         self::assertStringNotContainsString('video/webm', $batchRequest);
         self::assertStringContainsString('video/quicktime', $batchRequest);
         self::assertStringContainsString('AttachmentUrlListener::class', $module);
+        self::assertStringContainsString('Gnuboard7MediaContract::assertCompatible()', $module);
         self::assertStringContainsString('nullOnDelete()', $migration);
         self::assertStringContainsString('retention_request_started_at', $retentionMigration);
         self::assertStringContainsString('lockForUpdate()', $retention);

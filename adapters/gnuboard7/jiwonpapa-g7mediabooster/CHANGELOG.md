@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.2 - 2026-07-16
+
+- G7 활성화 시 versioned 보안 첨부 capability, PHP 메서드 시그니처와 사용자·관리자 layout target을 검증합니다.
+- patch `0006`이 게시하는 `sirsoft-board.secure-external-attachments` 계약이 없거나 불완전하면 활성화를 fail-closed 합니다.
+
 ## 0.4.1 - 2026-07-16
 
 - 설치 직후 G7 제어 endpoint 기본값을 Rust API/CUI의 `http://127.0.0.1:8088`과 일치시켰습니다.

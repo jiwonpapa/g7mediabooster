@@ -4,7 +4,7 @@
   "release_status": "candidate",
   "module": {
     "identifier": "jiwonpapa-g7mediabooster",
-    "version": "0.4.1",
+    "version": "0.4.2",
     "gnuboard7": ">=7.0.4",
     "sirsoft_board": ">=1.2.0"
   },
@@ -23,8 +23,8 @@
       "id": "gnuboard7_module",
       "title": "Gnuboard7 관리자 설정, 직접 업로드와 native attachment 연동",
       "requires": [
-        "upstream patch 0001-0005",
-        "media contract 28/28 + parser validation"
+        "upstream patch 0001-0006",
+        "media contract 29/29 + parser and activation validation"
       ]
     },
     {"id": "gnuboard5_plugin", "title": "Gnuboard5 5.6.24 core-free 직접 업로드 플러그인"}

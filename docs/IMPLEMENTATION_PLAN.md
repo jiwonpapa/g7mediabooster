@@ -48,7 +48,7 @@ G7 모듈은 세션·게시판 권한·첨부 연결의 진실 원천이고, Rus
 | 3 | MP4/MOV 우선 영상 업로드, ffprobe 정책 검사 | B | 정상·손상·초과 duration fixture |
 | 4 | JPEG/PNG/GIF/WebP/AVIF/HEIC/HEIF 필수, WebM·JPEG XL은 capability gate | B/P2 | 실제 decode/encode runtime capability smoke |
 | 5 | quarantine, digest, magic+실제 decode, 폭탄 한도, sandbox, rate limit | B | 위장·polyglot·절단·픽셀/프레임 폭탄 거부 |
-| 6 | `jiwonpapa-g7mediabooster` PHP **모듈**과 `sirsoft-board` 공개 확장점 | C | 코어 patch 없이 설치·활성화·게시물 연결 smoke |
+| 6 | `jiwonpapa-g7mediabooster` PHP **모듈**과 `sirsoft-board` 공개 확장점 | C | upstream 계약 정식 반영 후 모듈 ZIP만으로 설치·활성화·게시물 연결 smoke |
 | 7 | batch 최대 100개, 여러 파일과 multipart를 bounded 병렬 처리 | D | 100개에서 연결·메모리 상한과 유실 0 |
 | 8 | 브라우저→object storage 직접 multipart로 PHP/Nginx body 한도 우회 | A | 5GiB fixture에서 API RSS가 파일 크기와 무관 |
 | 9 | orientation 적용 후 EXIF/GPS/XMP/IPTC 제거, 안전한 ICC만 재작성 | B | metadata 재검사와 GPS/serial 부재 확인 |
@@ -229,7 +229,7 @@ bounded 동시성, 진행률·취소·재시도·ETag/abort, Ready polling·nati
 6. `attachment_ids` bulk link 직후 게시글 첨부 수를 동기화하는 계약
 7. 비밀·블라인드·삭제글 첨부 URL을 본문 권한과 동일하게 차단하는 계약
 
-이는 현재 G7 기준 `sirsoft-board` 1.2.0과 patch 5개, 28항목 검증기로 고정했습니다. 설치·설정,
+이는 현재 G7 기준 `sirsoft-board` 1.2.0과 patch 6개, 29항목·activation 검증기로 고정했습니다. 설치·설정,
 user/admin form과 MinIO 기반 실제 single/multipart 전송·create/update·private thumbnail 전달은
 통과했습니다. 권한·삭제/복원·보존 lease G7 DB gate도 통과했습니다. upstream 미반영 배포와
 실 provider 보존 삭제 종단은 공식 지원으로 게시하지 않습니다. 권한 차단 실브라우저 매트릭스는

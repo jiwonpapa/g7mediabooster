@@ -11,7 +11,7 @@
 | 3 동영상 업로드 | PASS | 실제 MP4/MOV H.264 multipart→FFprobe/FFmpeg→master/poster→private delivery | WebM은 공식 범위 밖 |
 | 4 최신 이미지 포맷 | PASS | runtime capability의 JPEG/PNG/GIF/WebP/AVIF/HEIF decode, 4 output 실제 fixture | JPEG XL은 공식 범위 밖 |
 | 5 진짜 파일·보안 | PASS | signature+decoder/FFprobe, 위장 PHP 거부, no-network sandbox, hard limits | 선택 ClamAV/moderation hook |
-| 6 G5/G7 연동 | PARTIAL | G5 5.6.24 browser E2E, G7 patch 5개·계약 28/28·browser/DB gate | G7 upstream 정식 반영, 실 provider 보존 삭제 |
+| 6 G5/G7 연동 | PARTIAL | G5 5.6.24 browser E2E, G7 patch 6개·계약 29/29·activation·browser/DB gate | G7 upstream 정식 반영, 실 provider 보존 삭제 |
 | 7 다중 업로드 | PASS | browser 100개, 전체 연결 8개, 파일별 part 4개, 원자 batch 예약 | 공급자별 처리량 재측정 |
 | 8 대용량 streaming | PASS | 정확한 5GiB 160-part, API 재기동·재개, complete 2회 멱등, API RSS +416KiB | 공급자별 외부 재실행 |
 | 9 EXIF 개인정보 | PASS | private EXIF/GPS/XMP/IPTC fixture 제거 후 재검사 | 영상 metadata 제거는 공식 범위 밖 |
@@ -35,10 +35,11 @@
 
 ## 현재 G7 upstream checkout 상태
 
-현재 개발 checkout은 `main` HEAD `c275b41b`이며 `origin/main`보다 11 commit 앞입니다.
-media contract는 28/28과 PHP·JSON parser 검사를 통과하지만, patch 관련 경로가 다른 사용자
-작업과 함께 아직 uncommitted 상태입니다. 이 저장소의 검증과 패키징은 read-only로 수행했고
-실행 전후 checkout dirty-state hash가 같았습니다.
+현재 개발 checkout은 `main` HEAD `35e530de`이며 로컬 추적 `origin/main`보다 13 commit 앞입니다.
+기존 media contract 28항목은 남아 있지만 새 patch `0006` capability 문서는 아직 적용하지 않아
+0.4.2 activation gate가 예상대로 `G7MB_G7_CONTRACT_FILE_MISSING`을 반환합니다. 사용자 작업과
+섞인 이 checkout은 수정하지 않았습니다. 별도 깨끗한 `e64381dd` worktree에 patch 6개를 순차
+적용해 29/29·parser·실제 `Module::activate()` PASS를 확인했습니다.
 
 production DB와 분리한 임시 MySQL 8.4와 일회용 `.env.testing`으로 현재 checkout의 첨부·권한
 58 tests/90 assertions, 전체 layout extension 57/193, 첨부 수 동기화 1/2를 통과했습니다.
@@ -54,7 +55,7 @@ SHA-256 `53b4dc1c…d026`으로 재현했습니다. 배포 설명 자동화는
 `deploy/official-features-v1.json`의 `publishable_features`만 사용하며, R2/Lightsail 실계정과
 실 provider 보존 삭제는 `withheld_until_verified`에 남겨둡니다.
 
-현재 관리자 설치판 0.4.1은 module commit `f2594aac` 기준 ZIP 149,966 bytes,
+이전 관리자 설치판 0.4.1은 module commit `f2594aac` 기준 ZIP 149,966 bytes,
 SHA-256 `a667232a…a6a3`로 두 번 재현했고, G7 checkout `c275b41b`의 실제
 `ZipInstallHelper`와 checkout 무변경 검사를 통과했습니다.
 

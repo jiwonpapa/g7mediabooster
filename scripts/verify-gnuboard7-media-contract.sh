@@ -128,6 +128,13 @@ require_pattern "$layout_extension_service" \
   'return \$injected;' \
   'layout overlay applies to every matching target'
 
+module_root="$script_root/../adapters/gnuboard7/jiwonpapa-g7mediabooster"
+if php "$script_root/verify-gnuboard7-module-host.php" "$root" "$module_root"; then
+  :
+else
+  failures=$((failures + 1))
+fi
+
 # 패턴 일치만으로 문법이 깨진 overlay를 PASS 처리하지 않습니다. 공식 patch가 만지는
 # PHP/JSON 전체를 실제 parser로 검사하되 credential이나 DB 연결은 요구하지 않습니다.
 if ! command -v php >/dev/null 2>&1; then
@@ -178,4 +185,4 @@ if (( failures > 0 )); then
   exit 1
 fi
 
-echo "Gnuboard7 media contract: PASS (28/28 + parser validation)"
+echo "Gnuboard7 media contract: PASS (29/29 + parser and activation validation)"

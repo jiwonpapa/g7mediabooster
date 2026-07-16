@@ -17,7 +17,7 @@ macOS는 다음 명령을 사용합니다.
 shasum -a 256 -c jiwonpapa-g7mediabooster-<version>.zip.sha256
 ```
 
-3. Release에 함께 첨부된 `0001`~`0005` 계약이 반영된 G7인지
+3. Release에 함께 첨부된 `0001`~`0006` 계약이 반영된 G7인지
    `verify-gnuboard7-media-contract.sh /path/to/gnuboard7`로 확인합니다.
 4. G7 관리자에서 **모듈 관리 → 파일에서 설치**를 열고 검증한 ZIP을 업로드합니다.
 5. 모듈을 활성화한 뒤 **미디어 부스터** 설정에서 HMAC key ID·secret을 Rust 서비스와 맞춥니다.
@@ -48,8 +48,8 @@ GNUBOARD7_ROOT=/path/to/gnuboard7 cargo xtask g7-module-package
 배포는 명시적인 annotated tag만 허용합니다.
 
 ```bash
-git tag -a g7-module-v0.4.1 -m "Gnuboard7 module 0.4.1"
-git push origin g7-module-v0.4.1
+git tag -a g7-module-v0.4.2 -m "Gnuboard7 module 0.4.2"
+git push origin g7-module-v0.4.2
 ```
 
 태그가 `module.json` 버전과 다르면 workflow가 실패합니다. `release_status=candidate`인 동안에는

@@ -14,6 +14,6 @@
 G7 코어에 필요한 owner-scoped attachment·URL filter·layout target 계약은
 [`upstream-contract`](upstream-contract)에 patch와 검증기로 분리했습니다.
 
-PHP 요청에는 파일 바이트가 들어오지 않습니다. upstream patch `0001`~`0005` 적용 환경에서
+PHP 요청에는 파일 바이트가 들어오지 않습니다. upstream patch `0001`~`0006` 적용 환경에서
 Ready 결과의 native `attachment_ids` 연결·표시와 private delivery를 지원합니다. patch가 없거나
 권한-aware 계약이 빠진 G7에서는 fail-closed 합니다. 상세 설치와 남은 경계는 모듈 README를 따릅니다.

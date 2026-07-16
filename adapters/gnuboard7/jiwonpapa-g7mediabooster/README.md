@@ -37,8 +37,9 @@ modules/jiwonpapa-g7mediabooster
 ```
 
 먼저 `adapters/gnuboard7/upstream-contract`의 board 계약과 module-prefixed overlay core patch가
-정식 반영된 `sirsoft-board >=1.2.0`인지
-검증한 뒤 G7의 표준 모듈 설치·활성화 절차를 사용합니다. 설치 시
+정식 반영된 `sirsoft-board >=1.2.0`인지 검증한 뒤 G7의 표준 모듈 설치·활성화 절차를 사용합니다.
+0.4.2부터는 versioned capability·PHP 시그니처·layout target이 하나라도 없으면 활성화 자체를
+거부합니다. 설치 시
 `g7mb_upload_sessions`, attachment bridge, retention queue migration이 실행되고 관리자 메뉴에 `미디어 부스터`가 추가됩니다.
 Rust API의 `key_id`, HMAC secret, tenant 설정은 G7 관리자 값과 정확히 맞아야 합니다.
 같은 서버의 표준 설치 기본 endpoint는 Rust API/CUI와 동일한 `http://127.0.0.1:8088`입니다.
@@ -118,5 +119,5 @@ API 재기동을 포함한 로컬 정확한 5GiB 직접 multipart 재개도
 ## 아직 공식 지원으로 게시하지 않는 연동
 
 실 R2/Lightsail profile의 5GiB·중단/재개와 보존 만료 command→실 provider 삭제는 각 종단
-게이트 전 공식 지원으로 게시하지 않습니다. patch `0001`~`0005`가
-없는 `sirsoft-board`에서는 manifest와 runtime 계약 검사가 설치·실행을 fail-closed 합니다.
+게이트 전 공식 지원으로 게시하지 않습니다. patch `0001`~`0006`이 완전하지 않은
+`sirsoft-board`에서는 module activation 계약 검사가 실행을 fail-closed 합니다.

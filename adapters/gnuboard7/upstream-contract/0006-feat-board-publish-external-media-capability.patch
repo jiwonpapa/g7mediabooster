@@ -1,0 +1,26 @@
+diff --git a/modules/_bundled/sirsoft-board/resources/contracts/external-media-v1.json b/modules/_bundled/sirsoft-board/resources/contracts/external-media-v1.json
+new file mode 100644
+index 00000000..65d0a7b1
+--- /dev/null
++++ b/modules/_bundled/sirsoft-board/resources/contracts/external-media-v1.json
+@@ -0,0 +1,20 @@
++{
++  "schema_version": 1,
++  "id": "sirsoft-board.secure-external-attachments",
++  "version": "1.0.0",
++  "features": [
++    "bounded_attachment_ids",
++    "owner_scoped_linking",
++    "all_or_nothing_linking",
++    "attachment_count_sync",
++    "byte_free_delivery_authorization",
++    "visibility_aware_delivery",
++    "filtered_download_url",
++    "filtered_preview_url",
++    "video_poster_url",
++    "stable_user_layout_targets",
++    "stable_admin_layout_targets",
++    "module_prefixed_layout_overlays",
++    "all_matching_layout_targets"
++  ]
++}

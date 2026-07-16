@@ -43,6 +43,10 @@ try {
     if (($manifest['dependencies']['modules']['sirsoft-board'] ?? null) !== '>=1.2.0') {
         throw new RuntimeException('G7 module sirsoft-board contract is invalid');
     }
+    if (($manifest['compatibility']['contracts']['sirsoft-board.secure-external-attachments'] ?? null)
+        !== '>=1.0.0 <2.0.0') {
+        throw new RuntimeException('G7 module activation capability contract is invalid');
+    }
 
     printf(
         "G7 ZipInstallHelper PASS identifier=%s version=%s\n",
