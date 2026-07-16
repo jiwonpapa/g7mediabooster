@@ -18,6 +18,15 @@
 - tar.gz SHA-256: `807090c2ce49a8fce8d3c7120e9d067cff1cbd400cf16ff7ee4e2feef6d49ce2`
 - 실제 G7 `ZipInstallHelper`: identifier·version·activation capability manifest PASS
 
+## 현재 0.4.3 관리자 설치 산출물
+
+- module commit: `7df24322045806f9b3d6eac002d74fe2b2006126`
+- ZIP: `jiwonpapa-g7mediabooster-0.4.3.zip`, 153,244 bytes
+- ZIP SHA-256: `1137edfb94f7ddedab425b1adfeca1908d205e1340d6c701175132055717ecac`
+- tar.gz: 126,297 bytes
+- tar.gz SHA-256: `160c980a2a3e7edafbaa46cd7643d6e141a1d320a33325d52b8e2ef249fd0da1`
+- 실제 G7 `ZipInstallHelper`: identifier·version·activation capability manifest PASS
+
 ## 활성화 시 검사하는 정본
 
 `Gnuboard7MediaContract::assertCompatible()`는 다음을 모두 검사합니다.
