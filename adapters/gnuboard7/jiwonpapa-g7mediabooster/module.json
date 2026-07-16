@@ -18,7 +18,6 @@
         },
         "plugins": {}
     },
-    "github_url": "https://github.com/jiwonpapa/g7mediabooster",
     "assets": {
         "js": {
             "entry": "resources/js/index.ts",

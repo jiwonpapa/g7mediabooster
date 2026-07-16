@@ -7,7 +7,7 @@ MODULE="$ROOT/$MODULE_REL"
 FEATURES="$ROOT/deploy/official-features-v1.json"
 OUTPUT_DIR="${G7MB_RELEASE_DIR:-$ROOT/output/releases}"
 
-for command_name in cmp git gzip php tar; do
+for command_name in cmp git gzip php tar unzip; do
     if ! command -v "$command_name" >/dev/null 2>&1; then
         echo "required command is unavailable: $command_name" >&2
         exit 2
@@ -66,10 +66,12 @@ php -r '
 ' "$FEATURES" "$spec_version"
 
 name="jiwonpapa-g7mediabooster-$version"
-archive="$OUTPUT_DIR/$name.tar.gz"
-checksum="$archive.sha256"
-temporary="$archive.tmp"
-reproducibility_copy="$archive.repro.tmp"
+tar_archive="$OUTPUT_DIR/$name.tar.gz"
+zip_archive="$OUTPUT_DIR/$name.zip"
+tar_temporary="$tar_archive.tmp"
+zip_temporary="$zip_archive.tmp"
+tar_reproducibility_copy="$tar_archive.repro.tmp"
+zip_reproducibility_copy="$zip_archive.repro.tmp"
 module_commit="$(git -C "$ROOT" log -1 --format=%H -- "$MODULE_REL")"
 commit_time="$(git -C "$ROOT" show -s --format=%cI "$module_commit")"
 if [[ -z "$module_commit" || -z "$commit_time" ]]; then
@@ -77,8 +79,10 @@ if [[ -z "$module_commit" || -z "$commit_time" ]]; then
     exit 2
 fi
 mkdir -p "$OUTPUT_DIR"
-rm -f "$temporary" "$reproducibility_copy"
-trap 'rm -f "$temporary" "$reproducibility_copy"' EXIT
+rm -f \
+    "$tar_temporary" "$zip_temporary" \
+    "$tar_reproducibility_copy" "$zip_reproducibility_copy"
+trap 'rm -f "$tar_temporary" "$zip_temporary" "$tar_reproducibility_copy" "$zip_reproducibility_copy"' EXIT
 
 release_paths=(
     CHANGELOG.md README.md composer.json composer.lock config database dist
@@ -86,7 +90,7 @@ release_paths=(
     tsconfig.json vite.config.ts
     ':(exclude)resources/**/*.test.ts'
 )
-build_archive() {
+build_tar_archive() {
     local destination="$1"
     git -C "$ROOT" archive \
         --format=tar \
@@ -96,37 +100,74 @@ build_archive() {
         "${release_paths[@]}" \
         | gzip -n -9 >"$destination"
 }
-build_archive "$temporary"
-build_archive "$reproducibility_copy"
-if ! cmp -s "$temporary" "$reproducibility_copy"; then
-    echo "G7 module archive is not byte-for-byte reproducible" >&2
+build_zip_archive() {
+    local destination="$1"
+    git -C "$ROOT" archive \
+        --format=zip \
+        --output="$destination" \
+        --prefix="jiwonpapa-g7mediabooster/" \
+        "HEAD:$MODULE_REL" \
+        "${release_paths[@]}"
+}
+build_tar_archive "$tar_temporary"
+build_tar_archive "$tar_reproducibility_copy"
+build_zip_archive "$zip_temporary"
+build_zip_archive "$zip_reproducibility_copy"
+if ! cmp -s "$tar_temporary" "$tar_reproducibility_copy"; then
+    echo "G7 module tar.gz is not byte-for-byte reproducible" >&2
     exit 1
 fi
-rm -f "$reproducibility_copy"
-mv "$temporary" "$archive"
+if ! cmp -s "$zip_temporary" "$zip_reproducibility_copy"; then
+    echo "G7 module ZIP is not byte-for-byte reproducible" >&2
+    exit 1
+fi
+rm -f "$tar_reproducibility_copy" "$zip_reproducibility_copy"
+mv "$tar_temporary" "$tar_archive"
+mv "$zip_temporary" "$zip_archive"
 
-entries="$(tar -tzf "$archive")"
-if [[ "$entries" == *'/vendor/'* \
-    || "$entries" == *'/node_modules/'* \
-    || "$entries" == *'/tests/'* \
-    || "$entries" == *'.test.'* \
-    || "$entries" == *'.phpunit'* ]]; then
-    echo "release archive contains development-only files" >&2
-    exit 1
-fi
-archive_version="$(tar -xOzf "$archive" jiwonpapa-g7mediabooster/module.json \
+validate_entries() {
+    local entries="$1"
+    local label="$2"
+    if [[ "$entries" == *'/vendor/'* \
+        || "$entries" == *'/node_modules/'* \
+        || "$entries" == *'/tests/'* \
+        || "$entries" == *'.test.'* \
+        || "$entries" == *'.phpunit'* ]]; then
+        echo "$label contains development-only files" >&2
+        exit 1
+    fi
+}
+validate_entries "$(tar -tzf "$tar_archive")" "release tar.gz"
+validate_entries "$(unzip -Z1 "$zip_archive")" "release ZIP"
+
+tar_version="$(tar -xOzf "$tar_archive" jiwonpapa-g7mediabooster/module.json \
     | php -r '$data = json_decode(stream_get_contents(STDIN), true, 512, JSON_THROW_ON_ERROR); echo $data["version"] ?? "";')"
-if [[ "$archive_version" != "$version" ]]; then
+zip_version="$(unzip -p "$zip_archive" jiwonpapa-g7mediabooster/module.json \
+    | php -r '$data = json_decode(stream_get_contents(STDIN), true, 512, JSON_THROW_ON_ERROR); echo $data["version"] ?? "";')"
+if [[ "$tar_version" != "$version" || "$zip_version" != "$version" ]]; then
     echo "release archive module version mismatch" >&2
     exit 1
 fi
 
-if command -v sha256sum >/dev/null 2>&1; then
-    sha256="$(sha256sum "$archive" | awk '{print $1}')"
-else
-    sha256="$(shasum -a 256 "$archive" | awk '{print $1}')"
-fi
-printf '%s  %s\n' "$sha256" "${archive##*/}" >"$checksum"
-bytes="$(wc -c <"$archive" | tr -d ' ')"
-printf 'g7-module-package PASS version=%s module_commit=%s bytes=%s sha256=%s archive=%s\n' \
-    "$version" "$module_commit" "$bytes" "$sha256" "$archive"
+sha256_file() {
+    local file="$1"
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha256sum "$file" | awk '{print $1}'
+    else
+        shasum -a 256 "$file" | awk '{print $1}'
+    fi
+}
+write_checksum() {
+    local file="$1"
+    local digest="$2"
+    printf '%s  %s\n' "$digest" "${file##*/}" >"$file.sha256"
+}
+tar_sha256="$(sha256_file "$tar_archive")"
+zip_sha256="$(sha256_file "$zip_archive")"
+write_checksum "$tar_archive" "$tar_sha256"
+write_checksum "$zip_archive" "$zip_sha256"
+tar_bytes="$(wc -c <"$tar_archive" | tr -d ' ')"
+zip_bytes="$(wc -c <"$zip_archive" | tr -d ' ')"
+printf 'g7-module-package PASS version=%s module_commit=%s tar_bytes=%s tar_sha256=%s tar=%s zip_bytes=%s zip_sha256=%s zip=%s\n' \
+    "$version" "$module_commit" "$tar_bytes" "$tar_sha256" "$tar_archive" \
+    "$zip_bytes" "$zip_sha256" "$zip_archive"

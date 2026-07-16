@@ -88,6 +88,7 @@ cargo xtask supply-chain
 - [요구사항 1~17 현재 판정표](docs/REQUIREMENTS_STATUS.md)
 - [멀티업로드와 lease queue 설명](docs/QUEUE_MODEL.md)
 - [Gnuboard 7 연동 계약](docs/GNUBOARD7_INTEGRATION.md)
+- [Gnuboard 7 모듈 배포·설치](docs/GNUBOARD7_RELEASE.md)
 - [Gnuboard 7 upstream 첨부 계약 patch](adapters/gnuboard7/upstream-contract/README.md)
 - [Gnuboard 7 실제 저장소 browser E2E](docs/evidence/G7_STORAGE_E2E_20260716.md)
 - [정확한 5GiB·G7 정책 종단 증거](docs/evidence/LARGE_MULTIPART_AND_G7_POLICY_20260716.md)

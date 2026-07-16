@@ -1,0 +1,77 @@
+name: g7-module-release
+
+on:
+  push:
+    tags:
+      - "g7-module-v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout tagged source
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          fetch-depth: 0
+      - name: Validate tag and release policy
+        run: |
+          # shellcheck disable=SC2016
+          version="$(php -r '
+            $manifest = json_decode(file_get_contents($argv[1]), true, 512, JSON_THROW_ON_ERROR);
+            echo $manifest["version"] ?? "";
+          ' adapters/gnuboard7/jiwonpapa-g7mediabooster/module.json)"
+          test "$GITHUB_REF_NAME" = "g7-module-v$version"
+          # shellcheck disable=SC2016
+          php -r '
+            $features = json_decode(file_get_contents($argv[1]), true, 512, JSON_THROW_ON_ERROR);
+            in_array($features["release_status"] ?? null, ["candidate", "stable"], true)
+              || throw new RuntimeException("invalid release status");
+            ($features["module"]["version"] ?? null) === $argv[2]
+              || throw new RuntimeException("module version drift");
+          ' deploy/official-features-v1.json "$version"
+      - name: Verify module source
+        run: |
+          composer install --working-dir=adapters/gnuboard7/jiwonpapa-g7mediabooster --no-interaction --prefer-dist
+          adapters/gnuboard7/jiwonpapa-g7mediabooster/vendor/bin/phpunit \
+            -c adapters/gnuboard7/jiwonpapa-g7mediabooster/phpunit.xml
+          npm ci --ignore-scripts --prefix adapters/gnuboard7/jiwonpapa-g7mediabooster
+          npm run typecheck --prefix adapters/gnuboard7/jiwonpapa-g7mediabooster
+          npm test --prefix adapters/gnuboard7/jiwonpapa-g7mediabooster
+          npm run build --prefix adapters/gnuboard7/jiwonpapa-g7mediabooster
+      - name: Build reproducible install artifacts
+        run: bash scripts/package-g7-module.sh
+      - name: Publish GitHub release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # shellcheck disable=SC2016
+          version="${GITHUB_REF_NAME#g7-module-v}"
+          release_flags=()
+          # shellcheck disable=SC2016
+          status="$(php -r '
+            $features = json_decode(file_get_contents($argv[1]), true, 512, JSON_THROW_ON_ERROR);
+            echo $features["release_status"] ?? "";
+          ' deploy/official-features-v1.json)"
+          if test "$status" = "candidate"; then
+            release_flags+=(--prerelease)
+          fi
+          gh release create "$GITHUB_REF_NAME" \
+            "output/releases/jiwonpapa-g7mediabooster-$version.zip" \
+            "output/releases/jiwonpapa-g7mediabooster-$version.zip.sha256" \
+            "output/releases/jiwonpapa-g7mediabooster-$version.tar.gz" \
+            "output/releases/jiwonpapa-g7mediabooster-$version.tar.gz.sha256" \
+            adapters/gnuboard7/upstream-contract/0001-*.patch \
+            adapters/gnuboard7/upstream-contract/0002-*.patch \
+            adapters/gnuboard7/upstream-contract/0003-*.patch \
+            adapters/gnuboard7/upstream-contract/0004-*.patch \
+            adapters/gnuboard7/upstream-contract/0005-*.patch \
+            scripts/verify-gnuboard7-media-contract.sh \
+            deploy/official-features-v1.json \
+            --verify-tag \
+            --generate-notes \
+            --title "G7MediaBooster Gnuboard7 module $version" \
+            "${release_flags[@]}"

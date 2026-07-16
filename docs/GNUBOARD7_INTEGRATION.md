@@ -3,6 +3,7 @@
 - 상태: form 자동 연결·Ready attachment bridge·private viewer·삭제 보존 대조·관리자 watermark asset picker 구현, 격리 browser 전송/create/update/private thumbnail·권한 매트릭스와 삭제/복원·보존 lease G7 DB gate PASS, upstream 정식 반영·실 provider 삭제는 보류
 - 기준: Gnuboard 7.0.4 / Laravel 12 / PHP 8.2+
 - 모듈: `adapters/gnuboard7/jiwonpapa-g7mediabooster`
+- 정식 설치: GitHub Release의 checksum 검증 ZIP을 G7 관리자 파일 설치로 적용
 
 ## 책임 경계
 
