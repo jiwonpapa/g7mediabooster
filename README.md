@@ -95,6 +95,7 @@ cargo xtask supply-chain
 - [CUI 설정·storage bootstrap 구현 증거](docs/evidence/SETUP_CUI_AND_STORAGE_BOOTSTRAP_20260716.md)
 - [MOV/H.264 runtime·worker 종단 증거](docs/evidence/MOV_H264_E2E_20260716.md)
 - [G7 module 0.4.0 재현 배포 산출물](docs/evidence/G7_MODULE_PACKAGE_20260716.md)
+- [G7 module 0.4.1 관리자 ZIP 설치 계약](docs/evidence/G7_MODULE_ZIP_INSTALL_20260716.md)
 - [Spec 1.1 요구사항 1~17 완료 감사](docs/COMPLETION_AUDIT_20260716.md)
 - [워터마크 계약](docs/WATERMARK.md)
 - [미디어 수명주기·삭제](docs/LIFECYCLE.md)

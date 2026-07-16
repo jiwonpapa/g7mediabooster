@@ -28,7 +28,7 @@
 | 이미지·영상 poster 워터마크 | PASS | bounded 합성, SHA-256 pin, revision+digest key, fail-closed worker와 실제 MP4 경로 |
 | sandbox egress | PASS | Linux seccomp socket 계열 차단, native child 상속, 컨테이너 EPERM 테스트 |
 | G7 제어 업로더 | PASS | PHP 57 tests/153 assertions, TS 21 tests, 100개 bounded 전송 후 Ready polling·native attachment materialization, MP4/MOV 계약, form state 연결, capability·삭제·private delivery proxy·관리자 asset picker, typecheck·Vite build 통과 |
-| G7 module 배포 산출물 | PASS | 0.4.0, 122,811 bytes, SHA-256 `53b4dc1c…d026`, commit mtime 고정·2회 byte 비교, dev dependency/test 제외, 공식 기능 manifest fail-closed |
+| G7 module 배포 산출물 | PASS | 0.4.1 관리자 설치 ZIP 149,915 bytes, SHA-256 `6dcc4bac…f9ec`; 실행 간 재현성·실제 G7 ZipInstallHelper·dev dependency/test 제외·공식 기능 manifest fail-closed |
 | 런타임 capability | PASS | 필수 image 6 input/4 output, MP4/MOV H.264 poster, OpenH264 폴백 보고와 API startup fail-closed |
 | G7 site policy | PASS | HMAC PUT/GET, Ready asset pin, 단조 revision, job 고정·worker exact revision 적용 |
 | G7 policy 종단 | PASS | 실제 PHP HMAC client→Rust API revision 1→worker 워터마크 출력→revision 2 해제·원본 출력 복원 |
@@ -55,7 +55,7 @@
 - 커버리지: `cargo xtask coverage`
 - API·네이티브 스모크: `cargo xtask api-smoke`, `cargo xtask native-smoke`
 - G7 어댑터: `cargo xtask g7-adapter`
-- G7 배포 압축본·SHA-256: `cargo xtask g7-module-package`
+- G7 관리자 설치 ZIP·수동 tar.gz·각 SHA-256: `cargo xtask g7-module-package`
 - G5 어댑터: `cargo xtask g5-adapter`, `cargo xtask g5-host-smoke`
 - G7 권한·삭제/복원·보존 DB: `scripts/g7-host-security-gate.sh /path/to/gnuboard7`
 - 100개 실제 JPEG/RSS/crash 복구: `cargo xtask load100`

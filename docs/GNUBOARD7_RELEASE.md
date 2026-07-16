@@ -38,6 +38,13 @@ cargo xtask g7-module-package
 cargo xtask ci
 ```
 
+실제 G7 checkout의 관리자 ZIP helper까지 검증하려면 다음처럼 실행합니다. 대상 G7은 변경하지
+않고 임시 디렉터리에서 manifest를 읽습니다.
+
+```bash
+GNUBOARD7_ROOT=/path/to/gnuboard7 cargo xtask g7-module-package
+```
+
 배포는 명시적인 annotated tag만 허용합니다.
 
 ```bash

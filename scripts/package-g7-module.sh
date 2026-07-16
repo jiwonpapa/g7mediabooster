@@ -7,7 +7,7 @@ MODULE="$ROOT/$MODULE_REL"
 FEATURES="$ROOT/deploy/official-features-v1.json"
 OUTPUT_DIR="${G7MB_RELEASE_DIR:-$ROOT/output/releases}"
 
-for command_name in cmp git gzip php tar unzip; do
+for command_name in cmp find git gzip php sort tar unzip zip; do
     if ! command -v "$command_name" >/dev/null 2>&1; then
         echo "required command is unavailable: $command_name" >&2
         exit 2
@@ -72,6 +72,8 @@ tar_temporary="$tar_archive.tmp"
 zip_temporary="$zip_archive.tmp"
 tar_reproducibility_copy="$tar_archive.repro.tmp"
 zip_reproducibility_copy="$zip_archive.repro.tmp"
+zip_source_one=""
+zip_source_two=""
 module_commit="$(git -C "$ROOT" log -1 --format=%H -- "$MODULE_REL")"
 commit_time="$(git -C "$ROOT" show -s --format=%cI "$module_commit")"
 if [[ -z "$module_commit" || -z "$commit_time" ]]; then
@@ -82,7 +84,20 @@ mkdir -p "$OUTPUT_DIR"
 rm -f \
     "$tar_temporary" "$zip_temporary" \
     "$tar_reproducibility_copy" "$zip_reproducibility_copy"
-trap 'rm -f "$tar_temporary" "$zip_temporary" "$tar_reproducibility_copy" "$zip_reproducibility_copy"' EXIT
+cleanup() {
+    rm -f \
+        "$tar_temporary" "$zip_temporary" \
+        "$tar_reproducibility_copy" "$zip_reproducibility_copy"
+    if [[ -n "$zip_source_one" ]]; then
+        rm -rf -- "$zip_source_one"
+    fi
+    if [[ -n "$zip_source_two" ]]; then
+        rm -rf -- "$zip_source_two"
+    fi
+}
+trap cleanup EXIT
+zip_source_one="$(mktemp -d "$OUTPUT_DIR/.g7mb-zip-source-one.XXXXXX")"
+zip_source_two="$(mktemp -d "$OUTPUT_DIR/.g7mb-zip-source-two.XXXXXX")"
 
 release_paths=(
     CHANGELOG.md README.md composer.json composer.lock config database dist
@@ -102,17 +117,25 @@ build_tar_archive() {
 }
 build_zip_archive() {
     local destination="$1"
+    local source_directory="$2"
     git -C "$ROOT" archive \
-        --format=zip \
-        --output="$destination" \
+        --format=tar \
+        --mtime="$commit_time" \
         --prefix="jiwonpapa-g7mediabooster/" \
         "HEAD:$MODULE_REL" \
-        "${release_paths[@]}"
+        "${release_paths[@]}" \
+        | tar -xf - -C "$source_directory"
+    (
+        cd "$source_directory"
+        find jiwonpapa-g7mediabooster -type f -print \
+            | LC_ALL=C sort \
+            | zip -X -q "$destination" -@
+    )
 }
 build_tar_archive "$tar_temporary"
 build_tar_archive "$tar_reproducibility_copy"
-build_zip_archive "$zip_temporary"
-build_zip_archive "$zip_reproducibility_copy"
+build_zip_archive "$zip_temporary" "$zip_source_one"
+build_zip_archive "$zip_reproducibility_copy" "$zip_source_two"
 if ! cmp -s "$tar_temporary" "$tar_reproducibility_copy"; then
     echo "G7 module tar.gz is not byte-for-byte reproducible" >&2
     exit 1
@@ -168,6 +191,10 @@ write_checksum "$tar_archive" "$tar_sha256"
 write_checksum "$zip_archive" "$zip_sha256"
 tar_bytes="$(wc -c <"$tar_archive" | tr -d ' ')"
 zip_bytes="$(wc -c <"$zip_archive" | tr -d ' ')"
+if [[ -n "${GNUBOARD7_ROOT:-}" ]]; then
+    php "$ROOT/scripts/verify-gnuboard7-module-zip.php" \
+        "$GNUBOARD7_ROOT" "$zip_archive" "$version"
+fi
 printf 'g7-module-package PASS version=%s module_commit=%s tar_bytes=%s tar_sha256=%s tar=%s zip_bytes=%s zip_sha256=%s zip=%s\n' \
     "$version" "$module_commit" "$tar_bytes" "$tar_sha256" "$tar_archive" \
     "$zip_bytes" "$zip_sha256" "$zip_archive"
