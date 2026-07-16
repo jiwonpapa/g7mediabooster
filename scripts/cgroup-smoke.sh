@@ -33,6 +33,8 @@ docker run --rm \
 
 result_line="$(grep 'G7MB_CGROUP_RESULT' "$TMP/output.log" | tail -n 1)"
 [[ -n "$result_line" ]]
+load_result_line="$(grep 'load-100 PASS' "$TMP/output.log" | tail -n 1)"
+[[ -n "$load_result_line" ]]
 
 field() {
     printf '%s\n' "$result_line" | tr ' ' '\n' | awk -F= -v name="$1" '$1 == name { print $2 }'
@@ -45,6 +47,9 @@ memory_peak="$(field memory_peak)"
 cpu_usage_usec="$(field cpu_usage_usec)"
 health_ok="$(field health_ok)"
 health_failed="$(field health_failed)"
+worker_peak_temp_disk_kib="$(printf '%s\n' "$load_result_line" | tr ' ' '\n' \
+    | awk -F= '$1 == "peak_temp_disk_kib" { print $2 }')"
+[[ "$worker_peak_temp_disk_kib" =~ ^[0-9]+$ ]]
 image_id="$(docker image inspect --format '{{.Id}}' "$IMAGE")"
 generated_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
 
@@ -61,10 +66,11 @@ cat >"$REPORT" <<JSON
   "cpu_usage_usec": $cpu_usage_usec,
   "api_health": {"success": $health_ok, "failed": $health_failed},
   "worker_gate": "load100",
+  "worker_peak_temp_disk_kib": $worker_peak_temp_disk_kib,
   "result": "pass"
 }
 JSON
 
-printf 'cgroup-smoke PASS cpu_max=%s memory_max=%s pids_max=%s memory_peak=%s health_ok=%s\n' \
-    "$cpu_max" "$memory_max" "$pids_max" "$memory_peak" "$health_ok"
+printf 'cgroup-smoke PASS cpu_max=%s memory_max=%s pids_max=%s memory_peak=%s health_ok=%s worker_peak_temp_disk_kib=%s\n' \
+    "$cpu_max" "$memory_max" "$pids_max" "$memory_peak" "$health_ok" "$worker_peak_temp_disk_kib"
 printf 'report=%s\n' "$REPORT"

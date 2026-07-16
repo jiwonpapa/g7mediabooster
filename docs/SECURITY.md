@@ -107,5 +107,8 @@ G7MB-HMAC-SHA256
   상속하며 Linux 컨테이너 테스트가 새 socket 생성 거부를 확인합니다.
 - 구현: Docker cgroup에서 CPU 2 core, memory 2GiB, PID 64, network none을 강제한 채 API와
   실제 100개 JPEG worker 부하를 함께 실행해 health 실패 0과 cgroup peak 상한 준수를 확인합니다.
-- 미완료: 임시 디렉터리의 작업별 파일 크기는 원본 hard cap으로 제한하지만 별도 filesystem
-  quota와 read-only root 증거는 배포 fixture에서 검증해야 합니다.
+- 구현: worker는 프로세스당 기본 12GiB 임시 디스크를 1MiB permit으로 관리하고, 각 작업이
+  `원본 + 이미지 파생물 2개 + 워터마크 16MiB`를 다운로드 전에 선예약합니다. 파생 파일은
+  이미지 hard cap 초과 시 업로드 전에 거부하며 systemd `LimitFSIZE=6G`가 파일별 안전망입니다.
+- 운영 확인: 기본 unit은 `ProtectSystem=strict`와 제한된 `ReadWritePaths`를 사용합니다. 실제
+  배포 filesystem의 여유 공간은 12GiB 예약 상한보다 크게 잡고 별도 volume quota를 권장합니다.

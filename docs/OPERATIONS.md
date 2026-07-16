@@ -22,7 +22,7 @@
 | `g7mb_worker_job_age_at_claim_seconds` | queue-to-start 지연 |
 | `g7mb_worker_job_duration_seconds{outcome}` | 작업 전체 처리시간 |
 | `g7mb_worker_stage_duration_seconds{stage}` | download, inspect, transform, upload, commit 단계 시간 |
-| `g7mb_worker_resource_wait_seconds{lane}` | heavy image 또는 video semaphore 대기 |
+| `g7mb_worker_resource_wait_seconds{lane}` | heavy image, video 또는 temp_disk semaphore 대기 |
 | `g7mb_worker_processing_failures_total{class,code}` | allowlist 오류 분류별 실패 |
 | `g7mb_cleanup_pending_uploads` | 아직 tombstone되지 않은 삭제 대기 upload |
 | `g7mb_upload_tombstones` | 보존 중인 upload 감사 tombstone |
@@ -42,12 +42,21 @@ SQLite trigger가 O(1) counter로 유지하고 oldest queued age만 `(state, cre
 - `g7mb_queue_jobs{state="dead_letter"} > 0`
 - `g7mb_orphan_delete_failures > 0` 또는 cleanup pending이 계속 증가
 - `g7mb_worker_processing_failures_total{class="operational"}` 증가
+- `g7mb_worker_resource_wait_seconds{lane="temp_disk"}`가 지속 증가
 - `g7mb_api_admission_rejections_total` 급증
 - API 또는 worker scrape가 5분 이상 없음
 - `g7mb_reserved_source_bytes`가 설정 quota의 80% 초과
 
 절대값은 실제 서버의 p95와 처리량을 측정한 뒤 조정합니다. rate limit을 무제한으로 풀거나
 worker 동시성만 올리는 방식으로 경보를 해소하지 않습니다.
+
+## 임시 디스크 용량
+
+`worker.max_temp_disk_bytes` 기본값은 프로세스당 12GiB입니다. 설정값은 최소한 원본 한 개의
+최대 크기, 이미지 파생물 두 개, 워터마크 16MiB를 합친 값보다 커야 하며 최대 1TiB입니다.
+여러 worker 프로세스를 실행하면 프로세스 수만큼 예약 상한이 늘어나므로 temp volume은
+`프로세스 수 × max_temp_disk_bytes`보다 크게 준비합니다. 설정을 올리기 전에 고정 fixture의
+peak temp disk와 실제 filesystem quota를 함께 확인합니다.
 
 ## 연계 runbook
 

@@ -84,7 +84,7 @@ G7 모듈은 세션·게시판 권한·첨부 연결의 진실 원천이고, Rus
   bounded download와 derivative PUT 통과
 - Stage A 5GiB gate: API가 발급한 32MiB presigned part 160개로 정확히 5GiB를 MinIO에
   직접 전송하고 80-part 뒤 API 재기동·재개, complete 2회 멱등, 저장 길이·Quarantined
-  진입을 검증. API RSS 33,840→34,304KiB(증가 464KiB)
+  진입을 검증. 현재 재검증의 API RSS 증가는 416KiB
 - Stage B: bounded download, signature, libvips/FFprobe probe, EXIF 제거 기본 썸네일 구현
 - Stage B publish: 이미지는 metadata-strip·sRGB·최대 8,192px JPEG master, 영상은 검증된
   원 container master, 공통 1,280px JPEG thumbnail/poster를 저장하고 전체 DB set이 원자적으로
@@ -106,7 +106,7 @@ G7 모듈은 세션·게시판 권한·첨부 연결의 진실 원천이고, Rus
   Rust 100개 예약을 저장 1회로 커밋하는 테스트 구현
 - Stage D 실제 worker 하네스: 4000×3000 JPEG 100개, 동시성 4/native thread 1,
   Ready 100/100·master+thumbnail 200/200, 만료 lease 10/10 재선점, dead-letter 0,
-  14.17 jobs/s, p95 274ms, process tree peak RSS 577,584 KiB 통과
+  13.12 jobs/s, p95 352ms, process tree peak RSS 582,976KiB, peak temp disk 9,628KiB 통과
 - Stage D heavy-image gate: 16,384px/100MP 초과 class를 semaphore 기본 1로 제한하고,
   실제 25,000×4,000 JPEG를 native thread 1, 481ms, peak RSS 43,472 KiB로 처리
 - Stage D AVIF memory gate: 실제 64MP AVIF를 peak RSS 1,221,776 KiB로 처리하고, 실측
@@ -114,7 +114,8 @@ G7 모듈은 세션·게시판 권한·첨부 연결의 진실 원천이고, Rus
 - Stage D fair/backpressure: tenant별 마지막 claim sequence로 단일 worker에서도 round-robin,
   활성 예약 global 1,000/tenant 200 hard cap, presign 전·원자적 저장 재검사와 429 응답 구현
 - Stage D Linux cgroup: CPU 2 core·memory 2GiB·PID 64·network none 아래 API와 100개 worker
-  부하 동시 실행, API health 267/267·작업 100/100·cgroup peak 1,066,602,496 bytes 통과
+  부하 동시 실행, API health 665/665·작업 100/100·cgroup peak 1,782,890,496 bytes,
+  worker peak temp disk 8,588KiB 통과
 - Stage E lifecycle: HMAC 삭제 예약, G7 ownership proxy, 만료 multipart abort,
   rejected/failed 보존 만료, derivative/raw 삭제, SQLite lease·retry·attempt 상한과 15분
   systemd timer 구현
@@ -278,7 +279,8 @@ active_sandbox_processes × native_threads <= allocated_cpu_cores
 - FFmpeg `-threads`, timeout, process 수 명시
 - 16,384px 초과 또는 100MP 초과 image와 모든 video full-pixel 구간은 일반 slot 안에서
   각각 별도 semaphore를 추가 획득하며 기본 동시성은 1
-- systemd/cgroup `CPUQuota`, `MemoryMax`, `TasksMax`, 임시 디스크 quota 적용
+- systemd/cgroup `CPUQuota`, `MemoryMax`, `TasksMax`, `LimitFSIZE`와 worker 프로세스당
+  임시 디스크 예약 semaphore 적용
 - 서버 capacity를 넘으면 queue에서 새 작업을 선점하지 않고 API는 backpressure를 반환
 
 API active reservation 기본값은 global 1,000개, tenant별 200개이며, retained source byte

@@ -5,6 +5,10 @@ RUN apt-get update \
         ca-certificates \
         curl \
         ffmpeg \
+        libheif-plugin-aomdec \
+        libheif-plugin-aomenc \
+        libheif-plugin-libde265 \
+        libheif-plugin-x265 \
         libvips-dev \
         libvips-tools \
         perl \

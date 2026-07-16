@@ -31,6 +31,15 @@ const SOURCE_VALIDATION_PRESET: &str = "source-validation-v1";
 const DEFAULT_DERIVATIVE_PRESET: &str = "board-default-v1";
 const SANITIZED_MASTER_MAX_EDGE: u32 = 8192;
 const MAX_WATERMARK_BYTES: u64 = 16 * 1024 * 1024;
+const TEMP_DISK_PERMIT_BYTES: u64 = 1024 * 1024;
+const MAX_TEMP_DISK_BYTES: u64 = 1024 * 1024 * 1024 * 1024;
+
+fn required_temp_disk_bytes(max_image_bytes: u64, max_video_bytes: u64) -> Option<u64> {
+    max_image_bytes
+        .checked_mul(2)?
+        .checked_add(max_image_bytes.max(max_video_bytes))?
+        .checked_add(MAX_WATERMARK_BYTES)
+}
 
 /// Stable result of attempting one queue claim.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -66,6 +75,8 @@ pub struct WorkerPolicy {
     pub max_image_bytes: u64,
     /// Largest video download.
     pub max_video_bytes: u64,
+    /// Total temporary-disk reservation shared by jobs in this worker process.
+    pub max_temp_disk_bytes: u64,
     /// Parent of private per-job directories.
     pub temp_directory: PathBuf,
     /// Optional versioned and digest-pinned watermark preset.
@@ -105,6 +116,10 @@ impl WorkerPolicy {
             || self.max_concurrent_videos > 32
             || self.max_image_bytes == 0
             || self.max_video_bytes == 0
+            || required_temp_disk_bytes(self.max_image_bytes, self.max_video_bytes)
+                .is_none_or(|required| self.max_temp_disk_bytes < required)
+            || self.max_temp_disk_bytes > MAX_TEMP_DISK_BYTES
+            || temp_disk_permits(self.max_temp_disk_bytes).is_none()
             || self.temp_directory.as_os_str().is_empty()
             || self
                 .watermark
@@ -478,6 +493,11 @@ pub struct SourceValidationWorker {
 struct ResourceGates {
     heavy_images: Arc<Semaphore>,
     videos: Arc<Semaphore>,
+    temp_disk: Arc<Semaphore>,
+}
+
+fn temp_disk_permits(bytes: u64) -> Option<u32> {
+    u32::try_from(bytes.div_ceil(TEMP_DISK_PERMIT_BYTES)).ok()
 }
 
 struct ActiveJobMetric;
@@ -541,9 +561,14 @@ impl SourceValidationWorker {
         policy: WorkerPolicy,
     ) -> Result<Self, WorkerError> {
         policy.validate()?;
+        let temp_disk_permits =
+            temp_disk_permits(policy.max_temp_disk_bytes).ok_or(WorkerError::InvalidPolicy)?;
         let resource_gates = Arc::new(ResourceGates {
             heavy_images: Arc::new(Semaphore::new(policy.max_concurrent_heavy_images)),
             videos: Arc::new(Semaphore::new(policy.max_concurrent_videos)),
+            temp_disk: Arc::new(Semaphore::new(
+                usize::try_from(temp_disk_permits).map_err(|_| WorkerError::InvalidPolicy)?,
+            )),
         });
         Ok(Self {
             raw_store,
@@ -732,6 +757,16 @@ impl SourceValidationWorker {
         source: &ProcessingSource,
         site_policy_revision: Option<u64>,
     ) -> Result<(), ProcessingFailure> {
+        let max_length = match source.declared_kind {
+            MediaKind::Image => self.policy.max_image_bytes,
+            MediaKind::Video => self.policy.max_video_bytes,
+        };
+        if source.expected_size_bytes > max_length {
+            return Err(ProcessingFailure::Permanent("MEDIA_SIZE_EXCEEDED"));
+        }
+        let _temp_disk_permit = self
+            .acquire_temp_disk_permit(source.expected_size_bytes)
+            .await?;
         tokio::fs::create_dir_all(&self.policy.temp_directory)
             .await
             .map_err(|_| ProcessingFailure::Transient("TEMP_STORAGE_UNAVAILABLE"))?;
@@ -740,10 +775,6 @@ impl SourceValidationWorker {
             .tempdir_in(&self.policy.temp_directory)
             .map_err(|_| ProcessingFailure::Transient("TEMP_STORAGE_UNAVAILABLE"))?;
         let local_source = directory.path().join("source");
-        let max_length = match source.declared_kind {
-            MediaKind::Image => self.policy.max_image_bytes,
-            MediaKind::Video => self.policy.max_video_bytes,
-        };
         {
             let _metric = WorkerStageMetric::new("download");
             self.raw_store
@@ -899,13 +930,16 @@ impl SourceValidationWorker {
         variant: &str,
         content_type: &str,
     ) -> Result<PublishedDerivative, ProcessingFailure> {
-        let sha256 = sha256_file(&source)
-            .await
-            .map_err(|_| ProcessingFailure::Transient("TEMP_STORAGE_UNAVAILABLE"))?;
         let byte_len = tokio::fs::metadata(&source)
             .await
             .map_err(|_| ProcessingFailure::Transient("TEMP_STORAGE_UNAVAILABLE"))?
             .len();
+        if byte_len == 0 || byte_len > self.policy.max_image_bytes {
+            return Err(ProcessingFailure::Permanent("DERIVATIVE_SIZE_EXCEEDED"));
+        }
+        let sha256 = sha256_file(&source)
+            .await
+            .map_err(|_| ProcessingFailure::Transient("TEMP_STORAGE_UNAVAILABLE"))?;
         let stored = {
             let _metric = WorkerStageMetric::new("upload");
             self.derivative_store
@@ -955,6 +989,34 @@ impl SourceValidationWorker {
             }
             None => Ok(None),
         }
+    }
+
+    async fn acquire_temp_disk_permit(
+        &self,
+        source_bytes: u64,
+    ) -> Result<OwnedSemaphorePermit, ProcessingFailure> {
+        let reservation = source_bytes
+            .checked_add(self.policy.max_image_bytes.checked_mul(2).ok_or(
+                ProcessingFailure::Operational("TEMP_DISK_RESERVATION_INVALID"),
+            )?)
+            .and_then(|bytes| bytes.checked_add(MAX_WATERMARK_BYTES))
+            .ok_or(ProcessingFailure::Operational(
+                "TEMP_DISK_RESERVATION_INVALID",
+            ))?;
+        let permits = temp_disk_permits(reservation).ok_or(ProcessingFailure::Operational(
+            "TEMP_DISK_RESERVATION_INVALID",
+        ))?;
+        let started = Instant::now();
+        let permit = self
+            .resource_gates
+            .temp_disk
+            .clone()
+            .acquire_many_owned(permits)
+            .await
+            .map_err(|_| ProcessingFailure::Operational("RESOURCE_GATE_CLOSED"));
+        histogram!("g7mb_worker_resource_wait_seconds", "lane" => "temp_disk")
+            .record(started.elapsed().as_secs_f64());
+        permit
     }
 
     async fn prepare_watermark(
@@ -1557,6 +1619,39 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn temp_disk_reservation_serializes_jobs_that_cannot_both_fit()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let bytes = b"\xff\xd8\xff\xe0valid-jpeg".to_vec();
+        let database = Arc::new(SqliteStore::connect("sqlite::memory:", 1).await?);
+        insert_quarantined_job(&database, &bytes).await?;
+        insert_quarantined_job(&database, &bytes).await?;
+        let sandbox = Arc::new(FakeSandbox {
+            thumbnail_delay: Duration::from_millis(100),
+            ..FakeSandbox::default()
+        });
+        let temp = tempfile::tempdir()?;
+        let storage = Arc::new(FakeRawStore { bytes });
+        let worker = SourceValidationWorker::new(
+            storage.clone(),
+            storage,
+            database.clone(),
+            database.clone(),
+            database,
+            sandbox.clone(),
+            test_policy(temp.path().to_path_buf()),
+        )?;
+
+        let (first, second) = tokio::join!(
+            worker.run_one("temp-worker-a"),
+            worker.run_one("temp-worker-b")
+        );
+        assert_eq!(first?, RunOutcome::Completed);
+        assert_eq!(second?, RunOutcome::Completed);
+        assert_eq!(sandbox.max_active_thumbnails.load(Ordering::Acquire), 1);
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn pins_watermark_digest_and_revision_into_the_immutable_derivative()
     -> Result<(), Box<dyn std::error::Error>> {
         let bytes = b"\xff\xd8\xff\xe0valid-jpeg".to_vec();
@@ -1709,6 +1804,15 @@ mod tests {
     }
 
     #[test]
+    fn rejects_temp_disk_cap_below_one_worst_case_job() {
+        let mut policy = test_policy(std::path::PathBuf::from("/tmp/g7mb-test"));
+        policy.max_image_bytes = 64 * 1024 * 1024;
+        policy.max_video_bytes = 32 * 1024 * 1024;
+        policy.max_temp_disk_bytes = 207 * 1024 * 1024;
+        assert!(matches!(policy.validate(), Err(WorkerError::InvalidPolicy)));
+    }
+
+    #[test]
     fn media_renderer_failure_never_blames_the_uploaded_source() {
         assert!(matches!(
             classify_sandbox_error(SandboxProbeError::Operational),
@@ -1835,6 +1939,7 @@ mod tests {
             max_concurrent_videos: 1,
             max_image_bytes: 1024,
             max_video_bytes: 1024,
+            max_temp_disk_bytes: 32 * 1024 * 1024,
             temp_directory,
             watermark: None,
         }

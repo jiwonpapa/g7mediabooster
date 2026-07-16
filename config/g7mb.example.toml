@@ -56,6 +56,8 @@ image_timeout_seconds = 30
 video_timeout_seconds = 45
 sandbox_binary = "/usr/local/libexec/g7mb-sandbox"
 temp_directory = "/var/lib/g7mediabooster/tmp"
+# Shared reservation cap for source, bounded image outputs, video frame, and watermark files.
+max_temp_disk_bytes = 12884901888
 lease_seconds = 120
 heartbeat_seconds = 30
 poll_interval_ms = 250

@@ -470,6 +470,7 @@ backup_directory = "/var/lib/g7mediabooster/backups"
 [worker]
 sandbox_binary = "/usr/local/libexec/g7mb-sandbox"
 temp_directory = "/var/lib/g7mediabooster/tmp"
+max_temp_disk_bytes = 12884901888
 "#,
         values.provider,
         toml_string(&values.tenant_id),

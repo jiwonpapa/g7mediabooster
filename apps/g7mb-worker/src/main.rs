@@ -666,6 +666,7 @@ async fn build_worker(settings: &Settings) -> anyhow::Result<SourceValidationWor
             max_concurrent_videos: settings.worker.max_concurrent_videos,
             max_image_bytes: settings.upload.max_image_bytes,
             max_video_bytes: settings.upload.max_video_bytes,
+            max_temp_disk_bytes: settings.worker.max_temp_disk_bytes,
             temp_directory: settings.worker.temp_directory.clone(),
             watermark,
         },

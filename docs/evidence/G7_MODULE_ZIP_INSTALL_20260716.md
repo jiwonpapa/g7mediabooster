@@ -1,16 +1,18 @@
 # G7 module 0.4.1 ZIP 설치 계약 증거
 
-- module commit: `68eb897e392e5ae7faffad2b51d014f59a0f9bc9`
-- G7 checkout: `633c831bec5184f48e6fb0568339502b7f160264` (검증 중 무변경)
+- module commit: `f2594aac76e7ee692074a8ee8f5c51622b2123ca`
+- G7 checkout: `c275b41b6d804f4c5b91fecaa9b5652410f1cc7c` (검증 중 무변경)
 - 관리자 설치 ZIP: `jiwonpapa-g7mediabooster-0.4.1.zip`
-- ZIP bytes: `149915`
-- ZIP SHA-256: `6dcc4bac70b9c9fa0a7ec375e79d0a1015c14755698a062bc0227f2e5935f9ec`
-- 수동 배치 tar.gz bytes: `123417`
-- tar.gz SHA-256: `ab4d7c19c901922b17a45dc503807ea08d25e1432dd85e4166b9092191e802e0`
+- ZIP bytes: `149966`
+- ZIP SHA-256: `a667232a6f57dc0a98fbdd1f19e79ab728e49353e3a4037f49395cdb3be0a6a3`
+- 수동 배치 tar.gz bytes: `123435`
+- tar.gz SHA-256: `6487d2c78f68bb6cc759db9335b5de01464092390b9278aa949a84f89d197b27`
 
 `cargo xtask g7-module-package`를 서로 다른 실행 시각에 두 번 실행해 ZIP과 tar.gz SHA가 각각
 같음을 확인했습니다. ZIP 파일 timestamp는 module commit 시각, 파일 순서는 byte 정렬로
 고정합니다. 한 실행 안의 단순 2회 비교뿐 아니라 실행 간 digest도 일치합니다.
+현재 G7 checkout의 dirty-state SHA-256도 실행 전후
+`da27cb7f224deaa63d698bd0d587e8972ccf5b68daefb9612bb8ca860f0b4e76`로 같았습니다.
 
 `GNUBOARD7_ROOT=/Users/neojins/workspace/gnuboard7 cargo xtask g7-module-package`는 실제 G7의
 `App\Extension\Helpers\ZipInstallHelper::extractAndValidate()`를 호출해 다음 결과를 냈습니다.

@@ -13,7 +13,7 @@
 | 5 진짜 파일·보안 | PASS | signature, 실제 decode/ffprobe, digest, hard limit, no-network sandbox | ClamAV·moderation은 선택 hook |
 | 6 G5/G7 연동 | PARTIAL | G5 5.6.24는 core-free module·실제 browser single/multipart·첨부 2개·private 전달 PASS. G7 0.4.1은 현재 checkout patch 5개·계약 28/28+parser·첨부/권한/layout/count DB 회귀, 실제 browser upload/create/update/private thumbnail·403 권한 매트릭스·보존 gate, 재현 ZIP과 실제 G7 ZipInstallHelper 검증 PASS | G7 patch 정식 upstream commit과 실 provider 보존 만료 삭제 |
 | 7 다중 업로드 | PASS | 1~100개 bounded 병렬 처리, 실제 G7 브라우저에서 single PUT와 2-part multipart 동시 첨부 PASS | 실 provider 부하 재측정 |
-| 8 대용량 streaming | PASS | 정확히 5GiB를 32MiB 160-part로 직접 전송, 80-part 뒤 API 재기동·재개, complete 2회 멱등, API RSS 증가 464KiB, Quarantined 진입 | 공급자별 처리량·재개 수치는 해당 실계정 profile 검증에서 기록 |
+| 8 대용량 streaming | PASS | 정확히 5GiB를 32MiB 160-part로 직접 전송, 80-part 뒤 API 재기동·재개, complete 2회 멱등, API RSS 증가 416KiB, Quarantined 진입 | 공급자별 처리량·재개 수치는 해당 실계정 profile 검증에서 기록 |
 | 9 EXIF 개인정보 | PASS | 이미지 orientation 적용 후 EXIF/GPS/XMP/IPTC 제거 | 영상 metadata 제거는 공식 범위 아님 |
 | 10 썸네일 | PASS | eager 1,280px JPEG, 불변 key, 원자적 Ready, private signed GET, 4MiB/60초 weighted manifest cache·singleflight·삭제 guard | 공개 CDN profile은 선택 기능이며 v1 필수 범위 아님 |
 | 11 초고해상도 | PASS | 25,000×4,000 JPEG, 100MP, heavy lane/RSS gate | hard cap 초과는 별도 offline tier |

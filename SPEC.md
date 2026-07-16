@@ -160,9 +160,13 @@ CREATED -> UPLOADED -> QUARANTINED -> PROCESSING -> READY
 | API 동시 처리 | 64 | 1,024 |
 | sandbox 작업 시간 | 이미지 30초 / 영상 45초 | 120초 |
 | sandbox RSS | standard 512 MiB | heavy AVIF gate 1.5 GiB, worker cgroup 2 GiB |
+| worker 임시 디스크 예약 | 프로세스당 12 GiB | 설정 1 TiB, 작업 1개 최악치보다 작으면 시작 거부 |
 
 모든 동시성은 bounded semaphore/queue로 제한합니다. worker 프로세스 수 `N`과 libvips
 내부 thread 수 `M`의 곱은 할당 CPU core 수를 넘지 않는 값에서 시작합니다.
+작업별로 `원본 + 이미지 파생물 2개 + 워터마크 16MiB`를 1MiB 단위로 선예약하며,
+예약이 부족하면 다운로드 전에 대기합니다. 파생 파일은 이미지 원본 hard cap을 넘으면
+provider 업로드 전에 거부하고 systemd `LimitFSIZE=6G`를 파일별 최종 안전망으로 둡니다.
 
 heavy tier는 별도 queue와 기본 동시성 1을 사용합니다. 한 변이 20,000px를 넘더라도
 format별 총 픽셀 예산 안이면 지원합니다. 200MP AVIF 실측은 3.46GiB peak RSS로 기본
@@ -298,6 +302,8 @@ health/metrics를 제외한 모든 API는 인증과 tenant scope가 필요합니
   원자적으로 Ready 발행하고 private delivery에서 container MIME을 보존하는 종단 smoke
 - source/derivative SHA-256 기반 불변 key와 멱등 게시, 상태 조회 API
 - worker lease heartbeat·재선점·bounded retry·dead-letter와 systemd 자원 제한 기본값
+- 프로세스당 12GiB 임시 디스크 예약 semaphore, 작업별 최악치 선예약, 파생 파일 크기
+  사후검사와 systemd `LimitFSIZE=6G` 안전망
 - 위장 PHP 선차단, EXIF/GPS 제거, 실제 JPEG/MP4 probe·thumbnail fixture 하네스
 - `jiwonpapa-g7mediabooster` G7 모듈의 관리자 설정, HMAC 제어 client와 사용자·게시판별
   upload ID 소유권 저장
@@ -313,16 +319,16 @@ health/metrics를 제외한 모든 API는 인증과 tenant scope가 필요합니
   적용하고 실제 브라우저에서 선택·저장·재로드·rollback을 통과
 - 실제 4000×3000 JPEG 100개를 worker 동시성 4·native thread 1로 처리하고, 의도적으로
   유실한 lease 10개를 만료 후 재선점해 Ready·파생본 100개, dead-letter 0을 확인한
-  `cargo xtask load100` 운영 하네스. 기준 장비 최종 재검증에서 26.45 jobs/s, p95 156ms,
-  process tree peak RSS 323,616 KiB
+  `cargo xtask load100` 운영 하네스. 현재 기준 장비 재검증에서 13.12 jobs/s, p95 352ms,
+  process tree peak RSS 582,976KiB, peak temp disk 9,628KiB
 - 16,384px 또는 100MP 경계로 heavy image를 분류하고 full-pixel 구간을 별도 semaphore
   기본 1개로 제한. 실제 25,000×4,000 JPEG를 native thread 1로 1,280px 파생 처리해
   386ms, process tree peak RSS 24,368 KiB 확인
 - SQLite tenant round-robin claim sequence와 global 1,000/tenant 200 활성 예약 hard cap,
   provider presign 전 preflight·원자적 저장 재검사·안정적인 429 backpressure
 - Linux 컨테이너에서 CPU 2 core, memory 2GiB, PID 64, network none cgroup 아래 실제 API와
-  100개 worker 부하를 함께 실행해 API health 267/267, 작업 100/100 완료와 cgroup peak
-  1,066,602,496 bytes 확인
+  100개 worker 부하를 함께 실행해 API health 665/665, 작업 100/100 완료와 cgroup peak
+  1,782,890,496 bytes, worker peak temp disk 8,588KiB 확인
 - sandbox가 내장 fixture로 JPEG/PNG/GIF/WebP/AVIF/HEIF decode,
   JPEG/PNG/WebP/AVIF encode, FFprobe+FFmpeg MP4/MOV H.264 poster를 실제 실행하고 OpenH264
   폴백 compile 경계를 보고합니다. API는 이 전체 v1 capability가 없으면 시작을 거부하며
@@ -339,7 +345,7 @@ health/metrics를 제외한 모든 API는 인증과 tenant scope가 필요합니
 
 - 정확히 5GiB를 32MiB 160-part로 직접 전송하면서 80번째 part 뒤 API를 재기동해 같은
   SQLite/provider session으로 재개하고, complete 2회 멱등 처리·HEAD 길이·Quarantined 상태와
-  API RSS 증가 464KiB를 확인했습니다.
+  API RSS 증가 416KiB를 확인했습니다.
 
 실제 R2/Lightsail credential별 conformance, G7 upstream merge와 실 provider 보존 삭제는
 외부 운영 게이트로 남아 있으며 `docs/IMPLEMENTATION_PLAN.md` 순서로 추진합니다.

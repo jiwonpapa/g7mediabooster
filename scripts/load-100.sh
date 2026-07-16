@@ -6,6 +6,7 @@ TMP="$(mktemp -d "${TMPDIR:-/tmp}/g7mb-load-100.XXXXXX")"
 LOG="$TMP/load-100.log"
 REPORT="$ROOT/reports/load-100.json"
 MAX_RSS_KIB="${G7MB_LOAD_MAX_RSS_KIB:-1572864}"
+MAX_TEMP_DISK_KIB="${G7MB_LOAD_MAX_TEMP_DISK_KIB:-1048576}"
 MAX_WALL_SECONDS="${G7MB_LOAD_MAX_WALL_SECONDS:-240}"
 CONCURRENCY="${G7MB_LOAD_CONCURRENCY:-4}"
 TEST_PID=""
@@ -20,6 +21,9 @@ trap cleanup EXIT
 
 case "$MAX_RSS_KIB" in
     ''|*[!0-9]*) echo "G7MB_LOAD_MAX_RSS_KIB must be a positive integer" >&2; exit 2 ;;
+esac
+case "$MAX_TEMP_DISK_KIB" in
+    ''|*[!0-9]*) echo "G7MB_LOAD_MAX_TEMP_DISK_KIB must be a positive integer" >&2; exit 2 ;;
 esac
 case "$MAX_WALL_SECONDS" in
     ''|*[!0-9]*) echo "G7MB_LOAD_MAX_WALL_SECONDS must be a positive integer" >&2; exit 2 ;;
@@ -40,6 +44,7 @@ fixture_sha256="$(shasum -a 256 "$TMP/fixture.jpg" | awk '{print $1}')"
 
 cargo build --quiet --locked --package g7mb-sandbox --features native-vips
 cargo test --quiet --locked --package g7mb-worker --test load_100 --no-run
+mkdir -p "$TMP/runtime"
 
 tree_rss_kib() {
     ps -axo pid=,ppid=,rss= | awk -v root="$1" '
@@ -65,21 +70,33 @@ tree_rss_kib() {
     '
 }
 
+tree_disk_kib() {
+    local usage
+    usage="$(du -sk "$1" 2>/dev/null || true)"
+    awk 'NR == 1 { print $1; found = 1 } END { if (!found) print 0 }' <<<"$usage"
+}
+
 started_epoch="$(date +%s)"
 G7MB_LOAD_FIXTURE="$TMP/fixture.jpg" \
 G7MB_SANDBOX_BIN="$ROOT/target/debug/g7mb-sandbox" \
 G7MB_LOAD_CONCURRENCY="$CONCURRENCY" \
+G7MB_LOAD_RUNTIME_PARENT="$TMP/runtime" \
 cargo test --quiet --locked --package g7mb-worker --test load_100 \
     load_100_real_jpeg_recovers_expired_leases -- --ignored --exact --nocapture \
     >"$LOG" 2>&1 &
 TEST_PID=$!
 
 peak_rss_kib=0
+peak_temp_disk_kib=0
 timed_out=0
 while kill -0 "$TEST_PID" 2>/dev/null; do
     current_rss_kib="$(tree_rss_kib "$TEST_PID")"
     if (( current_rss_kib > peak_rss_kib )); then
         peak_rss_kib="$current_rss_kib"
+    fi
+    current_temp_disk_kib="$(tree_disk_kib "$TMP/runtime")"
+    if (( current_temp_disk_kib > peak_temp_disk_kib )); then
+        peak_temp_disk_kib="$current_temp_disk_kib"
     fi
     now_epoch="$(date +%s)"
     if (( now_epoch - started_epoch > MAX_WALL_SECONDS )); then
@@ -132,6 +149,10 @@ if (( peak_rss_kib > MAX_RSS_KIB )); then
     echo "load gate peak RSS ${peak_rss_kib} KiB exceeded ${MAX_RSS_KIB} KiB" >&2
     exit 1
 fi
+if (( peak_temp_disk_kib > MAX_TEMP_DISK_KIB )); then
+    echo "load gate peak temp disk ${peak_temp_disk_kib} KiB exceeded ${MAX_TEMP_DISK_KIB} KiB" >&2
+    exit 1
+fi
 
 mkdir -p "$(dirname "$REPORT")"
 generated_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
@@ -148,6 +169,8 @@ cat >"$REPORT" <<JSON
   "processing_latency_ms": {"p50": $p50_ms, "p95": $p95_ms, "p99": $p99_ms},
   "peak_process_tree_rss_kib": $peak_rss_kib,
   "max_process_tree_rss_kib": $MAX_RSS_KIB,
+  "peak_temp_disk_kib": $peak_temp_disk_kib,
+  "max_temp_disk_kib": $MAX_TEMP_DISK_KIB,
   "ready": $ready,
   "completed_jobs": $completed,
   "derivatives": $derivatives,
@@ -157,6 +180,6 @@ cat >"$REPORT" <<JSON
 }
 JSON
 
-printf 'load-100 PASS jobs=%s elapsed_ms=%s throughput_per_second=%s p95_ms=%s peak_rss_kib=%s recovered=%s\n' \
-    "$jobs" "$elapsed_ms" "$throughput" "$p95_ms" "$peak_rss_kib" "$recovered"
+printf 'load-100 PASS jobs=%s elapsed_ms=%s throughput_per_second=%s p95_ms=%s peak_rss_kib=%s peak_temp_disk_kib=%s recovered=%s\n' \
+    "$jobs" "$elapsed_ms" "$throughput" "$p95_ms" "$peak_rss_kib" "$peak_temp_disk_kib" "$recovered"
 printf 'report=%s\n' "$REPORT"

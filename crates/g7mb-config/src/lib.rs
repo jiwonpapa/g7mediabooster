@@ -72,6 +72,7 @@ impl Settings {
             .set_default("worker.video_timeout_seconds", 45_i64)?
             .set_default("worker.sandbox_binary", "g7mb-sandbox")?
             .set_default("worker.temp_directory", "/tmp/g7mb")?
+            .set_default("worker.max_temp_disk_bytes", 12_884_901_888_i64)?
             .set_default("worker.lease_seconds", 120_i64)?
             .set_default("worker.heartbeat_seconds", 30_i64)?
             .set_default("worker.poll_interval_ms", 250_i64)?
@@ -199,6 +200,12 @@ impl Settings {
                 "upload settings violate bounded multi-upload limits".to_owned(),
             ));
         }
+        let minimum_temp_disk_bytes = self
+            .upload
+            .max_video_bytes
+            .max(self.upload.max_image_bytes)
+            .saturating_add(self.upload.max_image_bytes.saturating_mul(2))
+            .saturating_add(16 * 1024 * 1024);
         if self.worker.max_concurrent_jobs == 0
             || self.worker.max_concurrent_jobs > 32
             || self.worker.max_concurrent_heavy_images == 0
@@ -218,6 +225,8 @@ impl Settings {
             || !self.worker.metrics_bind_addr.ip().is_loopback()
             || self.worker.sandbox_binary.as_os_str().is_empty()
             || self.worker.temp_directory.as_os_str().is_empty()
+            || self.worker.max_temp_disk_bytes < minimum_temp_disk_bytes
+            || self.worker.max_temp_disk_bytes > 1024 * 1024 * 1024 * 1024
         {
             return Err(ConfigError::Message(
                 "worker settings violate concurrency, lease, timeout, or output limits".to_owned(),
@@ -478,6 +487,8 @@ pub struct WorkerSettings {
     pub sandbox_binary: std::path::PathBuf,
     /// Parent directory for per-job private temporary directories.
     pub temp_directory: std::path::PathBuf,
+    /// Total in-process temporary-disk reservation shared by active jobs.
+    pub max_temp_disk_bytes: u64,
     /// Initial and renewed job lease duration.
     pub lease_seconds: u64,
     /// Lease renewal interval while a job is active.
@@ -834,6 +845,44 @@ max_concurrent_videos = 1
             Ok(_) => {
                 return Err(std::io::Error::other(
                     "oversubscribed heavy-image lane was unexpectedly accepted",
+                )
+                .into());
+            }
+            Err(error) => error,
+        };
+        assert!(error.to_string().contains("worker settings"));
+        Ok(())
+    }
+
+    #[test]
+    fn temporary_disk_cap_must_fit_one_worst_case_job() -> Result<(), Box<dyn std::error::Error>> {
+        let file = NamedTempFile::new()?;
+        fs::write(
+            file.path(),
+            r#"
+[storage]
+raw_bucket = "raw"
+derivative_bucket = "media"
+access_key_id = "test-access"
+secret_access_key = "test-secret"
+
+[auth]
+key_id = "g7-primary"
+tenant_id = "site-a"
+hmac_secret = "0123456789abcdef0123456789abcdef"
+
+[upload]
+max_image_bytes = 1073741824
+max_video_bytes = 536870912
+
+[worker]
+max_temp_disk_bytes = 2684354560
+"#,
+        )?;
+        let error = match Settings::load(Some(file.path())) {
+            Ok(_) => {
+                return Err(std::io::Error::other(
+                    "temporary disk cap smaller than one image job was accepted",
                 )
                 .into());
             }

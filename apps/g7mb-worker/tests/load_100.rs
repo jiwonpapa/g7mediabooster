@@ -153,7 +153,12 @@ async fn load_100_real_jpeg_recovers_expired_leases() -> Result<(), Box<dyn std:
         return Err("fixture must be between 1 byte and 64 MiB".into());
     }
 
-    let runtime = tempfile::tempdir()?;
+    let runtime = match env::var_os("G7MB_LOAD_RUNTIME_PARENT") {
+        Some(parent) => tempfile::Builder::new()
+            .prefix("g7mb-load-runtime-")
+            .tempdir_in(PathBuf::from(parent))?,
+        None => tempfile::tempdir()?,
+    };
     let database_path = runtime.path().join("load.sqlite3");
     let database_url = format!("sqlite://{}", database_path.display());
     let database = Arc::new(SqliteStore::connect(&database_url, 8).await?);
@@ -200,6 +205,7 @@ async fn load_100_real_jpeg_recovers_expired_leases() -> Result<(), Box<dyn std:
             max_concurrent_videos: 1,
             max_image_bytes: 64 * 1024 * 1024,
             max_video_bytes: 256 * 1024 * 1024,
+            max_temp_disk_bytes: 1024 * 1024 * 1024,
             temp_directory: runtime.path().join("jobs"),
             watermark: None,
         },

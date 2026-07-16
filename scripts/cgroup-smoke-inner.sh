@@ -51,6 +51,7 @@ url = "sqlite:///tmp/g7mb-cgroup-api.db"
 max_connections = 2
 TOML
 
+export G7MB__WORKER__SANDBOX_BINARY="$ROOT/target/debug/g7mb-sandbox"
 "$ROOT/target/debug/g7mb-api" --config "$TMP/g7mb.toml" >"$TMP/api.log" 2>&1 &
 API_PID=$!
 for _ in $(seq 1 100); do
