@@ -1109,9 +1109,6 @@ pub mod vips {
 #[cfg(test)]
 mod tests {
     use std::{
-        fs::OpenOptions,
-        io::Write as _,
-        os::unix::fs::PermissionsExt as _,
         path::{Path, PathBuf},
         time::Duration,
     };
@@ -1374,14 +1371,7 @@ mod tests {
             Err(MediaError::InvalidRequest(_))
         ));
         let directory = tempfile::tempdir()?;
-        let success = executable(
-            directory.path(),
-            "ffprobe-success",
-            r#"#!/bin/sh
-printf '%s' '{"streams":[{"codec_type":"video","codec_name":"vp9","width":640,"height":360}],"format":{"format_name":"webm","duration":"2.500"}}'
-"#,
-        )?;
-        let inspector = FfprobeInspector::new(success, Duration::from_secs(5))?;
+        let inspector = FfprobeInspector::new(fixture("fake-ffprobe"), Duration::from_secs(5))?;
         let request = VideoProbeRequest {
             input: directory.path().join("trusted.webm"),
             byte_len: 55,
@@ -1400,21 +1390,21 @@ printf '%s' '{"streams":[{"codec_type":"video","codec_name":"vp9","width":640,"h
             Err(MediaError::InvalidRequest(_))
         ));
 
-        let failed = executable(directory.path(), "ffprobe-failed", "#!/bin/sh\nexit 7\n")?;
-        let inspector = FfprobeInspector::new(failed, Duration::from_secs(5))?;
+        let failed_request = VideoProbeRequest {
+            input: directory.path().join("failed.webm"),
+            ..request.clone()
+        };
         assert!(matches!(
-            inspector.inspect(&request).await,
+            inspector.inspect(&failed_request).await,
             Err(MediaError::ExitStatus { .. })
         ));
 
-        let malformed = executable(
-            directory.path(),
-            "ffprobe-malformed",
-            "#!/bin/sh\nprintf 'not-json'\n",
-        )?;
-        let inspector = FfprobeInspector::new(malformed, Duration::from_secs(5))?;
+        let malformed_request = VideoProbeRequest {
+            input: directory.path().join("malformed.webm"),
+            ..request.clone()
+        };
         assert!(matches!(
-            inspector.inspect(&request).await,
+            inspector.inspect(&malformed_request).await,
             Err(MediaError::ProbeJson(_))
         ));
 
@@ -1431,14 +1421,7 @@ printf '%s' '{"streams":[{"codec_type":"video","codec_name":"vp9","width":640,"h
     async fn ffmpeg_thumbnail_adapter_enforces_output_contract()
     -> Result<(), Box<dyn std::error::Error>> {
         let directory = tempfile::tempdir()?;
-        let success = executable(
-            directory.path(),
-            "ffmpeg-success",
-            r#"#!/bin/sh
-for argument do output="$argument"; done
-printf '\377\330\377\340thumb' > "$output"
-"#,
-        )?;
+        let binary = fixture("fake-ffmpeg");
         let output = directory.path().join("thumbnail.jpg");
         let request = VideoThumbnailRequest {
             input: directory.path().join("source.mp4"),
@@ -1447,43 +1430,38 @@ printf '\377\330\377\340thumb' > "$output"
             duration_ms: 10_000,
             max_width: 1280,
         };
-        FfmpegThumbnailer::new(success, Duration::from_secs(5), 2)?
+        FfmpegThumbnailer::new(binary.clone(), Duration::from_secs(5), 2)?
             .extract(&request)
             .await?;
         assert!(std::fs::metadata(&output)?.len() > 0);
 
-        let counter = directory.path().join("fallback-counter");
-        let fallback = executable(
-            directory.path(),
-            "ffmpeg-fallback",
-            &format!(
-                "#!/bin/sh\nif [ ! -e '{}' ]; then : > '{}'; exit 9; fi\nfor argument do output=\"$argument\"; done\nprintf '\\377\\330\\377\\340fallback' > \"$output\"\n",
-                counter.display(),
-                counter.display(),
-            ),
-        )?;
-        FfmpegThumbnailer::new(fallback, Duration::from_secs(6), 1)?
-            .extract(&request)
+        let fallback_request = VideoThumbnailRequest {
+            input: directory.path().join("source-fallback.mp4"),
+            ..request.clone()
+        };
+        FfmpegThumbnailer::new(binary.clone(), Duration::from_secs(6), 1)?
+            .extract(&fallback_request)
             .await?;
-        assert!(counter.is_file());
         assert!(std::fs::metadata(&output)?.len() > 0);
 
-        let failed = executable(directory.path(), "ffmpeg-failed", "#!/bin/sh\nexit 9\n")?;
+        let failed_request = VideoThumbnailRequest {
+            input: directory.path().join("source-failed.mp4"),
+            ..request.clone()
+        };
         assert!(matches!(
-            FfmpegThumbnailer::new(failed, Duration::from_secs(5), 1)?
-                .extract(&request)
+            FfmpegThumbnailer::new(binary.clone(), Duration::from_secs(5), 1)?
+                .extract(&failed_request)
                 .await,
             Err(MediaError::ExitStatus { .. })
         ));
 
-        let empty = executable(
-            directory.path(),
-            "ffmpeg-empty",
-            "#!/bin/sh\nfor argument do output=\"$argument\"; done\n: > \"$output\"\n",
-        )?;
+        let empty_request = VideoThumbnailRequest {
+            input: directory.path().join("source-empty.mp4"),
+            ..request.clone()
+        };
         assert!(matches!(
-            FfmpegThumbnailer::new(empty, Duration::from_secs(5), 1)?
-                .extract(&request)
+            FfmpegThumbnailer::new(binary, Duration::from_secs(5), 1)?
+                .extract(&empty_request)
                 .await,
             Err(MediaError::InvalidOutput)
         ));
@@ -1502,21 +1480,11 @@ printf '\377\330\377\340thumb' > "$output"
         Ok(())
     }
 
-    fn executable(directory: &Path, name: &str, contents: &str) -> Result<PathBuf, std::io::Error> {
-        let path = directory.join(name);
-        let staging = directory.join(format!(".{name}.tmp"));
-        let mut file = OpenOptions::new()
-            .create_new(true)
-            .write(true)
-            .open(&staging)?;
-        file.write_all(contents.as_bytes())?;
-        file.sync_all()?;
-        drop(file);
-        let mut permissions = std::fs::metadata(&staging)?.permissions();
-        permissions.set_mode(0o700);
-        std::fs::set_permissions(&staging, permissions)?;
-        std::fs::rename(staging, &path)?;
-        Ok(path)
+    fn fixture(name: &str) -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("tests")
+            .join("fixtures")
+            .join(name)
     }
 
     fn ftyp(brand: &[u8; 4]) -> Vec<u8> {

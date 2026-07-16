@@ -1,0 +1,19 @@
+#!/bin/sh
+set -eu
+
+input=
+for argument do
+    input=$argument
+done
+
+case "$input" in
+    *failed.webm)
+        exit 7
+        ;;
+    *malformed.webm)
+        printf '%s' 'not-json'
+        ;;
+    *)
+        printf '%s' '{"streams":[{"codec_type":"video","codec_name":"vp9","width":640,"height":360}],"format":{"format_name":"webm","duration":"2.500"}}'
+        ;;
+esac

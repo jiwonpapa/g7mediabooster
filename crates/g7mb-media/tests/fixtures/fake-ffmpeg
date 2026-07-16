@@ -1,0 +1,39 @@
+#!/bin/sh
+set -eu
+
+input=
+output=
+expect_input=0
+fast_seek=0
+
+for argument do
+    output=$argument
+    if [ "$expect_input" -eq 1 ]; then
+        input=$argument
+        expect_input=0
+        continue
+    fi
+    if [ "$argument" = "-i" ]; then
+        expect_input=1
+    elif [ "$argument" = "-ss" ] && [ -z "$input" ]; then
+        fast_seek=1
+    fi
+done
+
+case "$input" in
+    *source-fallback.mp4)
+        if [ "$fast_seek" -eq 1 ]; then
+            exit 9
+        fi
+        printf '\377\330\377\340fallback' > "$output"
+        ;;
+    *source-failed.mp4)
+        exit 9
+        ;;
+    *source-empty.mp4)
+        : > "$output"
+        ;;
+    *)
+        printf '\377\330\377\340thumb' > "$output"
+        ;;
+esac
