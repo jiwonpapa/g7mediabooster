@@ -82,11 +82,14 @@ g7mb-telemetry = { version = "0.1.0", path = "crates/g7mb-telemetry" }
 g7mb-test-support = { version = "0.1.0", path = "crates/g7mb-test-support" }
 
 [workspace.lints.rust]
-missing_docs = "warn"
+missing_docs = "deny"
 rust_2018_idioms = { level = "deny", priority = -1 }
 unsafe_code = "forbid"
 unused_lifetimes = "deny"
 unused_must_use = "deny"
+
+[workspace.lints.rustdoc]
+all = "deny"
 
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }

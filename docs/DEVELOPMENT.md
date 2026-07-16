@@ -12,6 +12,7 @@
 
 ```bash
 cargo xtask quick          # fmt, check, clippy, test, doc
+cargo xtask rustdoc        # 공개 문서 누락, 링크, 코드블록, HTML 등 rustdoc lint 강제
 cargo xtask ci             # quick + OpenAPI drift + bench compile
 cargo xtask supply-chain   # advisory, license, source 검사
 cargo xtask native-smoke   # AVIF/HEIF, MP4/MOV, FFmpeg 부재 OpenH264 폴백
@@ -36,6 +37,17 @@ cargo xtask native-inventory
 cargo xtask openapi check  # 계약 drift 확인
 cargo xtask openapi write  # 의도적 계약 갱신
 ```
+
+## 정본 우선순위
+
+실행 가능한 소스 코드와 코드에서 생성한 계약이 최종 정본입니다. Rust 공개 API의 의미와
+제약은 소스 안의 rustdoc, HTTP는 생성 OpenAPI, DB는 migration, G5/G7 연동은 어댑터 소스와
+contract test를 따릅니다. Markdown 문서는 설명용 snapshot이며 충돌 시 코드에 맞춰 같은
+변경에서 고칩니다.
+
+모든 workspace crate는 `[lints] workspace = true`를 선언해야 합니다. `cargo xtask rustdoc`은
+이 상속 여부부터 검사한 뒤 `missing_docs = deny`, `rustdoc::all = deny`, 전체 feature 문서
+빌드를 실행합니다. `cargo xtask quick`과 CI도 이 게이트를 반드시 통과합니다.
 
 PR CI는 고정 버전 `cargo-nextest`를 설치한 뒤 `cargo xtask nextest`를 실행합니다. doctest는
 nextest 대상이 아니므로 하네스가 별도 `cargo test --doc`도 함께 실행합니다.

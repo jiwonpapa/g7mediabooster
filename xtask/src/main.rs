@@ -16,6 +16,8 @@ struct Cli {
 enum Harness {
     /// Fast mandatory local quality gate.
     Quick,
+    /// Enforce the workspace rustdoc policy and build all first-party documentation.
+    Rustdoc,
     /// Full pull-request gate excluding external credentials.
     Ci,
     /// RustSec, licenses, bans, and dependency source checks.
@@ -93,6 +95,7 @@ enum OpenApiAction {
 fn main() -> anyhow::Result<()> {
     match Cli::parse().command {
         Harness::Quick => quick(),
+        Harness::Rustdoc => rustdoc(),
         Harness::Ci => ci(),
         Harness::SupplyChain => supply_chain(),
         Harness::Nextest => nextest(),
@@ -162,6 +165,11 @@ fn quick() -> anyhow::Result<()> {
         "warnings",
     ])?;
     cargo(["test", "--workspace", "--all-features", "--locked"])?;
+    rustdoc()
+}
+
+fn rustdoc() -> anyhow::Result<()> {
+    verify_rustdoc_policy()?;
     run_with_env(
         "cargo",
         [
@@ -173,6 +181,75 @@ fn quick() -> anyhow::Result<()> {
         ],
         [("RUSTDOCFLAGS", "-D warnings")],
     )
+}
+
+fn verify_rustdoc_policy() -> anyhow::Result<()> {
+    let root = workspace_root();
+    let root_manifest_path = root.join("Cargo.toml");
+    let root_manifest = fs::read_to_string(&root_manifest_path)
+        .with_context(|| format!("failed to read {}", root_manifest_path.display()))?;
+
+    for required in [
+        "missing_docs = \"deny\"",
+        "[workspace.lints.rustdoc]",
+        "all = \"deny\"",
+    ] {
+        if !root_manifest.contains(required) {
+            bail!(
+                "rustdoc policy is incomplete in {}: missing `{required}`",
+                root_manifest_path.display()
+            );
+        }
+    }
+
+    let mut manifests = vec![root.join("xtask/Cargo.toml")];
+    collect_manifests(&root.join("apps"), &mut manifests)?;
+    collect_manifests(&root.join("crates"), &mut manifests)?;
+    manifests.sort();
+
+    for manifest_path in manifests {
+        let manifest = fs::read_to_string(&manifest_path)
+            .with_context(|| format!("failed to read {}", manifest_path.display()))?;
+        if !inherits_workspace_lints(&manifest) {
+            bail!(
+                "{} must contain `[lints]` with `workspace = true`",
+                manifest_path.display()
+            );
+        }
+    }
+
+    Ok(())
+}
+
+fn collect_manifests(
+    directory: &std::path::Path,
+    manifests: &mut Vec<PathBuf>,
+) -> anyhow::Result<()> {
+    for entry in fs::read_dir(directory)
+        .with_context(|| format!("failed to read directory {}", directory.display()))?
+    {
+        let entry = entry?;
+        let file_type = entry.file_type()?;
+        if file_type.is_dir() {
+            collect_manifests(&entry.path(), manifests)?;
+        } else if file_type.is_file() && entry.file_name() == OsStr::new("Cargo.toml") {
+            manifests.push(entry.path());
+        }
+    }
+    Ok(())
+}
+
+fn inherits_workspace_lints(manifest: &str) -> bool {
+    let mut in_lints = false;
+    for line in manifest.lines() {
+        let line = line.trim();
+        if line.starts_with('[') {
+            in_lints = line == "[lints]";
+        } else if in_lints && line == "workspace = true" {
+            return true;
+        }
+    }
+    false
 }
 
 fn ci() -> anyhow::Result<()> {
