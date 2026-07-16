@@ -2,6 +2,7 @@
 set -euo pipefail
 
 required=(
+    G7MB_LIVE_S3_PROFILE
     G7MB_LIVE_S3_LABEL
     G7MB_LIVE_S3_REGION
     G7MB_LIVE_S3_RAW_BUCKET
@@ -26,6 +27,15 @@ if [[ ! "$G7MB_LIVE_S3_LABEL" =~ ^[A-Za-z0-9._-]{1,64}$ ]]; then
     exit 2
 fi
 
+profile="$G7MB_LIVE_S3_PROFILE"
+case "$profile" in
+    r2|lightsail|aws-s3|generic) ;;
+    *)
+        echo "G7MB_LIVE_S3_PROFILE must be r2, lightsail, aws-s3, or generic" >&2
+        exit 2
+        ;;
+esac
+
 force_path_style="${G7MB_LIVE_S3_FORCE_PATH_STYLE:-false}"
 if [[ "$force_path_style" != "true" && "$force_path_style" != "false" ]]; then
     echo "G7MB_LIVE_S3_FORCE_PATH_STYLE must be true or false" >&2
@@ -36,6 +46,43 @@ if [[ -n "${G7MB_LIVE_S3_ENDPOINT:-}" \
     echo "G7MB_LIVE_S3_ENDPOINT must be a non-empty https:// URL without whitespace" >&2
     exit 2
 fi
+
+case "$profile" in
+    r2)
+        if [[ ! "${G7MB_LIVE_S3_ENDPOINT:-}" =~ ^https://[[:xdigit:]]{32}\.r2\.cloudflarestorage\.com$ ]]; then
+            echo "r2 profile requires the canonical HTTPS R2 account endpoint" >&2
+            exit 2
+        fi
+        if [[ "$G7MB_LIVE_S3_REGION" != "auto" || "$force_path_style" != "false" ]]; then
+            echo "r2 profile requires region=auto and force_path_style=false" >&2
+            exit 2
+        fi
+        ;;
+    lightsail)
+        if [[ -n "${G7MB_LIVE_S3_ENDPOINT:-}" || "$G7MB_LIVE_S3_REGION" == "auto" \
+            || "$force_path_style" != "false" ]]; then
+            echo "lightsail profile requires the AWS endpoint, a concrete region, and force_path_style=false" >&2
+            exit 2
+        fi
+        if [[ "$G7MB_LIVE_S3_RAW_BUCKET" != "$G7MB_LIVE_S3_DERIVATIVE_BUCKET" ]]; then
+            echo "lightsail profile requires one bucket with separate raw/ and media/ prefixes" >&2
+            exit 2
+        fi
+        ;;
+    aws-s3)
+        if [[ -n "${G7MB_LIVE_S3_ENDPOINT:-}" || "$G7MB_LIVE_S3_REGION" == "auto" \
+            || "$force_path_style" != "false" ]]; then
+            echo "aws-s3 profile requires the AWS endpoint, a concrete region, and force_path_style=false" >&2
+            exit 2
+        fi
+        ;;
+    generic)
+        if [[ -z "${G7MB_LIVE_S3_ENDPOINT:-}" ]]; then
+            echo "generic profile requires an explicit HTTPS endpoint" >&2
+            exit 2
+        fi
+        ;;
+esac
 
 large_bytes="${G7MB_LIVE_S3_LARGE_BYTES:-6291456}"
 if [[ ! "$large_bytes" =~ ^[0-9]+$ ]]; then
@@ -65,7 +112,7 @@ endpoint_mode="aws-default"
 if [[ -n "${G7MB_LIVE_S3_ENDPOINT:-}" ]]; then
     endpoint_mode="custom-https"
 fi
-echo "live-storage-preflight PASS label=$G7MB_LIVE_S3_LABEL endpoint=$endpoint_mode multipart_bytes=$large_bytes"
+echo "live-storage-preflight PASS profile=$profile label=$G7MB_LIVE_S3_LABEL endpoint=$endpoint_mode multipart_bytes=$large_bytes"
 if [[ "$preflight_only" == "true" ]]; then
     exit 0
 fi

@@ -9,7 +9,7 @@ profile만 공식 지원으로 게시합니다.
 현재 저장소는 **v0.1 구현 진행 단계**입니다. batch 생성, S3/R2 single·multipart 제어,
 HMAC 인증, SQLite lease queue, 검증된 master+thumbnail/poster 원자적 발행,
 4MiB/60초 bounded manifest cache·singleflight, digest-pinned 이미지 워터마크,
-sandbox runtime capability, 삭제·보존 cleanup과 G7 0.3
+sandbox runtime capability, 삭제·보존 cleanup과 G7 0.4.3
 form/Ready attachment bridge·보존 삭제 대조까지 연결됐습니다. G7 격리 설치·관리자 설정과 MinIO 기반 실제 browser single/multipart 전송·create/update·private thumbnail 전달, 비밀·블라인드·삭제글 첨부 권한 및 보존 lease 실제 DB 게이트도 통과했습니다. MP4/MOV H.264의 실제 worker master·poster, API 재기동을 포함한 로컬 5GiB 직접 multipart 재개와 G7 PHP 정책→Rust worker 워터마크→rollback 종단도 통과했습니다. 실제 R2/Lightsail profile과 G7 upstream 정식 반영 등 남은 게이트는 구현
 계획에 따라 진행합니다. 배포 시에는 [검증된 공식 기능 범위](deploy/README.md)만 게시합니다.
 
@@ -31,7 +31,8 @@ form/Ready attachment bridge·보존 삭제 대조까지 연결됐습니다. G7 
 - multipart create, part PUT, complete, abort
 - HEAD, bounded worker GET, private derivative presigned GET, worker PutObject, idempotent DeleteObject
 
-MinIO는 로컬 protocol gate, R2와 Lightsail은 각각 별도 실계정 profile로 판정합니다. 검증하지 않은
+MinIO는 로컬 protocol gate, R2와 Lightsail은 선언한 profile과 endpoint/region/bucket 형태를
+먼저 fail-closed로 대조한 뒤 각각 별도 실계정 profile로 판정합니다. 검증하지 않은
 ACL, Object Lock, replication, inventory, IAM/STS, SSE-KMS는 공식 지원 기능으로 게시하지 않습니다.
 
 ## 빠른 확인

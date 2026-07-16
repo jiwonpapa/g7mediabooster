@@ -15,17 +15,19 @@
 실제 `LifecycleService`와 `SqliteStore`가 두 후보를 lease하고 derivative→raw 순으로 지운 뒤
 두 DB 행을 `deleted` tombstone으로 전환합니다. 생성한 세 object key는 모두 provider `HEAD`가
 `ObjectStoreError::NotFound`인지 확인합니다. 성공 로그는 safe provider label과
-`user_delete=1 retention_expired=1 tombstones=2 object_count=0`만 출력합니다.
+`profile`, `user_delete=1 retention_expired=1 tombstones=2 object_count=0`만 출력합니다.
 
 테스트가 중간 실패해도 UUID로 만든 알려진 fixture key 세 개에 idempotent DELETE를 시도합니다.
-bucket 생성·IAM·CORS 수정이나 임의 prefix 삭제는 하지 않습니다.
+multipart part/complete 실패는 알려진 upload ID로 abort합니다. bucket 생성·IAM·CORS 수정이나
+임의 prefix 삭제는 하지 않습니다.
 
 ## 현재 실행 증거
 
 - live integration test 2개 compile 및 credential 없을 때 ignore 확인
-- pinned MinIO single/multipart/abort/GET/PUT/Delete conformance PASS
+- pinned MinIO single/multipart/client 재생성 재개/abort/GET/PUT/Delete conformance PASS
 - MinIO 삭제 뒤 HEAD와 GET이 정확히 `NotFound`, multipart fixture 잔존 0 PASS
-- `scripts/live-storage-preflight-smoke.sh`: 필수값 6개, secret redaction, HTTPS와 label guard PASS
+- `scripts/live-storage-preflight-smoke.sh`: 필수값 7개, secret redaction, HTTPS·label·R2/Lightsail
+  profile shape guard PASS
 - `cargo xtask ci`: format, check, clippy, test, rustdoc, package smoke PASS
 - `cargo xtask coverage`: line coverage 81.13% (`7629/9404`) PASS
 - `cargo xtask supply-chain`: advisories, bans, licenses, sources PASS

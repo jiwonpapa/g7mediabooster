@@ -25,7 +25,7 @@ async fn minio_single_multipart_abort_download_and_derivative_conformance()
     let client = test_client(&settings).await;
     create_bucket(&client, &settings.raw_bucket).await?;
     create_bucket(&client, &settings.derivative_bucket).await?;
-    let raw = S3CompatibleStore::for_raw_bucket(&settings).await?;
+    let mut raw = S3CompatibleStore::for_raw_bucket(&settings).await?;
     let derivative = S3CompatibleStore::for_derivative_bucket(&settings).await?;
     let temp = tempfile::tempdir()?;
 
@@ -74,7 +74,12 @@ async fn minio_single_multipart_abort_download_and_derivative_conformance()
     let first = vec![0x41_u8; 5 * 1024 * 1024];
     let second = vec![0x42_u8; 1024 * 1024];
     let mut completed = Vec::new();
+    let mut multipart_reconnected = false;
     for (index, bytes) in [&first, &second].into_iter().enumerate() {
+        if index == 1 {
+            raw = S3CompatibleStore::for_raw_bucket(&settings).await?;
+            multipart_reconnected = true;
+        }
         let part_number = u16::try_from(index + 1)?;
         let path = temp.path().join(format!("part-{part_number}"));
         tokio::fs::write(&path, bytes).await?;
@@ -91,6 +96,7 @@ async fn minio_single_multipart_abort_download_and_derivative_conformance()
             .ok_or_else(|| std::io::Error::other("multipart PUT returned no ETag"))?;
         completed.push(CompletedPart { part_number, etag });
     }
+    assert!(multipart_reconnected);
     raw.complete_multipart(CompleteMultipartRequest {
         key: multipart_key.clone(),
         upload_id: session.upload_id,

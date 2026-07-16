@@ -20,9 +20,9 @@
 | `cargo xtask ci` / `cargo xtask rustdoc` | fmt, check, Clippy `-D warnings`, 전체 Rust test, 문서 경고 0, OpenAPI, setup/preflight/package, bench compile PASS |
 | `cargo xtask coverage` | 7,629/9,404 lines, 81.13%, 80% ratchet PASS |
 | `cargo xtask supply-chain` | 378 dependency, RustSec 1,160 advisories scan, bans/licenses/sources PASS |
-| `scripts/live-storage-preflight-smoke.sh` | 필수값 6개, secret redaction, HTTPS·provider label guard PASS |
-| G7 media contract | checkout `c275b41b`, 28/28 + PHP/JSON parser validation PASS |
-| G7 module package | 0.4.1 ZIP 149,966 bytes, SHA-256 `a667232a…a6a3`, 실제 ZipInstallHelper·checkout 무변경 PASS |
+| `scripts/live-storage-preflight-smoke.sh` | 필수값 7개, secret redaction, HTTPS·provider label·R2/Lightsail profile shape guard PASS |
+| G7 media contract | 공개 `gnuboard/g7@fcaacad` + patch 6개, 29/29 + parser + 실제 activation, MySQL 115 tests/283 assertions PASS |
+| G7 module package | 0.4.3 ZIP 153,244 bytes, SHA-256 `1137edfb…ecac`, 실제 ZipInstallHelper·checkout 무변경 PASS |
 
 `reports/*.json`은 로컬 실행 산출물이므로 Git에 넣지 않습니다. 표에는 secret, bucket 이름,
 presigned URL을 기록하지 않았습니다.

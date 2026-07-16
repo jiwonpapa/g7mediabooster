@@ -22,7 +22,7 @@ const FIVE_GIB: u64 = 5 * 1024 * 1024 * 1024;
 #[ignore = "requires explicit S3-compatible provider credentials and an existing bucket"]
 async fn live_provider_single_multipart_and_delete_conformance()
 -> Result<(), Box<dyn std::error::Error>> {
-    let settings = settings_from_environment()?;
+    let (profile, settings) = settings_from_environment()?;
     let label = provider_label_from_environment()?;
     let requested_bytes = env::var("G7MB_LIVE_S3_LARGE_BYTES")
         .ok()
@@ -106,8 +106,8 @@ async fn live_provider_single_multipart_and_delete_conformance()
     } else {
         5 * 1024 * 1024
     };
-    upload_sparse_multipart(
-        &raw,
+    let multipart_reconnected = upload_sparse_multipart(
+        &settings,
         multipart_key.clone(),
         temp.path(),
         requested_bytes,
@@ -166,8 +166,10 @@ async fn live_provider_single_multipart_and_delete_conformance()
     assert_object_missing(&derivative, &derivative_key).await?;
 
     eprintln!(
-        "live-provider-conformance PASS label={label} multipart_bytes={requested_bytes} large_5gib={} object_count=0",
-        requested_bytes == FIVE_GIB
+        "live-provider-conformance PASS profile={} label={label} multipart_bytes={requested_bytes} large_5gib={} multipart_reconnect={} object_count=0",
+        profile.as_str(),
+        requested_bytes == FIVE_GIB,
+        multipart_reconnected
     );
     Ok(())
 }
@@ -176,7 +178,7 @@ async fn live_provider_single_multipart_and_delete_conformance()
 #[ignore = "requires explicit S3-compatible provider credentials and an existing bucket"]
 async fn live_provider_lifecycle_retention_and_delete_conformance()
 -> Result<(), Box<dyn std::error::Error>> {
-    let settings = settings_from_environment()?;
+    let (profile, settings) = settings_from_environment()?;
     let label = provider_label_from_environment()?;
     let raw = Arc::new(S3CompatibleStore::for_raw_bucket(&settings).await?);
     let derivative = Arc::new(S3CompatibleStore::for_derivative_bucket(&settings).await?);
@@ -294,7 +296,8 @@ async fn live_provider_lifecycle_retention_and_delete_conformance()
     cleanup_rejected?;
     cleanup_derivative?;
     eprintln!(
-        "live-provider-lifecycle PASS label={label} user_delete=1 retention_expired=1 tombstones=2 object_count=0"
+        "live-provider-lifecycle PASS profile={} label={label} user_delete=1 retention_expired=1 tombstones=2 object_count=0",
+        profile.as_str()
     );
     Ok(())
 }
@@ -352,6 +355,84 @@ fn valid_provider_label(label: &str) -> bool {
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum LiveProviderProfile {
+    R2,
+    Lightsail,
+    AwsS3,
+    GenericS3,
+}
+
+impl LiveProviderProfile {
+    fn from_environment() -> Result<Self, Box<dyn std::error::Error>> {
+        match env::var("G7MB_LIVE_S3_PROFILE")?.as_str() {
+            "r2" => Ok(Self::R2),
+            "lightsail" => Ok(Self::Lightsail),
+            "aws-s3" => Ok(Self::AwsS3),
+            "generic" => Ok(Self::GenericS3),
+            _ => Err(std::io::Error::other(
+                "live provider profile must be r2, lightsail, aws-s3, or generic",
+            )
+            .into()),
+        }
+    }
+
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::R2 => "r2",
+            Self::Lightsail => "lightsail",
+            Self::AwsS3 => "aws-s3",
+            Self::GenericS3 => "generic",
+        }
+    }
+
+    fn validate(self, settings: &StorageSettings) -> Result<(), Box<dyn std::error::Error>> {
+        let aws_shape = settings.endpoint_url.is_none()
+            && !settings.region.is_empty()
+            && settings.region != "auto"
+            && !settings.force_path_style;
+        let valid = match self {
+            Self::R2 => {
+                settings
+                    .endpoint_url
+                    .as_deref()
+                    .is_some_and(is_canonical_r2_endpoint)
+                    && settings.region == "auto"
+                    && !settings.force_path_style
+            }
+            Self::Lightsail => aws_shape && settings.raw_bucket == settings.derivative_bucket,
+            Self::AwsS3 => aws_shape,
+            Self::GenericS3 => settings
+                .endpoint_url
+                .as_deref()
+                .is_some_and(is_https_endpoint),
+        };
+        if !valid {
+            return Err(std::io::Error::other(
+                "live provider settings do not match the declared profile",
+            )
+            .into());
+        }
+        Ok(())
+    }
+}
+
+fn is_canonical_r2_endpoint(endpoint: &str) -> bool {
+    let Some(account_id) = endpoint
+        .strip_prefix("https://")
+        .and_then(|value| value.strip_suffix(".r2.cloudflarestorage.com"))
+    else {
+        return false;
+    };
+    account_id.len() == 32 && account_id.bytes().all(|byte| byte.is_ascii_hexdigit())
+}
+
+fn is_https_endpoint(endpoint: &str) -> bool {
+    endpoint.strip_prefix("https://").is_some_and(|authority| {
+        !authority.is_empty() && !authority.bytes().any(|byte| byte.is_ascii_whitespace())
+    })
+}
+
 #[test]
 fn live_provider_label_is_log_safe() {
     assert!(valid_provider_label("r2-production_1"));
@@ -359,60 +440,113 @@ fn live_provider_label_is_log_safe() {
     assert!(!valid_provider_label(""));
 }
 
+#[test]
+fn live_provider_profile_is_bound_to_provider_specific_settings() {
+    let mut settings = StorageSettings {
+        endpoint_url: Some(
+            "https://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com".to_owned(),
+        ),
+        region: "auto".to_owned(),
+        raw_bucket: "private-raw".to_owned(),
+        derivative_bucket: "private-media".to_owned(),
+        access_key_id: SecretString::from("redacted-access"),
+        access_key_id_file: None,
+        secret_access_key: SecretString::from("redacted-secret"),
+        secret_access_key_file: None,
+        force_path_style: false,
+    };
+    assert!(LiveProviderProfile::R2.validate(&settings).is_ok());
+    assert!(LiveProviderProfile::AwsS3.validate(&settings).is_err());
+
+    settings.endpoint_url = None;
+    settings.region = "ap-northeast-2".to_owned();
+    assert!(LiveProviderProfile::AwsS3.validate(&settings).is_ok());
+    assert!(LiveProviderProfile::Lightsail.validate(&settings).is_err());
+
+    settings.derivative_bucket = settings.raw_bucket.clone();
+    assert!(LiveProviderProfile::Lightsail.validate(&settings).is_ok());
+    assert!(LiveProviderProfile::GenericS3.validate(&settings).is_err());
+}
+
 async fn upload_sparse_multipart(
-    store: &S3CompatibleStore,
+    settings: &StorageSettings,
     key: ObjectKey,
     directory: &Path,
     total_bytes: u64,
     part_size: u64,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<bool, Box<dyn std::error::Error>> {
+    let part_count = total_bytes.div_ceil(part_size);
+    if part_count == 0 || part_count > 10_000 {
+        return Err(std::io::Error::other("multipart part count is invalid").into());
+    }
+    let mut store = S3CompatibleStore::for_raw_bucket(settings).await?;
     let session = store
         .create_multipart(CreateMultipartRequest {
             key: key.clone(),
             content_type: "application/octet-stream".to_owned(),
         })
         .await?;
-    let part_count = total_bytes.div_ceil(part_size);
-    if part_count == 0 || part_count > 10_000 {
-        return Err(std::io::Error::other("multipart part count is invalid").into());
-    }
-    let part_path = directory.join("sparse-part.bin");
-    let mut completed = Vec::with_capacity(usize::try_from(part_count)?);
-    for index in 0..part_count {
-        let part_number = u16::try_from(index + 1)?;
-        let offset = index * part_size;
-        let content_length = (total_bytes - offset).min(part_size);
-        let file = tokio::fs::File::create(&part_path).await?;
-        file.set_len(content_length).await?;
-        drop(file);
-        let signed = store
-            .presign_part(PresignPartRequest {
+    let upload_id = session.upload_id.clone();
+    let result: Result<bool, Box<dyn std::error::Error>> = async {
+        let part_path = directory.join("sparse-part.bin");
+        let mut completed = Vec::with_capacity(usize::try_from(part_count)?);
+        let reconnect_at = if part_count == 1 {
+            0
+        } else {
+            (part_count / 2).max(1)
+        };
+        let mut reconnected = false;
+        for index in 0..part_count {
+            if index == reconnect_at {
+                store = S3CompatibleStore::for_raw_bucket(settings).await?;
+                reconnected = true;
+            }
+            let part_number = u16::try_from(index + 1)?;
+            let offset = index * part_size;
+            let content_length = (total_bytes - offset).min(part_size);
+            let file = tokio::fs::File::create(&part_path).await?;
+            file.set_len(content_length).await?;
+            drop(file);
+            let signed = store
+                .presign_part(PresignPartRequest {
+                    key: key.clone(),
+                    upload_id: session.upload_id.clone(),
+                    part_number,
+                    content_length,
+                    expires_in: Duration::from_secs(900),
+                })
+                .await?;
+            let etag = curl_put(
+                signed.url.expose_secret(),
+                &signed.required_headers,
+                &part_path,
+            )?
+            .ok_or_else(|| std::io::Error::other("multipart PUT returned no ETag"))?;
+            completed.push(CompletedPart { part_number, etag });
+        }
+        store
+            .complete_multipart(CompleteMultipartRequest {
                 key: key.clone(),
-                upload_id: session.upload_id.clone(),
-                part_number,
-                content_length,
-                expires_in: Duration::from_secs(900),
+                upload_id: session.upload_id,
+                parts: completed,
             })
             .await?;
-        let etag = curl_put(
-            signed.url.expose_secret(),
-            &signed.required_headers,
-            &part_path,
-        )?
-        .ok_or_else(|| std::io::Error::other("multipart PUT returned no ETag"))?;
-        completed.push(CompletedPart { part_number, etag });
+        Ok(reconnected)
     }
-    store
-        .complete_multipart(CompleteMultipartRequest {
-            key,
-            upload_id: session.upload_id,
-            parts: completed,
-        })
-        .await?;
-    Ok(())
+    .await;
+    if result.is_err()
+        && let Ok(cleanup_store) = S3CompatibleStore::for_raw_bucket(settings).await
+    {
+        let _cleanup_result = cleanup_store
+            .abort_multipart(AbortMultipartRequest { key, upload_id })
+            .await;
+    }
+    result
 }
 
-fn settings_from_environment() -> Result<StorageSettings, Box<dyn std::error::Error>> {
+fn settings_from_environment()
+-> Result<(LiveProviderProfile, StorageSettings), Box<dyn std::error::Error>> {
+    let profile = LiveProviderProfile::from_environment()?;
     let force_path_style = match env::var("G7MB_LIVE_S3_FORCE_PATH_STYLE")
         .unwrap_or_else(|_| "false".to_owned())
         .as_str()
@@ -426,7 +560,7 @@ fn settings_from_environment() -> Result<StorageSettings, Box<dyn std::error::Er
             .into());
         }
     };
-    Ok(StorageSettings {
+    let settings = StorageSettings {
         endpoint_url: env::var("G7MB_LIVE_S3_ENDPOINT")
             .ok()
             .filter(|value| !value.is_empty()),
@@ -438,7 +572,9 @@ fn settings_from_environment() -> Result<StorageSettings, Box<dyn std::error::Er
         secret_access_key: SecretString::from(env::var("G7MB_LIVE_S3_SECRET_KEY")?),
         secret_access_key_file: None,
         force_path_style,
-    })
+    };
+    profile.validate(&settings)?;
+    Ok((profile, settings))
 }
 
 fn curl_put(

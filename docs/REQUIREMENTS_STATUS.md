@@ -7,7 +7,7 @@
 | 번호 | 판정 | 현재 증거와 공식 범위 | 남은 게이트 |
 |---:|---|---|---|
 | 1 이미지 업로드 | PASS | 최대 100개 batch, single/multipart 직접 업로드 | 실 R2/Lightsail profile 재검증 |
-| 2 S3 호환 | PARTIAL | MinIO에서 필요한 object 작업 conformance PASS | R2·Lightsail 각각 실계정 PASS 후 profile별 공식화 |
+| 2 S3 호환 | PARTIAL | MinIO object 작업·multipart client 재생성 재개 PASS, R2/Lightsail profile shape fail-closed 하네스 | R2·Lightsail 각각 실계정 PASS 후 profile별 공식화 |
 | 3 동영상 업로드 | PASS | MP4/MOV H.264 직접 multipart·실제 FFprobe/FFmpeg 검사·원 container master·JPEG poster·private delivery 종단 PASS | WebM은 release fixture 전 공식 게시 제외 |
 | 4 최신 포맷 | PASS | JPEG/PNG/GIF/WebP/AVIF/HEIC·HEIF runtime decode gate | JPEG XL, 영상 HEVC/AV1은 v1 제외 |
 | 5 진짜 파일·보안 | PASS | signature, 실제 decode/ffprobe, digest, hard limit, no-network sandbox | ClamAV·moderation은 선택 hook |

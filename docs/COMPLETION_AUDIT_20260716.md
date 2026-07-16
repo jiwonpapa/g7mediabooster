@@ -7,7 +7,7 @@
 | 번호 | 판정 | 권위 증거 | 완료를 막는 잔여 조건 |
 |---:|---|---|---|
 | 1 이미지 업로드 | PASS | `full-stack-smoke`, G5/G7 browser E2E | 없음 |
-| 2 S3 호환 업로드 | PARTIAL | pinned MinIO single/multipart/abort/HEAD/GET/PUT/Delete conformance, 외부 credential 하네스 | R2·Lightsail 각각 실계정 profile PASS |
+| 2 S3 호환 업로드 | PARTIAL | pinned MinIO single/multipart/client 재생성 재개/abort/HEAD/GET/PUT/Delete, profile-bound 외부 credential 하네스 | R2·Lightsail 각각 실계정 profile PASS |
 | 3 동영상 업로드 | PASS | 실제 MP4/MOV H.264 multipart→FFprobe/FFmpeg→master/poster→private delivery | WebM은 공식 범위 밖 |
 | 4 최신 이미지 포맷 | PASS | runtime capability의 JPEG/PNG/GIF/WebP/AVIF/HEIF decode, 4 output 실제 fixture | JPEG XL은 공식 범위 밖 |
 | 5 진짜 파일·보안 | PASS | signature+decoder/FFprobe, 위장 PHP 거부, no-network sandbox, hard limits | 선택 ClamAV/moderation hook |
