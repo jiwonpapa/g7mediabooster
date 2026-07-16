@@ -10,7 +10,7 @@ coverage/
 reports/
 output/
 tmp/
-**/g7mb.cdx.json
+**/*.cdx.json
 /data/*
 !/data/.gitkeep
 

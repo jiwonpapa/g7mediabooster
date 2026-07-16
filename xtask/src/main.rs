@@ -353,8 +353,6 @@ fn sbom() -> anyhow::Result<()> {
         "--all-features",
         "--spec-version",
         "1.5",
-        "--override-filename",
-        "g7mb.cdx.json",
     ])
 }
 

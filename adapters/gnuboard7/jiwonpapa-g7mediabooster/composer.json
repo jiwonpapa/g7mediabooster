@@ -21,5 +21,11 @@
         "psr-4": {
             "Modules\\Jiwonpapa\\G7mediabooster\\Tests\\": "tests/"
         }
+    },
+    "config": {
+        "platform": {
+            "php": "8.2.0"
+        },
+        "sort-packages": true
     }
 }

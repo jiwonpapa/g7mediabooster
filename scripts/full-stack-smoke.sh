@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -Eeuo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 IMAGE="quay.io/minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e"
@@ -16,6 +16,16 @@ LARGE_MULTIPART_BYTES="${G7MB_FULL_STACK_LARGE_MULTIPART_BYTES:-0}"
 API_PID=""
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/g7mb-full-stack.XXXXXX")"
 API_LOG="$TMP/api.log"
+FAILURE_PHASE="bootstrap"
+
+on_error() {
+    local exit_status="$?"
+    printf 'full-stack-smoke FAILED phase=%s line=%s status=%s\n' \
+        "$FAILURE_PHASE" "${BASH_LINENO[0]:-unknown}" "$exit_status" >&2
+    if [[ -s "$API_LOG" ]]; then
+        tail -n 160 "$API_LOG" >&2
+    fi
+}
 
 cleanup() {
     if [[ -n "$API_PID" ]]; then
@@ -26,6 +36,7 @@ cleanup() {
     rm -rf "$TMP"
 }
 trap cleanup EXIT
+trap on_error ERR
 
 command -v curl >/dev/null
 command -v docker >/dev/null
@@ -198,6 +209,7 @@ export G7MB_TEST_S3_RAW_BUCKET="$RAW_BUCKET"
 export G7MB_TEST_S3_DERIVATIVE_BUCKET="$DERIVATIVE_BUCKET"
 cargo test --quiet --locked --package g7mb-object-store-s3 \
     --test minio_conformance -- --ignored --nocapture
+FAILURE_PHASE="media-fixtures"
 
 if base64 --decode <tests/fixtures/private-exif.jpg.b64 >"$TMP/private-exif.jpg" 2>/dev/null; then
     :
@@ -260,6 +272,7 @@ export G7MB__WORKER__MAX_CONCURRENT_VIDEOS="1"
 
 mkdir -p "$TMP/worker" "$TMP/backups"
 start_api
+FAILURE_PHASE="upload-control"
 
 if (( LARGE_MULTIPART_BYTES > 0 )); then
     large_batch_body="$(jq -nc --argjson size "$LARGE_MULTIPART_BYTES" \
@@ -403,6 +416,7 @@ target/debug/g7mb-worker --config config/g7mb.example.toml once --worker-id full
 target/debug/g7mb-worker --config config/g7mb.example.toml once --worker-id full-stack-2 >/dev/null
 target/debug/g7mb-worker --config config/g7mb.example.toml once --worker-id full-stack-3 >/dev/null
 
+FAILURE_PHASE="image-ready-delivery"
 for upload_id in "$single_id" "$multipart_id"; do
     status="$(signed_request GET "/v1/uploads/$upload_id" '')"
     [[ "$(jq -r '.state' <<<"$status")" == "ready" ]]
@@ -419,6 +433,7 @@ for upload_id in "$single_id" "$multipart_id"; do
     done
 done
 
+FAILURE_PHASE="mov-ready-delivery"
 mov_status="$(signed_request GET "/v1/uploads/$mov_id" '')"
 [[ "$(jq -r '.state' <<<"$mov_status")" == "ready" ]]
 [[ "$(jq -r '.detected_content_type' <<<"$mov_status")" == "video/quicktime" ]]
@@ -440,6 +455,7 @@ if [[ "$sanitized_metadata" == *"PrivateCamera"* \
 fi
 
 if [[ "$POLICY_SMOKE" == true ]]; then
+    FAILURE_PHASE="watermark-policy"
     ffmpeg -hide_banner -loglevel error -nostdin \
         -f lavfi -i "color=c=blue:s=320x160" \
         -frames:v 1 -threads 1 -y "$TMP/watermark.png"
