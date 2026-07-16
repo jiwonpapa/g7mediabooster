@@ -1109,6 +1109,8 @@ pub mod vips {
 #[cfg(test)]
 mod tests {
     use std::{
+        fs::OpenOptions,
+        io::Write as _,
         os::unix::fs::PermissionsExt as _,
         path::{Path, PathBuf},
         time::Duration,
@@ -1502,10 +1504,18 @@ printf '\377\330\377\340thumb' > "$output"
 
     fn executable(directory: &Path, name: &str, contents: &str) -> Result<PathBuf, std::io::Error> {
         let path = directory.join(name);
-        std::fs::write(&path, contents)?;
-        let mut permissions = std::fs::metadata(&path)?.permissions();
+        let staging = directory.join(format!(".{name}.tmp"));
+        let mut file = OpenOptions::new()
+            .create_new(true)
+            .write(true)
+            .open(&staging)?;
+        file.write_all(contents.as_bytes())?;
+        file.sync_all()?;
+        drop(file);
+        let mut permissions = std::fs::metadata(&staging)?.permissions();
         permissions.set_mode(0o700);
-        std::fs::set_permissions(&path, permissions)?;
+        std::fs::set_permissions(&staging, permissions)?;
+        std::fs::rename(staging, &path)?;
         Ok(path)
     }
 
