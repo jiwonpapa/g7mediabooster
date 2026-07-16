@@ -72,6 +72,20 @@ file_size() {
     fi
 }
 
+assert_decodable_image() {
+    local image="$1"
+    local width height
+    if ! width="$(vipsheader -f width "$image" 2>/dev/null)" \
+        || ! height="$(vipsheader -f height "$image" 2>/dev/null)" \
+        || [[ ! "$width" =~ ^[0-9]+$ ]] \
+        || [[ ! "$height" =~ ^[0-9]+$ ]] \
+        || (( width < 1 || height < 1 )); then
+        printf 'derivative is not a decodable, non-empty image: %s\n' "$image" >&2
+        vipsheader "$image" >&2 || true
+        return 1
+    fi
+}
+
 signed_request() {
     local method="$1"
     local path="$2"
@@ -429,7 +443,7 @@ for upload_id in "$single_id" "$multipart_id"; do
         [[ "$(jq -r '.expires_at | type' <<<"$delivery")" == "string" ]]
         delivery_url="$(jq -er '.delivery_url' <<<"$delivery")"
         curl --fail-with-body --silent --show-error --output "$TMP/$upload_id-$variant.jpg" "$delivery_url"
-        [[ "$(vipsheader -f format "$TMP/$upload_id-$variant.jpg")" == "uchar" ]]
+        assert_decodable_image "$TMP/$upload_id-$variant.jpg"
     done
 done
 
@@ -442,7 +456,7 @@ mov_status="$(signed_request GET "/v1/uploads/$mov_id" '')"
 download_derivative "$mov_id" master "$TMP/mov-master.mov"
 download_derivative "$mov_id" thumbnail "$TMP/mov-thumbnail.jpg"
 cmp -s "$TMP/video.mov" "$TMP/mov-master.mov"
-[[ "$(vipsheader -f format "$TMP/mov-thumbnail.jpg")" == "uchar" ]]
+assert_decodable_image "$TMP/mov-thumbnail.jpg"
 mov_format="$(ffprobe -v error -show_entries format=format_name -of default=nw=1:nk=1 "$TMP/mov-master.mov")"
 [[ "$mov_format" == *"mov"* ]]
 
