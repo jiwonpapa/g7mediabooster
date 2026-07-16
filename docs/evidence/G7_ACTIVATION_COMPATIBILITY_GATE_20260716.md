@@ -6,7 +6,16 @@
 - 정적 계약 28항목과 module activation capability 1항목: **29/29 PASS**
 - patch가 만지는 PHP/JSON parser 검사: PASS
 - patch `0006`이 없는 현재 개발 checkout: `G7MB_G7_CONTRACT_FILE_MISSING`으로 예상대로 FAIL
-- 모듈 standalone PHPUnit: 62 tests, 165 assertions PASS
+- 모듈 standalone PHPUnit: 63 tests, 168 assertions PASS
+
+## 관리자 설치 산출물
+
+- module commit: `72e381796d9cebb6864673d71aa145767729a81d`
+- ZIP: `jiwonpapa-g7mediabooster-0.4.2.zip`, 153,123 bytes
+- ZIP SHA-256: `a8778321e6fa139609f95171bba24a0a7cb16cbafb74f03ed8d9b4604c7bb57c`
+- tar.gz: 126,138 bytes
+- tar.gz SHA-256: `807090c2ce49a8fce8d3c7120e9d067cff1cbd400cf16ff7ee4e2feef6d49ce2`
+- 실제 G7 `ZipInstallHelper`: identifier·version·activation capability manifest PASS
 
 ## 활성화 시 검사하는 정본
 

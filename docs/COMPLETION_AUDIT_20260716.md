@@ -59,6 +59,11 @@ SHA-256 `53b4dc1c…d026`으로 재현했습니다. 배포 설명 자동화는
 SHA-256 `a667232a…a6a3`로 두 번 재현했고, G7 checkout `c275b41b`의 실제
 `ZipInstallHelper`와 checkout 무변경 검사를 통과했습니다.
 
+현재 관리자 설치판 0.4.2는 module commit `72e3817` 기준 ZIP 153,123 bytes,
+SHA-256 `a8778321…bb57c`, tar.gz 126,138 bytes, SHA-256 `807090c2…9ce2`로 재현했고,
+현재 G7 checkout의 실제 `ZipInstallHelper`에서 identifier·version·activation capability
+manifest 검사를 통과했습니다.
+
 ## 설치·비밀값 경로 보강
 
 `g7mbctl setup` 대화형 CUI와 비대화형 file-input 모드를 추가했습니다. R2 Account ID endpoint
