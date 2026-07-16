@@ -135,7 +135,7 @@ final class Gnuboard7MediaContract
         $manifest = self::readJson($manifestPath);
         $version = $manifest['version'] ?? null;
         if (! is_string($version)
-            || version_compare($version, '1.2.0', '<')
+            || version_compare($version, '1.1.0', '<')
             || version_compare($version, '2.0.0', '>=')) {
             throw new LogicException('G7MB_SIRSOFT_BOARD_VERSION_UNSUPPORTED');
         }

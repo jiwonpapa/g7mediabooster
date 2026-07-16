@@ -36,7 +36,7 @@ index 60777141..f87dc09b 100644
  형식은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)를 따르며,
  [Semantic Versioning](https://semver.org/lang/ko/)을 준수합니다.
  
-+## [1.2.0] - 2026-07-16
++## [1.1.0] - 2026-07-16
 +
 +### Added
 +
@@ -49,9 +49,9 @@ index 60777141..f87dc09b 100644
 +- 순차 첨부 ID만 알면 다른 사용자의 임시 첨부를 게시글에 연결할 수 있던 문제를 소유자 조건과 전건 일치 검사로 차단했습니다.
 +- `attachment_ids`를 list와 게시판별 최대 첨부 수로 제한해 비정상 대량 연결 요청을 차단했습니다.
 +
- ## [1.1.1] - 2026-07-15
+ ## [1.0.2] - 2026-07-14
  
- ### Added
+ ### Fixed
 diff --git a/modules/_bundled/sirsoft-board/composer.json b/modules/_bundled/sirsoft-board/composer.json
 index f2c4f06a..83eb3602 100644
 --- a/modules/_bundled/sirsoft-board/composer.json
@@ -60,8 +60,8 @@ index f2c4f06a..83eb3602 100644
      "name": "modules/sirsoft-board",
      "description": "Board module for Gnuboard7",
      "type": "library",
--    "version": "1.1.1",
-+    "version": "1.2.0",
+-    "version": "1.0.2",
++    "version": "1.1.0",
      "license": "MIT",
      "autoload": {
          "psr-4": {
@@ -73,8 +73,8 @@ index c6978dbc..a0c33a06 100644
          "ko": "게시판",
          "en": "Board"
      },
--    "version": "1.1.1",
-+    "version": "1.2.0",
+-    "version": "1.0.2",
++    "version": "1.1.0",
      "license": "MIT",
      "description": {
          "ko": "게시판 관리를 위한 모듈",
@@ -85,15 +85,15 @@ index fa177ce9..f9c4d778 100644
 @@ -1,12 +1,12 @@
  {
      "name": "@g7/sirsoft-board",
--    "version": "1.1.1",
-+    "version": "1.2.0",
+-    "version": "1.0.2",
++    "version": "1.1.0",
      "lockfileVersion": 3,
      "requires": true,
      "packages": {
          "": {
              "name": "@g7/sirsoft-board",
--            "version": "1.1.1",
-+            "version": "1.2.0",
+-            "version": "1.0.2",
++            "version": "1.1.0",
              "devDependencies": {
                  "jsdom": "^27.4.0",
                  "typescript": "^5.3.3",
@@ -104,8 +104,8 @@ index 2dcc25a1..aa8072c9 100644
 @@ -1,6 +1,6 @@
  {
      "name": "@g7/sirsoft-board",
--    "version": "1.1.1",
-+    "version": "1.2.0",
+-    "version": "1.0.2",
++    "version": "1.1.0",
      "description": "그누보드7 게시판 모듈 프론트엔드 에셋",
      "private": true,
      "type": "module",
@@ -835,4 +835,3 @@ index 47ccd65b..eb79ba15 100644
 +}
 -- 
 2.50.1 (Apple Git-155)
-

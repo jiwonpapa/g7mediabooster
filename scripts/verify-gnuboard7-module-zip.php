@@ -40,7 +40,7 @@ try {
     if (($manifest['version'] ?? null) !== $expectedVersion) {
         throw new RuntimeException('G7 module version does not match the expected release');
     }
-    if (($manifest['dependencies']['modules']['sirsoft-board'] ?? null) !== '>=1.2.0') {
+    if (($manifest['dependencies']['modules']['sirsoft-board'] ?? null) !== '>=1.1.0') {
         throw new RuntimeException('G7 module sirsoft-board contract is invalid');
     }
     if (($manifest['compatibility']['contracts']['sirsoft-board.secure-external-attachments'] ?? null)

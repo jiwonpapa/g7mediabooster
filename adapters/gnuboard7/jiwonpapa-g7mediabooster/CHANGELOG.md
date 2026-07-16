@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.3 - 2026-07-16
+
+- upstream patch 기준을 공개 Gnuboard7 main `fcaacad`와 `sirsoft-board` 1.0.2로 옮겼습니다.
+- patch 적용 후 `sirsoft-board` 1.1.0 capability를 검사해 로컬 미공개 선행 commit 의존성을 제거했습니다.
+
 ## 0.4.2 - 2026-07-16
 
 - G7 활성화 시 versioned 보안 첨부 capability, PHP 메서드 시그니처와 사용자·관리자 layout target을 검증합니다.

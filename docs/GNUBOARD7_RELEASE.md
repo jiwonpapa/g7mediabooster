@@ -48,8 +48,8 @@ GNUBOARD7_ROOT=/path/to/gnuboard7 cargo xtask g7-module-package
 배포는 명시적인 annotated tag만 허용합니다.
 
 ```bash
-git tag -a g7-module-v0.4.2 -m "Gnuboard7 module 0.4.2"
-git push origin g7-module-v0.4.2
+git tag -a g7-module-v0.4.3 -m "Gnuboard7 module 0.4.3"
+git push origin g7-module-v0.4.3
 ```
 
 태그가 `module.json` 버전과 다르면 workflow가 실패합니다. `release_status=candidate`인 동안에는

@@ -4,9 +4,9 @@
   "release_status": "candidate",
   "module": {
     "identifier": "jiwonpapa-g7mediabooster",
-    "version": "0.4.2",
+    "version": "0.4.3",
     "gnuboard7": ">=7.0.4",
-    "sirsoft_board": ">=1.2.0"
+    "sirsoft_board": ">=1.1.0"
   },
   "publishable_features": [
     {"id": "bounded_multi_upload", "title": "최대 100개 bounded 병렬 멀티업로드"},

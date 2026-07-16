@@ -37,9 +37,9 @@
 
 현재 개발 checkout은 `main` HEAD `35e530de`이며 로컬 추적 `origin/main`보다 13 commit 앞입니다.
 기존 media contract 28항목은 남아 있지만 새 patch `0006` capability 문서는 아직 적용하지 않아
-0.4.2 activation gate가 예상대로 `G7MB_G7_CONTRACT_FILE_MISSING`을 반환합니다. 사용자 작업과
-섞인 이 checkout은 수정하지 않았습니다. 별도 깨끗한 `e64381dd` worktree에 patch 6개를 순차
-적용해 29/29·parser·실제 `Module::activate()` PASS를 확인했습니다.
+0.4.3 activation gate가 예상대로 `G7MB_G7_CONTRACT_FILE_MISSING`을 반환합니다. 사용자 작업과
+섞인 이 checkout은 수정하지 않았습니다. 공개 upstream `fcaacad`의 깨끗한 clone에 patch 6개를
+순차 적용해 29/29·parser·실제 `Module::activate()` PASS를 확인했습니다.
 
 production DB와 분리한 임시 MySQL 8.4와 일회용 `.env.testing`으로 현재 checkout의 첨부·권한
 58 tests/90 assertions, 전체 layout extension 57/193, 첨부 수 동기화 1/2를 통과했습니다.
@@ -59,7 +59,7 @@ SHA-256 `53b4dc1c…d026`으로 재현했습니다. 배포 설명 자동화는
 SHA-256 `a667232a…a6a3`로 두 번 재현했고, G7 checkout `c275b41b`의 실제
 `ZipInstallHelper`와 checkout 무변경 검사를 통과했습니다.
 
-현재 관리자 설치판 0.4.2는 module commit `72e3817` 기준 ZIP 153,123 bytes,
+이전 관리자 설치판 0.4.2는 module commit `72e3817` 기준 ZIP 153,123 bytes,
 SHA-256 `a8778321…bb57c`, tar.gz 126,138 bytes, SHA-256 `807090c2…9ce2`로 재현했고,
 현재 G7 checkout의 실제 `ZipInstallHelper`에서 identifier·version·activation capability
 manifest 검사를 통과했습니다.

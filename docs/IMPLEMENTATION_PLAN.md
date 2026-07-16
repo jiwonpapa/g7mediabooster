@@ -229,7 +229,7 @@ bounded 동시성, 진행률·취소·재시도·ETag/abort, Ready polling·nati
 6. `attachment_ids` bulk link 직후 게시글 첨부 수를 동기화하는 계약
 7. 비밀·블라인드·삭제글 첨부 URL을 본문 권한과 동일하게 차단하는 계약
 
-이는 현재 G7 기준 `sirsoft-board` 1.2.0과 patch 6개, 29항목·activation 검증기로 고정했습니다. 설치·설정,
+이는 공개 G7 `fcaacad` 기준 `sirsoft-board` 1.0.2→1.1.0 patch 6개와 29항목·activation 검증기로 고정했습니다. 설치·설정,
 user/admin form과 MinIO 기반 실제 single/multipart 전송·create/update·private thumbnail 전달은
 통과했습니다. 권한·삭제/복원·보존 lease G7 DB gate도 통과했습니다. upstream 미반영 배포와
 실 provider 보존 삭제 종단은 공식 지원으로 게시하지 않습니다. 권한 차단 실브라우저 매트릭스는

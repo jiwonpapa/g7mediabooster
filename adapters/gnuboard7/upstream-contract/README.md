@@ -6,8 +6,8 @@
 
 ## 기준과 범위
 
-- 기준 Gnuboard7 commit: `e64381ddb5ba02caed60933427fbb86ef72ef94e`
-- 대상 모듈: `sirsoft-board` 1.2.0
+- 공개 기준 Gnuboard7 commit: `fcaacad8d16d47a8b5bcee65990869992de0a0d8`
+- 기준 `sirsoft-board` 1.0.2, patch 적용 후 계약 버전 1.1.0
 - 배포 산출물은 Gnuboard7 코어를 덮어쓰지 않고 별도 patch로 제공합니다.
 - G7MediaBooster module은 이 계약을 검증한 뒤에만 attachment materialization을 활성화해야 합니다.
 

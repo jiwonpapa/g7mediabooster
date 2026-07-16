@@ -338,7 +338,7 @@ health/metrics를 제외한 모든 API는 인증과 tenant scope가 필요합니
   만료 multipart abort, derivative/raw idempotent 삭제와 systemd timer를 구현했습니다.
 - G7 module 0.3.0에 form 자동 연결, Ready master·thumbnail 전건 검증, DB lock 기반 native
   attachment 멱등 materialization, 게시글 scope·삭제글 정책을 재사용하는 private viewer redirect,
-  soft-delete 보존 대조를 구현하고 현재 G7 기준 `sirsoft-board` 1.2.0 upstream 계약 patch와 28항목 검증기를 준비했습니다.
+  soft-delete 보존 대조를 구현하고 공개 G7 `fcaacad` 기준 `sirsoft-board` 1.0.2→1.1.0 upstream patch 6개와 29항목·activation 검증기를 준비했습니다.
 - G5 5.6.24 core-free adapter에 PHP 8-safe hook, HMAC control proxy, browser direct single/multipart,
   MyISAM advisory-lock attachment 연결과 private delivery를 구현하고 실제 MySQL 8.4·MinIO 브라우저에서
   2개 동시 업로드→Rust 처리→게시글 첨부 표시와 비로그인 `403`을 검증했습니다.

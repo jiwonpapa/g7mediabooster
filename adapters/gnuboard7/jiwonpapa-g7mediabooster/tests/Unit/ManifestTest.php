@@ -15,8 +15,8 @@ final class ManifestTest extends TestCase
         $defaults = json_decode((string) file_get_contents($root.'/config/settings/defaults.json'), true, flags: JSON_THROW_ON_ERROR);
 
         self::assertSame('jiwonpapa-g7mediabooster', $manifest['identifier']);
-        self::assertSame('0.4.2', $manifest['version']);
-        self::assertSame('>=1.2.0', $manifest['dependencies']['modules']['sirsoft-board']);
+        self::assertSame('0.4.3', $manifest['version']);
+        self::assertSame('>=1.1.0', $manifest['dependencies']['modules']['sirsoft-board']);
         self::assertSame(
             '>=1.0.0 <2.0.0',
             $manifest['compatibility']['contracts']['sirsoft-board.secure-external-attachments'],

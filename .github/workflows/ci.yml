@@ -119,3 +119,66 @@ jobs:
         run: composer install --working-dir=adapters/gnuboard5/jiwonpapa-g7mediabooster --no-interaction --prefer-dist
       - name: Run MySQL and MyISAM host contract
         run: bash scripts/gnuboard5-session-store-smoke.sh
+
+  gnuboard7-upstream-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+          MYSQL_DATABASE: g7mb_upstream_testing
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 --silent"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    steps:
+      - name: Checkout G7MediaBooster
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - name: Checkout pinned public Gnuboard7 baseline
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          repository: gnuboard/g7
+          ref: fcaacad8d16d47a8b5bcee65990869992de0a0d8
+          path: upstream-gnuboard7
+      - name: Apply canonical external media contract
+        run: |
+          for patch in adapters/gnuboard7/upstream-contract/*.patch; do
+            git -C upstream-gnuboard7 apply --check "$GITHUB_WORKSPACE/$patch"
+            git -C upstream-gnuboard7 apply "$GITHUB_WORKSPACE/$patch"
+          done
+      - name: Verify parser and module activation contract
+        run: scripts/verify-gnuboard7-media-contract.sh upstream-gnuboard7
+      - name: Install pinned public Gnuboard7 dependencies
+        run: composer install --working-dir=upstream-gnuboard7 --no-interaction --prefer-dist --no-progress
+      - name: Run public Gnuboard7 attachment and layout regression
+        working-directory: upstream-gnuboard7
+        env:
+          APP_ENV: testing
+          APP_KEY: "base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+          APP_DEBUG: "false"
+          APP_URL: http://localhost
+          APP_VERSION: 7.0.5
+          DB_CONNECTION: mysql
+          DB_WRITE_HOST: 127.0.0.1
+          DB_WRITE_PORT: 3306
+          DB_WRITE_DATABASE: g7mb_upstream_testing
+          DB_WRITE_USERNAME: root
+          DB_WRITE_PASSWORD: ""
+          DB_READ_HOST: 127.0.0.1
+          DB_READ_PORT: 3306
+          DB_READ_DATABASE: g7mb_upstream_testing
+          DB_READ_USERNAME: root
+          DB_READ_PASSWORD: ""
+          DB_PREFIX: g7_
+          INSTALLER_COMPLETED: "false"
+        run: |
+          touch .env.testing
+          php artisan test \
+            modules/_bundled/sirsoft-board/tests/Feature/FormRequestValidationTest.php \
+            modules/_bundled/sirsoft-board/tests/Unit/AttachmentRepositoryTest.php \
+            modules/_bundled/sirsoft-board/tests/Unit/AttachmentServiceTest.php \
+            modules/_bundled/sirsoft-board/tests/Unit/AttachmentUrlFilterTest.php \
+            tests/Unit/Services/LayoutExtensionServiceTest.php
