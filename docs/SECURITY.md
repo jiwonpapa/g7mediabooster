@@ -83,6 +83,8 @@ G7MB-HMAC-SHA256
 ## 현재 구현과 남은 차단선
 
 - 구현: worker만 S3/R2 자격 증명을 소유하며 sandbox child는 `env_clear` 후 로컬 경로만 받습니다.
+- 구현: `[storage].provider`를 필수 정본으로 저장하고 endpoint·region·path-style·Lightsail
+  단일 bucket 형태를 API/worker와 S3 adapter 진입 전에 fail-closed로 검증합니다.
 - 구현: FFmpeg/FFprobe protocol을 `file,crypto,data`로 제한하고 shell을 사용하지 않습니다.
 - 구현: OpenH264 폴백은 worker가 이미 검증한 MP4/H.264에만 허용하고 FFmpeg `spawn`
   실패에서만 진입합니다. 입력 512MiB, sample 120개/16MiB, decode 32MiB, NAL 1,024개,

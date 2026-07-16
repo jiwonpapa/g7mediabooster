@@ -36,6 +36,7 @@ HMAC_BEFORE="$(shasum -a 256 "$SECRETS/g7-hmac-secret" | awk '{print $1}')"
 HMAC_AFTER="$(shasum -a 256 "$SECRETS/g7-hmac-secret" | awk '{print $1}')"
 
 test "$HMAC_BEFORE" = "$HMAC_AFTER"
+rg -q '^provider = "r2"$' "$CONFIG"
 rg -q '^hmac_secret_file = ' "$CONFIG"
 rg -q '^access_key_id_file = ' "$CONFIG"
 rg -q '^secret_access_key_file = ' "$CONFIG"

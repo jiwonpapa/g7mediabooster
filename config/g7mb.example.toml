@@ -28,11 +28,12 @@ max_reserved_bytes_global = 1099511627776
 max_reserved_bytes_per_tenant = 107374182400
 
 [storage]
+provider = "r2"
 # Cloudflare R2: https://<ACCOUNT_ID>.r2.cloudflarestorage.com
 # AWS S3: omit endpoint_url and use the real AWS region.
 # Lightsail: omit endpoint_url, use the bucket region, and use one private bucket for both
 # fields when the bucket-scoped access key cannot access two buckets.
-endpoint_url = "https://example.r2.cloudflarestorage.com"
+endpoint_url = "https://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com"
 region = "auto"
 raw_bucket = "g7mb-raw-private"
 derivative_bucket = "g7mb-media"

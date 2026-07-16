@@ -13,6 +13,7 @@ workspace = true
 config.workspace = true
 secrecy.workspace = true
 serde.workspace = true
+url.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

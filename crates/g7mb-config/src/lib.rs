@@ -9,6 +9,7 @@ use std::{
 use config::{Config, ConfigError, Environment, File, FileFormat};
 use secrecy::{ExposeSecret as _, SecretString};
 use serde::Deserialize;
+use url::Url;
 
 /// Complete service configuration.
 #[derive(Clone, Debug, Deserialize)]
@@ -179,6 +180,7 @@ impl Settings {
                 "storage settings violate bucket, region, or credential limits".to_owned(),
             ));
         }
+        self.storage.validate_provider_contract()?;
         if self.upload.max_batch_files == 0
             || self.upload.max_batch_files > 100
             || self.upload.max_batch_bytes == 0
@@ -431,6 +433,8 @@ pub struct UploadSettings {
 /// S3-compatible storage configuration.
 #[derive(Clone, Debug, Deserialize)]
 pub struct StorageSettings {
+    /// Explicit provider contract used to reject endpoint/region drift at startup.
+    pub provider: StorageProvider,
     /// Optional custom endpoint, required for R2.
     pub endpoint_url: Option<String>,
     /// AWS region or `auto` for R2.
@@ -453,6 +457,101 @@ pub struct StorageSettings {
     pub secret_access_key_file: Option<PathBuf>,
     /// Enables path-style requests for compatible local services.
     pub force_path_style: bool,
+}
+
+impl StorageSettings {
+    /// Rejects provider, endpoint, region, and bucket combinations that could be mislabelled.
+    pub fn validate_provider_contract(&self) -> Result<(), ConfigError> {
+        let endpoint = self
+            .endpoint_url
+            .as_deref()
+            .map(parse_storage_endpoint)
+            .transpose()?;
+        let concrete_aws_region = self.region != "auto" && valid_region(&self.region);
+        let valid = match self.provider {
+            StorageProvider::R2 => {
+                endpoint.as_ref().is_some_and(is_canonical_r2_endpoint)
+                    && self.region == "auto"
+                    && !self.force_path_style
+            }
+            StorageProvider::AwsS3 => {
+                endpoint.is_none() && concrete_aws_region && !self.force_path_style
+            }
+            StorageProvider::Lightsail => {
+                endpoint.is_none()
+                    && concrete_aws_region
+                    && !self.force_path_style
+                    && self.raw_bucket == self.derivative_bucket
+            }
+            StorageProvider::Generic => endpoint.is_some(),
+        };
+        if !valid {
+            return Err(ConfigError::Message(
+                "storage settings do not match the declared provider contract".to_owned(),
+            ));
+        }
+        Ok(())
+    }
+}
+
+/// Runtime storage profile persisted by `g7mbctl` and enforced before network access.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq)]
+#[serde(rename_all = "kebab-case")]
+pub enum StorageProvider {
+    /// Cloudflare R2 account S3 endpoint with signing region `auto`.
+    R2,
+    /// AWS S3 regional endpoint selected by the official SDK.
+    AwsS3,
+    /// Amazon Lightsail bucket-scoped credentials on the AWS S3 endpoint.
+    Lightsail,
+    /// Explicit S3-compatible endpoint, including loopback-only HTTP for local MinIO.
+    Generic,
+}
+
+fn parse_storage_endpoint(value: &str) -> Result<Url, ConfigError> {
+    let url = Url::parse(value)
+        .map_err(|_| ConfigError::Message("storage endpoint URL is invalid".to_owned()))?;
+    let host = url
+        .host_str()
+        .ok_or_else(|| ConfigError::Message("storage endpoint URL has no host".to_owned()))?;
+    let loopback = host == "localhost"
+        || host == "::1"
+        || host
+            .parse::<std::net::IpAddr>()
+            .is_ok_and(|ip| ip.is_loopback());
+    if !url.username().is_empty()
+        || url.password().is_some()
+        || url.query().is_some()
+        || url.fragment().is_some()
+        || !matches!(url.path(), "" | "/")
+        || !(url.scheme() == "https" || (url.scheme() == "http" && loopback))
+    {
+        return Err(ConfigError::Message(
+            "storage endpoint must be path-free HTTPS or loopback HTTP".to_owned(),
+        ));
+    }
+    Ok(url)
+}
+
+fn is_canonical_r2_endpoint(url: &Url) -> bool {
+    let Some(host) = url.host_str() else {
+        return false;
+    };
+    let Some(account_id) = host.strip_suffix(".r2.cloudflarestorage.com") else {
+        return false;
+    };
+    url.scheme() == "https"
+        && url.port().is_none()
+        && account_id.len() == 32
+        && account_id.bytes().all(|byte| byte.is_ascii_hexdigit())
+}
+
+fn valid_region(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 128
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
 }
 
 /// SQLite database settings.
@@ -584,10 +683,69 @@ pub enum WatermarkPositionSetting {
 mod tests {
     use std::fs;
 
-    use secrecy::ExposeSecret;
+    use secrecy::{ExposeSecret, SecretString};
     use tempfile::{NamedTempFile, tempdir};
 
-    use super::Settings;
+    use super::{Settings, StorageProvider, StorageSettings};
+
+    #[test]
+    fn storage_provider_contract_is_fail_closed() {
+        let mut storage = StorageSettings {
+            provider: StorageProvider::R2,
+            endpoint_url: Some(
+                "https://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com".to_owned(),
+            ),
+            region: "auto".to_owned(),
+            raw_bucket: "private-raw".to_owned(),
+            derivative_bucket: "private-media".to_owned(),
+            access_key_id: SecretString::from("test-access"),
+            access_key_id_file: None,
+            secret_access_key: SecretString::from("test-secret"),
+            secret_access_key_file: None,
+            force_path_style: false,
+        };
+        assert!(storage.validate_provider_contract().is_ok());
+
+        storage.region = "us-east-1".to_owned();
+        assert!(storage.validate_provider_contract().is_err());
+        storage.provider = StorageProvider::Generic;
+        assert!(storage.validate_provider_contract().is_ok());
+        storage.endpoint_url = Some("http://storage.example.com".to_owned());
+        assert!(storage.validate_provider_contract().is_err());
+
+        storage.provider = StorageProvider::Lightsail;
+        storage.endpoint_url = None;
+        storage.region = "ap-northeast-2".to_owned();
+        assert!(storage.validate_provider_contract().is_err());
+        storage.derivative_bucket = storage.raw_bucket.clone();
+        assert!(storage.validate_provider_contract().is_ok());
+    }
+
+    #[test]
+    fn storage_provider_is_required_in_toml() -> Result<(), Box<dyn std::error::Error>> {
+        let file = NamedTempFile::new()?;
+        fs::write(
+            file.path(),
+            r#"
+[storage]
+endpoint_url = "http://127.0.0.1:9000"
+raw_bucket = "raw"
+derivative_bucket = "media"
+access_key_id = "test-access"
+secret_access_key = "test-secret"
+
+[auth]
+key_id = "g7-primary"
+tenant_id = "site-a"
+hmac_secret = "0123456789abcdef0123456789abcdef"
+"#,
+        )?;
+        let error = Settings::load(Some(file.path()))
+            .err()
+            .ok_or_else(|| std::io::Error::other("missing storage provider was accepted"))?;
+        assert!(error.to_string().contains("provider"));
+        Ok(())
+    }
 
     #[test]
     fn loads_toml_and_redacts_secrets() -> Result<(), Box<dyn std::error::Error>> {
@@ -596,7 +754,8 @@ mod tests {
             file.path(),
             r#"
 [storage]
-endpoint_url = "https://example.r2.cloudflarestorage.com"
+provider = "r2"
+endpoint_url = "https://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com"
 raw_bucket = "raw"
 derivative_bucket = "media"
 access_key_id = "test-access"
@@ -642,6 +801,8 @@ hmac_secret = "0123456789abcdef0123456789abcdef"
             format!(
                 r#"
 [storage]
+provider = "generic"
+endpoint_url = "http://127.0.0.1:9000"
 raw_bucket = "raw"
 derivative_bucket = "media"
 access_key_id_file = "{}"
@@ -687,6 +848,8 @@ hmac_secret_file = "{}"
             file.path(),
             r#"
 [storage]
+provider = "generic"
+endpoint_url = "http://127.0.0.1:9000"
 raw_bucket = "raw"
 derivative_bucket = "media"
 access_key_id = "test-access"
@@ -723,6 +886,8 @@ asset_sha256 = "NOT-A-SHA256"
             file.path(),
             r#"
 [storage]
+provider = "generic"
+endpoint_url = "http://127.0.0.1:9000"
 raw_bucket = "raw"
 derivative_bucket = "media"
 access_key_id = "test-access"
@@ -756,6 +921,8 @@ max_reserved_bytes_per_tenant = 1024
             file.path(),
             r#"
 [storage]
+provider = "generic"
+endpoint_url = "http://127.0.0.1:9000"
 raw_bucket = "raw"
 derivative_bucket = "media"
 access_key_id = "test-access"
@@ -789,6 +956,8 @@ backup_retention_count = 1
             file.path(),
             r#"
 [storage]
+provider = "generic"
+endpoint_url = "http://127.0.0.1:9000"
 raw_bucket = "raw"
 derivative_bucket = "media"
 access_key_id = "test-access"
@@ -825,6 +994,8 @@ max_in_flight_requests = 0
             file.path(),
             r#"
 [storage]
+provider = "generic"
+endpoint_url = "http://127.0.0.1:9000"
 raw_bucket = "raw"
 derivative_bucket = "media"
 access_key_id = "test-access"
@@ -861,6 +1032,8 @@ max_concurrent_videos = 1
             file.path(),
             r#"
 [storage]
+provider = "generic"
+endpoint_url = "http://127.0.0.1:9000"
 raw_bucket = "raw"
 derivative_bucket = "media"
 access_key_id = "test-access"
@@ -900,6 +1073,8 @@ max_temp_disk_bytes = 2684354560
             file.path(),
             r#"
 [storage]
+provider = "generic"
+endpoint_url = "http://127.0.0.1:9000"
 raw_bucket = "raw"
 derivative_bucket = "media"
 access_key_id = "test-access"
@@ -935,6 +1110,8 @@ cleanup_batch_size = 101
             file.path(),
             r#"
 [storage]
+provider = "generic"
+endpoint_url = "http://127.0.0.1:9000"
 raw_bucket = "raw"
 derivative_bucket = "media"
 access_key_id = "test-access"
@@ -968,6 +1145,8 @@ inventory_page_size = 1001
             file.path(),
             r#"
 [storage]
+provider = "generic"
+endpoint_url = "http://127.0.0.1:9000"
 raw_bucket = "raw"
 derivative_bucket = "media"
 access_key_id = "test-access"

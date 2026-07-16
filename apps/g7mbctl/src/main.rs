@@ -9,7 +9,7 @@ use std::{
 
 use anyhow::{Context as _, bail};
 use clap::{Args, Parser, Subcommand, ValueEnum};
-use g7mb_config::{Settings, StorageSettings};
+use g7mb_config::{Settings, StorageProvider, StorageSettings};
 use g7mb_object_store_s3::S3StorageAdmin;
 use secrecy::{ExposeSecret as _, SecretString};
 use url::Url;
@@ -135,6 +135,26 @@ enum Provider {
     Generic,
 }
 
+impl Provider {
+    const fn storage_provider(self) -> StorageProvider {
+        match self {
+            Self::R2 => StorageProvider::R2,
+            Self::AwsS3 => StorageProvider::AwsS3,
+            Self::Lightsail => StorageProvider::Lightsail,
+            Self::Generic => StorageProvider::Generic,
+        }
+    }
+
+    const fn config_name(self) -> &'static str {
+        match self {
+            Self::R2 => "r2",
+            Self::AwsS3 => "aws-s3",
+            Self::Lightsail => "lightsail",
+            Self::Generic => "generic",
+        }
+    }
+}
+
 #[derive(Debug)]
 struct SetupValues {
     provider: Provider,
@@ -173,7 +193,7 @@ async fn storage(command: StorageCommand) -> anyhow::Result<()> {
             if !args.skip_cors && origins.is_empty() {
                 bail!("CORS를 설정하려면 --origin이 하나 이상 필요합니다");
             }
-            let reports = S3StorageAdmin::new(&settings.storage)
+            let reports = S3StorageAdmin::new(&settings.storage)?
                 .bootstrap(&settings.storage, args.create_missing, &origins)
                 .await
                 .context("저장소 bootstrap에 실패했습니다")?;
@@ -188,7 +208,7 @@ async fn storage(command: StorageCommand) -> anyhow::Result<()> {
         StorageCommand::Doctor(args) => {
             let settings =
                 Settings::load(Some(&args.config)).context("설정 파일을 읽지 못했습니다")?;
-            let report = S3StorageAdmin::new(&settings.storage)
+            let report = S3StorageAdmin::new(&settings.storage)?
                 .canary(&settings.storage)
                 .await
                 .context("저장소 canary에 실패했습니다")?;
@@ -210,6 +230,7 @@ async fn setup(args: SetupArgs) -> anyhow::Result<()> {
     }
     let values = collect_setup_values(&args)?;
     let storage = StorageSettings {
+        provider: values.provider.storage_provider(),
         endpoint_url: values.endpoint_url.clone(),
         region: values.region.clone(),
         raw_bucket: values.raw_bucket.clone(),
@@ -248,7 +269,7 @@ async fn setup(args: SetupArgs) -> anyhow::Result<()> {
         } else {
             Vec::new()
         };
-        let admin = S3StorageAdmin::new(&storage);
+        let admin = S3StorageAdmin::new(&storage)?;
         let reports = admin
             .bootstrap(&storage, values.create_buckets, &origins)
             .await
@@ -456,6 +477,7 @@ tenant_id = {}
 hmac_secret_file = {}
 
 [storage]
+provider = {}
 {}region = {}
 raw_bucket = {}
 derivative_bucket = {}
@@ -475,6 +497,7 @@ max_temp_disk_bytes = 12884901888
         values.provider,
         toml_string(&values.tenant_id),
         toml_string(hmac_path),
+        toml_string(values.provider.config_name()),
         endpoint,
         toml_string(&values.region),
         toml_string(&values.raw_bucket),
@@ -859,6 +882,7 @@ mod tests {
         let config = directory.path().join("g7mb.toml");
         fs::write(&config, render_config(&values, &access, &secret, &hmac)?)?;
         let settings = g7mb_config::Settings::load(Some(&config))?;
+        assert_eq!(settings.storage.provider, g7mb_config::StorageProvider::R2);
         assert_eq!(settings.storage.access_key_id.expose_secret(), "access-id");
         assert_eq!(
             settings.auth.hmac_secret.expose_secret(),

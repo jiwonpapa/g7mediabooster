@@ -12,7 +12,7 @@ use g7mb_application::{
     DownloadObjectRequest, ListObjectsRequest, ObjectStore as _, ObjectStoreError,
     PresignGetRequest, PresignPartRequest, PresignPutRequest, PutFileRequest,
 };
-use g7mb_config::StorageSettings;
+use g7mb_config::{StorageProvider, StorageSettings};
 use g7mb_domain::ObjectKey;
 use g7mb_object_store_s3::{S3CompatibleStore, S3StorageAdmin};
 use secrecy::{ExposeSecret as _, SecretString};
@@ -217,7 +217,7 @@ async fn minio_admin_bucket_bootstrap_and_runtime_canary_are_idempotent()
     let mut settings = settings_from_environment()?;
     settings.raw_bucket.push_str("-admin");
     settings.derivative_bucket = settings.raw_bucket.clone();
-    let admin = S3StorageAdmin::new(&settings);
+    let admin = S3StorageAdmin::new(&settings)?;
     // MinIO's pinned S3 surface does not implement PutBucketCors. Provider CORS is
     // covered by rule unit tests and the credential-gated R2/AWS bootstrap.
     let origins = Vec::new();
@@ -244,6 +244,7 @@ fn settings_from_environment() -> Result<StorageSettings, Box<dyn std::error::Er
     let secret_key = env::var("G7MB_TEST_S3_SECRET_KEY")?;
     let suffix = std::process::id();
     Ok(StorageSettings {
+        provider: StorageProvider::Generic,
         endpoint_url: Some(endpoint),
         region: "us-east-1".to_owned(),
         raw_bucket: env::var("G7MB_TEST_S3_RAW_BUCKET")

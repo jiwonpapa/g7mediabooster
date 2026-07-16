@@ -38,6 +38,7 @@ hmac_secret = "0123456789abcdef0123456789abcdef"
 allowed_skew_seconds = 300
 
 [storage]
+provider = "generic"
 endpoint_url = "http://127.0.0.1:9000"
 region = "us-east-1"
 raw_bucket = "raw-private"

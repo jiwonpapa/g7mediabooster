@@ -39,6 +39,8 @@ presigned URL을 기록하지 않았습니다.
 5. worker 설정과 코드 정본에 프로세스당 기본 12GiB 임시 디스크 예약을 추가했습니다.
    작업별 최악치 예약이 불가능한 설정은 시작 시 거부하고, 파생 파일이 이미지 hard cap을
    넘으면 provider 업로드 전에 거부합니다. 최종 수치는 위 재검증 결과에 반영했습니다.
+6. `g7mbctl` 선택 provider를 TOML 정본으로 영속화하고 API·worker·S3 adapter/admin이
+   endpoint·region·bucket shape drift를 네트워크 요청 전에 거부하도록 통합했습니다.
 
 ## 완료 경계
 

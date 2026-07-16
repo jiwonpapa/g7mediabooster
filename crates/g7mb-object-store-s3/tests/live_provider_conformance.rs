@@ -9,7 +9,7 @@ use g7mb_application::{
     PresignPartRequest, PresignPutRequest, PutFileRequest,
     lifecycle::{DeletionRequestOutcome, LifecyclePolicy, LifecycleService},
 };
-use g7mb_config::StorageSettings;
+use g7mb_config::{StorageProvider, StorageSettings};
 use g7mb_domain::{ObjectKey, UploadId};
 use g7mb_object_store_s3::S3CompatibleStore;
 use g7mb_persistence_sqlite::SqliteStore;
@@ -386,28 +386,19 @@ impl LiveProviderProfile {
         }
     }
 
+    const fn storage_provider(self) -> StorageProvider {
+        match self {
+            Self::R2 => StorageProvider::R2,
+            Self::Lightsail => StorageProvider::Lightsail,
+            Self::AwsS3 => StorageProvider::AwsS3,
+            Self::GenericS3 => StorageProvider::Generic,
+        }
+    }
+
     fn validate(self, settings: &StorageSettings) -> Result<(), Box<dyn std::error::Error>> {
-        let aws_shape = settings.endpoint_url.is_none()
-            && !settings.region.is_empty()
-            && settings.region != "auto"
-            && !settings.force_path_style;
-        let valid = match self {
-            Self::R2 => {
-                settings
-                    .endpoint_url
-                    .as_deref()
-                    .is_some_and(is_canonical_r2_endpoint)
-                    && settings.region == "auto"
-                    && !settings.force_path_style
-            }
-            Self::Lightsail => aws_shape && settings.raw_bucket == settings.derivative_bucket,
-            Self::AwsS3 => aws_shape,
-            Self::GenericS3 => settings
-                .endpoint_url
-                .as_deref()
-                .is_some_and(is_https_endpoint),
-        };
-        if !valid {
+        if settings.provider != self.storage_provider()
+            || settings.validate_provider_contract().is_err()
+        {
             return Err(std::io::Error::other(
                 "live provider settings do not match the declared profile",
             )
@@ -415,22 +406,6 @@ impl LiveProviderProfile {
         }
         Ok(())
     }
-}
-
-fn is_canonical_r2_endpoint(endpoint: &str) -> bool {
-    let Some(account_id) = endpoint
-        .strip_prefix("https://")
-        .and_then(|value| value.strip_suffix(".r2.cloudflarestorage.com"))
-    else {
-        return false;
-    };
-    account_id.len() == 32 && account_id.bytes().all(|byte| byte.is_ascii_hexdigit())
-}
-
-fn is_https_endpoint(endpoint: &str) -> bool {
-    endpoint.strip_prefix("https://").is_some_and(|authority| {
-        !authority.is_empty() && !authority.bytes().any(|byte| byte.is_ascii_whitespace())
-    })
 }
 
 #[test]
@@ -443,6 +418,7 @@ fn live_provider_label_is_log_safe() {
 #[test]
 fn live_provider_profile_is_bound_to_provider_specific_settings() {
     let mut settings = StorageSettings {
+        provider: StorageProvider::R2,
         endpoint_url: Some(
             "https://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com".to_owned(),
         ),
@@ -460,11 +436,14 @@ fn live_provider_profile_is_bound_to_provider_specific_settings() {
 
     settings.endpoint_url = None;
     settings.region = "ap-northeast-2".to_owned();
+    settings.provider = StorageProvider::AwsS3;
     assert!(LiveProviderProfile::AwsS3.validate(&settings).is_ok());
     assert!(LiveProviderProfile::Lightsail.validate(&settings).is_err());
 
     settings.derivative_bucket = settings.raw_bucket.clone();
+    settings.provider = StorageProvider::Lightsail;
     assert!(LiveProviderProfile::Lightsail.validate(&settings).is_ok());
+    settings.provider = StorageProvider::Generic;
     assert!(LiveProviderProfile::GenericS3.validate(&settings).is_err());
 }
 
@@ -561,6 +540,7 @@ fn settings_from_environment()
         }
     };
     let settings = StorageSettings {
+        provider: profile.storage_provider(),
         endpoint_url: env::var("G7MB_LIVE_S3_ENDPOINT")
             .ok()
             .filter(|value| !value.is_empty()),

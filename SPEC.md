@@ -175,6 +175,8 @@ panorama 지원과 AVIF/HEIF 최신 포맷 지원은 유지하되 decoder별 안
 
 ## 8. 저장소 규칙
 
+- `[storage].provider`는 `r2`, `aws-s3`, `lightsail`, `generic` 중 하나를 반드시 명시하며
+  endpoint·region·path-style·bucket 형태가 선언과 다르면 모든 네트워크 요청 전에 거부합니다.
 - raw/quarantine 버킷은 private이며 CDN 공개를 금지합니다.
 - 파생물 버킷은 별도 권한과 lifecycle을 사용합니다.
 - 기본 파생물 버킷도 private입니다. G7 사용자 소유권을 확인한 뒤 5분짜리 presigned GET만

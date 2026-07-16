@@ -9,6 +9,7 @@
 - `g7mbctl setup`: TTY 대화형 hidden credential 입력
 - `--non-interactive`: command-line secret 금지, root-only input file만 허용
 - R2 Account ID → HTTPS endpoint, region `auto` 자동 파생
+- 선택 provider를 TOML에 영속화하고 API·worker·S3 adapter가 같은 shape를 시작 전에 검증
 - 일반 TOML과 S3/HMAC credential 파일 분리
 - symlink·상대 secret path·과도한 권한·inline/file 동시 설정 거부
 - systemd `LoadCredential=`와 `%d` 서비스 격리 경로
@@ -16,6 +17,7 @@
 - single PUT/HEAD/GET/LIST/DELETE, 2-part complete/HEAD/delete, 별도 abort canary
 - 변경 충돌 사전검사, 파일별 same-directory atomic rename, config-last 저장
 - 같은 입력 재실행 시 HMAC 유지, 변경 입력은 `--force` 없으면 거부
+- provider 누락, R2 region/endpoint 불일치, Lightsail 다중 bucket, 원격 평문 HTTP endpoint 거부
 
 ## 실행 증거
 

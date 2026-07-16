@@ -88,6 +88,10 @@ Lightsail 단일 bucket access key를 쓸 때는 같은 private bucket 안의 `r
 S3/R2 비밀값을 공유하지 않습니다. 상세 절차는 [설치·저장소 설정](../docs/SETUP_CUI.md)을
 따릅니다.
 
+`[storage].provider`는 필수이며 `r2`, `aws-s3`, `lightsail`, `generic`만 허용합니다. 이전 개발
+설정에 이 값이 없으면 API·worker가 시작을 거부하므로 배포 전에 `g7mbctl setup`으로 설정을
+재생성하거나 실제 endpoint·region·bucket과 일치하는 값을 명시합니다.
+
 `g7mediabooster-cleanup.timer`는 15분마다 최대 설정 batch만 처리합니다. 동일 oneshot unit은
 systemd가 중복 실행하지 않으며, SQLite lease가 수동 실행·강제 종료 후 재선점도 보호합니다.
 만료 multipart abort와 private raw/derivative 삭제는 S3/R2 작업이 모두 성공한 뒤에만

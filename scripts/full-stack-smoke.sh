@@ -264,6 +264,7 @@ jq -e '
 export G7MB__SERVER__BIND_ADDR="$API_ADDR"
 export G7MB__DATABASE__URL="sqlite://$TMP/g7mb.db"
 export G7MB__DATABASE__BACKUP_DIRECTORY="$TMP/backups"
+export G7MB__STORAGE__PROVIDER="generic"
 export G7MB__STORAGE__ENDPOINT_URL="$endpoint"
 export G7MB__STORAGE__REGION="us-east-1"
 export G7MB__STORAGE__RAW_BUCKET="$RAW_BUCKET"

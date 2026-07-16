@@ -686,7 +686,7 @@ async fn doctor(path: &std::path::Path, offline: bool) -> anyhow::Result<()> {
         .await
         .context("failed to initialize derivative object store")?;
     if !offline {
-        let report = S3StorageAdmin::new(&settings.storage)
+        let report = S3StorageAdmin::new(&settings.storage)?
             .canary(&settings.storage)
             .await
             .context("live S3/R2 runtime canary failed")?;
@@ -727,6 +727,8 @@ mod tests {
             format!(
                 r#"
 [storage]
+provider = "generic"
+endpoint_url = "http://127.0.0.1:9000"
 raw_bucket = "raw"
 derivative_bucket = "media"
 access_key_id = "test-access"

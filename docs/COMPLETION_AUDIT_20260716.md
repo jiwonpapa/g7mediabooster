@@ -21,7 +21,7 @@
 | 13 CPU 제한 | PASS | semaphore/native thread limit, Linux cgroup CPU 2·memory 2GiB·PID 64 | 서버별 capacity 산정 |
 | 14 큐 | PASS | SQLite WAL lease/heartbeat/retry/dead-letter/fair queue/backpressure·crash recovery | 멀티노드/PostgreSQL은 v1 제외 |
 | 15 워터마크 | PASS | G7 Ready asset→revision 1→digest-pinned worker output→revision 2 rollback | 운영 변경 감시 설정 |
-| 16 G7 관리자 설정 | PASS | encrypted secret, current-admin asset picker, signed monotonic policy, exact worker revision | production secret 주입 |
+| 16 G7 관리자 설정 | PASS | encrypted secret, current-admin asset picker, signed monotonic policy, exact worker revision, provider/runtime shape fail-closed | production secret 주입 |
 | 17 운영 기능 | PASS | lifecycle/quota/orphan audit-prune/backup-restore/API admission/metrics/tombstone purge | production Prometheus·alert 연결 |
 
 ## 현재 결론

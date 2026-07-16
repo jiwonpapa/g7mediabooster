@@ -74,6 +74,11 @@ impl S3CompatibleStore {
     }
 
     async fn new(settings: &StorageSettings, bucket: String) -> Result<Self, ObjectStoreError> {
+        settings.validate_provider_contract().map_err(|_| {
+            ObjectStoreError::InvalidRequest(
+                "storage settings do not match the declared provider".to_owned(),
+            )
+        })?;
         if bucket.is_empty() {
             return Err(ObjectStoreError::InvalidRequest(
                 "bucket must not be empty".to_owned(),
@@ -89,12 +94,17 @@ impl S3CompatibleStore {
 
 impl S3StorageAdmin {
     /// Builds an administrator client from the same runtime credentials and endpoint.
-    pub fn new(settings: &StorageSettings) -> Self {
-        Self {
+    pub fn new(settings: &StorageSettings) -> Result<Self, ObjectStoreError> {
+        settings.validate_provider_contract().map_err(|_| {
+            ObjectStoreError::InvalidRequest(
+                "storage settings do not match the declared provider".to_owned(),
+            )
+        })?;
+        Ok(Self {
             client: build_client(settings),
             region: settings.region.clone(),
             custom_endpoint: settings.endpoint_url.is_some(),
-        }
+        })
     }
 
     /// Checks or creates each configured bucket and merges one managed browser CORS rule.
@@ -1008,18 +1018,47 @@ mod tests {
         CompletedPart, ListObjectsRequest, ObjectStore as _, ObjectStoreError, PresignGetRequest,
         PresignPartRequest, PresignPutRequest,
     };
-    use g7mb_config::StorageSettings;
+    use g7mb_config::{StorageProvider, StorageSettings};
     use g7mb_domain::ObjectKey;
     use secrecy::{ExposeSecret as _, SecretString};
     use tokio::io::AsyncWriteExt as _;
 
-    use super::S3CompatibleStore;
+    use super::{S3CompatibleStore, S3StorageAdmin};
+
+    #[tokio::test]
+    async fn rejects_provider_contract_drift_before_network_access() {
+        let settings = StorageSettings {
+            provider: StorageProvider::R2,
+            endpoint_url: Some(
+                "https://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com".to_owned(),
+            ),
+            region: "us-east-1".to_owned(),
+            raw_bucket: "raw-private".to_owned(),
+            derivative_bucket: "media-private".to_owned(),
+            access_key_id: SecretString::from("test-access"),
+            access_key_id_file: None,
+            secret_access_key: SecretString::from("test-secret"),
+            secret_access_key_file: None,
+            force_path_style: false,
+        };
+        assert!(matches!(
+            S3CompatibleStore::for_raw_bucket(&settings).await,
+            Err(ObjectStoreError::InvalidRequest(_))
+        ));
+        assert!(matches!(
+            S3StorageAdmin::new(&settings),
+            Err(ObjectStoreError::InvalidRequest(_))
+        ));
+    }
 
     #[tokio::test]
     async fn presigns_cloudflare_r2_endpoint_without_network_io()
     -> Result<(), Box<dyn std::error::Error>> {
         let settings = StorageSettings {
-            endpoint_url: Some("https://account-id.r2.cloudflarestorage.com".to_owned()),
+            provider: StorageProvider::R2,
+            endpoint_url: Some(
+                "https://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com".to_owned(),
+            ),
             region: "auto".to_owned(),
             raw_bucket: "raw-private".to_owned(),
             derivative_bucket: "media".to_owned(),
@@ -1039,7 +1078,9 @@ mod tests {
             })
             .await?;
         let url = signed.url.expose_secret();
-        assert!(url.starts_with("https://raw-private.account-id.r2.cloudflarestorage.com/"));
+        assert!(url.starts_with(
+            "https://raw-private.0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com/"
+        ));
         assert!(url.contains("X-Amz-Signature="));
         assert!(!url.contains("test-secret"));
         assert_eq!(
@@ -1053,7 +1094,10 @@ mod tests {
     async fn presigns_bounded_multipart_part_without_network_io()
     -> Result<(), Box<dyn std::error::Error>> {
         let settings = StorageSettings {
-            endpoint_url: Some("https://account-id.r2.cloudflarestorage.com".to_owned()),
+            provider: StorageProvider::R2,
+            endpoint_url: Some(
+                "https://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com".to_owned(),
+            ),
             region: "auto".to_owned(),
             raw_bucket: "raw-private".to_owned(),
             derivative_bucket: "media".to_owned(),
@@ -1085,7 +1129,10 @@ mod tests {
     async fn presigns_private_derivative_get_without_credentials_in_the_url()
     -> Result<(), Box<dyn std::error::Error>> {
         let settings = StorageSettings {
-            endpoint_url: Some("https://account-id.r2.cloudflarestorage.com".to_owned()),
+            provider: StorageProvider::R2,
+            endpoint_url: Some(
+                "https://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com".to_owned(),
+            ),
             region: "auto".to_owned(),
             raw_bucket: "raw-private".to_owned(),
             derivative_bucket: "media-private".to_owned(),
@@ -1103,7 +1150,9 @@ mod tests {
             })
             .await?;
         let url = signed.url.expose_secret();
-        assert!(url.starts_with("https://media-private.account-id.r2.cloudflarestorage.com/"));
+        assert!(url.starts_with(
+            "https://media-private.0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com/"
+        ));
         assert!(url.contains("X-Amz-Signature="));
         assert!(!url.contains("test-secret"));
         assert!(signed.expires_at > time::OffsetDateTime::now_utc());
@@ -1179,7 +1228,10 @@ mod tests {
     async fn inventory_rejects_arbitrary_prefixes_before_network_io()
     -> Result<(), Box<dyn std::error::Error>> {
         let settings = StorageSettings {
-            endpoint_url: Some("https://account-id.r2.cloudflarestorage.com".to_owned()),
+            provider: StorageProvider::R2,
+            endpoint_url: Some(
+                "https://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com".to_owned(),
+            ),
             region: "auto".to_owned(),
             raw_bucket: "raw-private".to_owned(),
             derivative_bucket: "media".to_owned(),
