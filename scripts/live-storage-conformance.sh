@@ -4,6 +4,7 @@ set -euo pipefail
 required=(
     G7MB_LIVE_S3_PROFILE
     G7MB_LIVE_S3_LABEL
+    G7MB_LIVE_S3_ORIGIN
     G7MB_LIVE_S3_REGION
     G7MB_LIVE_S3_RAW_BUCKET
     G7MB_LIVE_S3_DERIVATIVE_BUCKET
@@ -25,6 +26,20 @@ fi
 if [[ ! "$G7MB_LIVE_S3_LABEL" =~ ^[A-Za-z0-9._-]{1,64}$ ]]; then
     echo "G7MB_LIVE_S3_LABEL must use 1-64 safe identifier characters" >&2
     exit 2
+fi
+if [[ ${#G7MB_LIVE_S3_ORIGIN} -gt 253 \
+    || ! "$G7MB_LIVE_S3_ORIGIN" =~ ^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?$ ]]; then
+    echo "G7MB_LIVE_S3_ORIGIN must be an exact HTTPS origin without path, query, or credentials" >&2
+    exit 2
+fi
+origin_authority="${G7MB_LIVE_S3_ORIGIN#https://}"
+if [[ "$origin_authority" == *:* ]]; then
+    origin_port="${origin_authority##*:}"
+    origin_port_number=$((10#$origin_port))
+    if (( origin_port_number < 1 || origin_port_number > 65535 )); then
+        echo "G7MB_LIVE_S3_ORIGIN port must be between 1 and 65535" >&2
+        exit 2
+    fi
 fi
 
 profile="$G7MB_LIVE_S3_PROFILE"
@@ -112,7 +127,7 @@ endpoint_mode="aws-default"
 if [[ -n "${G7MB_LIVE_S3_ENDPOINT:-}" ]]; then
     endpoint_mode="custom-https"
 fi
-echo "live-storage-preflight PASS profile=$profile label=$G7MB_LIVE_S3_LABEL endpoint=$endpoint_mode multipart_bytes=$large_bytes"
+echo "live-storage-preflight PASS profile=$profile label=$G7MB_LIVE_S3_LABEL endpoint=$endpoint_mode multipart_bytes=$large_bytes browser_cors=required"
 if [[ "$preflight_only" == "true" ]]; then
     exit 0
 fi

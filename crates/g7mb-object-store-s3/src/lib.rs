@@ -18,7 +18,7 @@ use g7mb_application::{
     ObjectStore, ObjectStoreError, PresignGetRequest, PresignPartRequest, PresignPutRequest,
     PresignedDownload, PresignedUpload, PutFileRequest,
 };
-use g7mb_config::StorageSettings;
+use g7mb_config::{StorageProvider, StorageSettings};
 use g7mb_domain::{ObjectKey, UploadId};
 use secrecy::{ExposeSecret, SecretString};
 use time::OffsetDateTime;
@@ -56,6 +56,7 @@ pub struct StorageCanaryReport {
 #[derive(Clone, Debug)]
 pub struct S3StorageAdmin {
     client: Client,
+    provider: StorageProvider,
     region: String,
     custom_endpoint: bool,
 }
@@ -102,6 +103,7 @@ impl S3StorageAdmin {
         })?;
         Ok(Self {
             client: build_client(settings),
+            provider: settings.provider,
             region: settings.region.clone(),
             custom_endpoint: settings.endpoint_url.is_some(),
         })
@@ -114,6 +116,23 @@ impl S3StorageAdmin {
         create_missing: bool,
         cors_origins: &[String],
     ) -> Result<Vec<BucketBootstrapReport>, ObjectStoreError> {
+        if settings.provider != self.provider {
+            return Err(ObjectStoreError::InvalidRequest(
+                "storage admin settings changed after client construction".to_owned(),
+            ));
+        }
+        if self.provider == StorageProvider::Lightsail && create_missing {
+            return Err(ObjectStoreError::InvalidRequest(
+                "Lightsail bucket access keys cannot create buckets; create the bucket with the Lightsail API or console first"
+                    .to_owned(),
+            ));
+        }
+        if self.provider == StorageProvider::Lightsail && !cors_origins.is_empty() {
+            return Err(ObjectStoreError::InvalidRequest(
+                "Lightsail CORS is managed by the Lightsail UpdateBucket API; configure it first and retry with --skip-cors"
+                    .to_owned(),
+            ));
+        }
         if cors_origins.len() > 32 {
             return Err(ObjectStoreError::InvalidRequest(
                 "CORS origin count exceeds 32".to_owned(),
@@ -143,6 +162,11 @@ impl S3StorageAdmin {
         &self,
         settings: &StorageSettings,
     ) -> Result<StorageCanaryReport, ObjectStoreError> {
+        if settings.provider != self.provider {
+            return Err(ObjectStoreError::InvalidRequest(
+                "storage admin settings changed after client construction".to_owned(),
+            ));
+        }
         let buckets = unique_buckets(settings)?;
         for (index, bucket) in buckets.iter().enumerate() {
             let prefix = if index == 0 { "raw/" } else { "media/" };
@@ -1049,6 +1073,37 @@ mod tests {
             S3StorageAdmin::new(&settings),
             Err(ObjectStoreError::InvalidRequest(_))
         ));
+    }
+
+    #[tokio::test]
+    async fn rejects_unsupported_lightsail_management_before_network_access()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let settings = StorageSettings {
+            provider: StorageProvider::Lightsail,
+            endpoint_url: None,
+            region: "ap-northeast-2".to_owned(),
+            raw_bucket: "one-private-bucket".to_owned(),
+            derivative_bucket: "one-private-bucket".to_owned(),
+            access_key_id: SecretString::from("test-access"),
+            access_key_id_file: None,
+            secret_access_key: SecretString::from("test-secret"),
+            secret_access_key_file: None,
+            force_path_style: false,
+        };
+        let admin = S3StorageAdmin::new(&settings)?;
+        assert!(matches!(
+            admin.bootstrap(&settings, true, &[]).await,
+            Err(ObjectStoreError::InvalidRequest(message))
+                if message.contains("cannot create buckets")
+        ));
+        assert!(matches!(
+            admin
+                .bootstrap(&settings, false, &["https://g7.example.com".to_owned()])
+                .await,
+            Err(ObjectStoreError::InvalidRequest(message))
+                if message.contains("Lightsail UpdateBucket API")
+        ));
+        Ok(())
     }
 
     #[tokio::test]

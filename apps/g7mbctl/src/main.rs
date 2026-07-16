@@ -339,6 +339,25 @@ fn collect_setup_values(args: &SetupArgs) -> anyhow::Result<SetupValues> {
         None if interactive => prompt_provider()?,
         None => bail!("--non-interactive에는 --provider가 필요합니다"),
     };
+    let lightsail = provider == Provider::Lightsail;
+    if lightsail && args.create_buckets {
+        bail!(
+            "Lightsail bucket access key로는 버킷을 생성할 수 없습니다. Lightsail에서 먼저 생성하십시오"
+        );
+    }
+    if lightsail && !args.skip_cors {
+        if !interactive {
+            bail!(
+                "Lightsail CORS는 Lightsail API/콘솔에서 먼저 설정하고 --skip-cors를 명시해야 합니다"
+            );
+        }
+        if !prompt_yes_no(
+            "Lightsail API/콘솔에서 이 사이트의 PUT/GET/HEAD CORS와 ETag 노출을 설정했습니까?",
+            false,
+        )? {
+            bail!("Lightsail 브라우저 직접 업로드에는 사전 CORS 설정이 필요합니다");
+        }
+    }
 
     let (endpoint_url, region) = match provider {
         Provider::R2 => {
@@ -396,14 +415,15 @@ fn collect_setup_values(args: &SetupArgs) -> anyhow::Result<SetupValues> {
         "Tenant ID",
         "g7-site",
     )?)?;
-    let origins = if args.skip_cors {
+    let configure_cors = !args.skip_cors && !lightsail;
+    let origins = if !configure_cors {
         Vec::new()
     } else if args.origins.is_empty() && interactive {
         validate_origins(vec![prompt_required("G5/G7 origin (https://example.com)")?])?
     } else {
         validate_origins(args.origins.clone())?
     };
-    if !args.skip_cors && origins.is_empty() {
+    if configure_cors && origins.is_empty() {
         bail!("브라우저 직접 업로드 CORS를 위해 --origin이 필요합니다");
     }
 
@@ -421,10 +441,12 @@ fn collect_setup_values(args: &SetupArgs) -> anyhow::Result<SetupValues> {
         bail!("저장소 자격증명이 허용 길이를 초과합니다");
     }
 
-    let create_buckets = if interactive && !args.create_buckets {
+    let create_buckets = if lightsail {
+        false
+    } else if interactive && !args.create_buckets {
         prompt_yes_no(
             "없는 버킷을 생성하시겠습니까?",
-            !matches!(provider, Provider::Lightsail | Provider::Generic),
+            !matches!(provider, Provider::Generic),
         )?
     } else {
         args.create_buckets
@@ -447,7 +469,7 @@ fn collect_setup_values(args: &SetupArgs) -> anyhow::Result<SetupValues> {
         tenant_id,
         force_path_style: args.force_path_style,
         create_buckets,
-        configure_cors: !args.skip_cors,
+        configure_cors,
         defer_storage,
     })
 }
@@ -843,13 +865,52 @@ fn path_text(path: &Path) -> anyhow::Result<&str> {
 
 #[cfg(test)]
 mod tests {
-    use std::fs;
+    use std::{fs, path::PathBuf};
 
     use secrecy::{ExposeSecret as _, SecretString};
 
     use super::{
-        Provider, SetupValues, atomic_write, render_config, validate_endpoint, validate_origins,
+        Provider, SetupArgs, SetupValues, atomic_write, collect_setup_values, render_config,
+        validate_endpoint, validate_origins,
     };
+
+    #[test]
+    fn lightsail_setup_rejects_s3_bucket_and_cors_management() {
+        let mut args = SetupArgs {
+            non_interactive: true,
+            provider: Some(Provider::Lightsail),
+            account_id: None,
+            endpoint_url: None,
+            region: Some("ap-northeast-2".to_owned()),
+            bucket: Some("one-private-bucket".to_owned()),
+            derivative_bucket: None,
+            origins: Vec::new(),
+            access_key_id_file: None,
+            secret_access_key_file: None,
+            tenant_id: Some("site-a".to_owned()),
+            config: PathBuf::from("/tmp/g7mb.toml"),
+            secrets_dir: PathBuf::from("/tmp/g7mb-secrets"),
+            create_buckets: true,
+            skip_cors: true,
+            defer_storage: true,
+            force_path_style: false,
+            force: false,
+            skip_ownership: true,
+        };
+        assert!(
+            collect_setup_values(&args)
+                .err()
+                .is_some_and(|error| error.to_string().contains("버킷을 생성할 수 없습니다"))
+        );
+
+        args.create_buckets = false;
+        args.skip_cors = false;
+        assert!(
+            collect_setup_values(&args)
+                .err()
+                .is_some_and(|error| error.to_string().contains("--skip-cors"))
+        );
+    }
 
     #[test]
     fn generated_config_loads_secrets_from_files_and_is_idempotent()

@@ -82,7 +82,10 @@ G7MB-HMAC-SHA256
 
 ## 현재 구현과 남은 차단선
 
-- 구현: worker만 S3/R2 자격 증명을 소유하며 sandbox child는 `env_clear` 후 로컬 경로만 받습니다.
+- 구현: API는 presign·multipart 제어·HEAD·private delivery에, worker/maintenance는 raw GET과
+  derivative PUT·삭제에 S3/R2 자격 증명을 사용합니다. 기본 systemd 설치는 같은 root-only
+  source를 서비스별 credential directory에 복사하지만 PHP·브라우저에는 전달하지 않습니다.
+  sandbox child는 `env_clear` 후 로컬 경로만 받아 저장소 자격 증명을 소유하지 않습니다.
 - 구현: `[storage].provider`를 필수 정본으로 저장하고 endpoint·region·path-style·Lightsail
   단일 bucket 형태를 API/worker와 S3 adapter 진입 전에 fail-closed로 검증합니다.
 - 구현: FFmpeg/FFprobe protocol을 `file,crypto,data`로 제한하고 shell을 사용하지 않습니다.

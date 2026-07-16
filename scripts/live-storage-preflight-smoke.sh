@@ -13,6 +13,7 @@ set -e
 for name in \
     G7MB_LIVE_S3_PROFILE \
     G7MB_LIVE_S3_LABEL \
+    G7MB_LIVE_S3_ORIGIN \
     G7MB_LIVE_S3_REGION \
     G7MB_LIVE_S3_RAW_BUCKET \
     G7MB_LIVE_S3_DERIVATIVE_BUCKET \
@@ -24,6 +25,7 @@ done
 preflight_output="$(
     "${clean_env[@]}" \
         G7MB_LIVE_S3_LABEL=r2 \
+        G7MB_LIVE_S3_ORIGIN=https://g7.example.com \
         G7MB_LIVE_S3_PROFILE=r2 \
         G7MB_LIVE_S3_REGION=auto \
         G7MB_LIVE_S3_RAW_BUCKET=private-raw \
@@ -35,7 +37,7 @@ preflight_output="$(
         bash "$HARNESS"
 )"
 [[ "$preflight_output" == \
-    "live-storage-preflight PASS profile=r2 label=r2 endpoint=custom-https multipart_bytes=6291456" ]]
+    "live-storage-preflight PASS profile=r2 label=r2 endpoint=custom-https multipart_bytes=6291456 browser_cors=required" ]]
 [[ "$preflight_output" != *"do-not-print"* ]]
 [[ "$preflight_output" != *"private-raw"* ]]
 [[ "$preflight_output" != *"private-media"* ]]
@@ -44,6 +46,7 @@ set +e
 invalid_output="$(
     "${clean_env[@]}" \
         G7MB_LIVE_S3_LABEL=r2 \
+        G7MB_LIVE_S3_ORIGIN=https://g7.example.com \
         G7MB_LIVE_S3_PROFILE=r2 \
         G7MB_LIVE_S3_REGION=auto \
         G7MB_LIVE_S3_RAW_BUCKET=raw \
@@ -63,6 +66,7 @@ set +e
 label_output="$(
     "${clean_env[@]}" \
         G7MB_LIVE_S3_LABEL='r2 unsafe' \
+        G7MB_LIVE_S3_ORIGIN=https://g7.example.com \
         G7MB_LIVE_S3_PROFILE=r2 \
         G7MB_LIVE_S3_REGION=auto \
         G7MB_LIVE_S3_RAW_BUCKET=raw \
@@ -83,6 +87,7 @@ profile_output="$(
     "${clean_env[@]}" \
         G7MB_LIVE_S3_PROFILE=r2 \
         G7MB_LIVE_S3_LABEL=r2 \
+        G7MB_LIVE_S3_ORIGIN=https://g7.example.com \
         G7MB_LIVE_S3_REGION=us-east-1 \
         G7MB_LIVE_S3_RAW_BUCKET=raw \
         G7MB_LIVE_S3_DERIVATIVE_BUCKET=media \
@@ -101,6 +106,7 @@ lightsail_output="$(
     "${clean_env[@]}" \
         G7MB_LIVE_S3_PROFILE=lightsail \
         G7MB_LIVE_S3_LABEL=lightsail \
+        G7MB_LIVE_S3_ORIGIN=https://g7.example.com \
         G7MB_LIVE_S3_REGION=ap-northeast-2 \
         G7MB_LIVE_S3_RAW_BUCKET=one-private-bucket \
         G7MB_LIVE_S3_DERIVATIVE_BUCKET=one-private-bucket \
@@ -110,6 +116,26 @@ lightsail_output="$(
         bash "$HARNESS"
 )"
 [[ "$lightsail_output" == \
-    "live-storage-preflight PASS profile=lightsail label=lightsail endpoint=aws-default multipart_bytes=6291456" ]]
+    "live-storage-preflight PASS profile=lightsail label=lightsail endpoint=aws-default multipart_bytes=6291456 browser_cors=required" ]]
 
-echo "live-storage-preflight-smoke PASS missing_all=7 secret_redaction=1 https_guard=1 label_guard=1 profile_guard=1 lightsail_shape=1"
+set +e
+origin_output="$(
+    "${clean_env[@]}" \
+        G7MB_LIVE_S3_PROFILE=r2 \
+        G7MB_LIVE_S3_LABEL=r2 \
+        G7MB_LIVE_S3_ORIGIN=https://g7.example.com/path \
+        G7MB_LIVE_S3_REGION=auto \
+        G7MB_LIVE_S3_RAW_BUCKET=raw \
+        G7MB_LIVE_S3_DERIVATIVE_BUCKET=media \
+        G7MB_LIVE_S3_ACCESS_KEY=access \
+        G7MB_LIVE_S3_SECRET_KEY=secret \
+        G7MB_LIVE_S3_ENDPOINT=https://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com \
+        G7MB_LIVE_S3_PREFLIGHT_ONLY=true \
+        bash "$HARNESS" 2>&1
+)"
+origin_status=$?
+set -e
+[[ "$origin_status" == "2" ]]
+[[ "$origin_output" == *"exact HTTPS origin"* ]]
+
+echo "live-storage-preflight-smoke PASS missing_all=8 secret_redaction=1 https_guard=1 origin_guard=1 label_guard=1 profile_guard=1 lightsail_shape=1"

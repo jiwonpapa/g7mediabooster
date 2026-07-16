@@ -30,8 +30,8 @@
     {"id": "gnuboard5_plugin", "title": "Gnuboard5 5.6.24 core-free 직접 업로드 플러그인"}
   ],
   "withheld_until_verified": [
-    {"id": "cloudflare_r2_profile", "reason": "실계정 conformance 미실행"},
-    {"id": "lightsail_object_storage_profile", "reason": "실계정 conformance 미실행"},
+    {"id": "cloudflare_r2_profile", "reason": "실계정 protocol·browser CORS conformance 미실행"},
+    {"id": "lightsail_object_storage_profile", "reason": "Lightsail 사전 bucket/CORS 설정 후 실계정 protocol·browser CORS conformance 미실행"},
     {"id": "live_provider_retention_delete", "reason": "보존 만료부터 실 provider object count 0까지 종단 미실행"},
     {"id": "multi_node_postgresql", "reason": "v1 기본 범위 제외"},
     {"id": "dynamic_resize_and_video_transcoding", "reason": "v1 기본 범위 제외"},

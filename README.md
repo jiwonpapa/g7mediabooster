@@ -32,7 +32,9 @@ form/Ready attachment bridge·보존 삭제 대조까지 연결됐습니다. G7 
 - HEAD, bounded worker GET, private derivative presigned GET, worker PutObject, idempotent DeleteObject
 
 MinIO는 로컬 protocol gate, R2와 Lightsail은 선언한 profile과 endpoint/region/bucket 형태를
-먼저 fail-closed로 대조한 뒤 각각 별도 실계정 profile로 판정합니다. 검증하지 않은
+먼저 fail-closed로 대조한 뒤 실제 G7 origin의 browser OPTIONS/PUT CORS 응답까지 각각 별도
+실계정 profile로 판정합니다. Lightsail bucket 생성·CORS는 Lightsail API/콘솔 사전 설정만
+허용하고 S3 bootstrap 시도는 거부합니다. 검증하지 않은
 ACL, Object Lock, replication, inventory, IAM/STS, SSE-KMS는 공식 지원 기능으로 게시하지 않습니다.
 
 ## 빠른 확인

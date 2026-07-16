@@ -1,6 +1,13 @@
 //! Credential-gated AWS S3, Lightsail, and Cloudflare R2 protocol conformance.
 
-use std::{collections::BTreeMap, env, path::Path, process::Command, sync::Arc, time::Duration};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    env,
+    path::Path,
+    process::Command,
+    sync::Arc,
+    time::Duration,
+};
 
 use g7mb_application::ObjectStoreError;
 use g7mb_application::{
@@ -24,6 +31,7 @@ async fn live_provider_single_multipart_and_delete_conformance()
 -> Result<(), Box<dyn std::error::Error>> {
     let (profile, settings) = settings_from_environment()?;
     let label = provider_label_from_environment()?;
+    let browser_origin = browser_origin_from_environment()?;
     let requested_bytes = env::var("G7MB_LIVE_S3_LARGE_BYTES")
         .ok()
         .map(|value| value.parse::<u64>())
@@ -39,134 +47,164 @@ async fn live_provider_single_multipart_and_delete_conformance()
     let derivative = S3CompatibleStore::for_derivative_bucket(&settings).await?;
     let run_id = UploadId::new();
     let temp = tempfile::tempdir()?;
-
     let single_key = ObjectKey::new(format!("raw/conformance/{run_id}/single"))?;
-    let single_path = temp.path().join("single.bin");
-    tokio::fs::write(&single_path, b"g7mb-live-provider-single-put").await?;
-    let single_length = tokio::fs::metadata(&single_path).await?.len();
-    let signed = raw
-        .presign_put(PresignPutRequest {
+    let abort_key = ObjectKey::new(format!("raw/conformance/{run_id}/aborted"))?;
+    let multipart_key = ObjectKey::new(format!("raw/conformance/{run_id}/multipart"))?;
+    let derivative_key = ObjectKey::new(format!("media/conformance/{run_id}/thumbnail.jpg"))?;
+    let result: Result<bool, Box<dyn std::error::Error>> = async {
+        let single_path = temp.path().join("single.bin");
+        tokio::fs::write(&single_path, b"g7mb-live-provider-single-put").await?;
+        let single_length = tokio::fs::metadata(&single_path).await?.len();
+        let signed = raw
+            .presign_put(PresignPutRequest {
+                key: single_key.clone(),
+                content_length: single_length,
+                content_type: "application/octet-stream".to_owned(),
+                expires_in: Duration::from_secs(300),
+            })
+            .await?;
+        assert_browser_put_preflight(
+            signed.url.expose_secret(),
+            &signed.required_headers,
+            &browser_origin,
+        )?;
+        curl_put(
+            signed.url.expose_secret(),
+            &signed.required_headers,
+            &single_path,
+            &browser_origin,
+        )?;
+        if raw.head(&single_key).await?.content_length != single_length {
+            return Err(std::io::Error::other("single PUT length mismatch").into());
+        }
+        let downloaded_path = temp.path().join("single-downloaded.bin");
+        raw.download_to(DownloadObjectRequest {
             key: single_key.clone(),
-            content_length: single_length,
-            content_type: "application/octet-stream".to_owned(),
-            expires_in: Duration::from_secs(300),
+            destination: downloaded_path.clone(),
+            expected_length: single_length,
+            max_length: single_length,
         })
         .await?;
-    curl_put(
-        signed.url.expose_secret(),
-        &signed.required_headers,
-        &single_path,
-    )?;
-    assert_eq!(raw.head(&single_key).await?.content_length, single_length);
-    let downloaded_path = temp.path().join("single-downloaded.bin");
-    raw.download_to(DownloadObjectRequest {
-        key: single_key.clone(),
-        destination: downloaded_path.clone(),
-        expected_length: single_length,
-        max_length: single_length,
-    })
-    .await?;
-    assert_eq!(
-        tokio::fs::read(downloaded_path).await?,
-        tokio::fs::read(&single_path).await?
-    );
-    let raw_inventory = raw
-        .list_objects(ListObjectsRequest {
-            prefix: "raw/".to_owned(),
-            start_after: None,
-            max_keys: 1000,
-        })
-        .await?;
-    assert!(
-        raw_inventory
+        if tokio::fs::read(downloaded_path).await? != tokio::fs::read(&single_path).await? {
+            return Err(std::io::Error::other("single GET bytes mismatch").into());
+        }
+        let raw_inventory = raw
+            .list_objects(ListObjectsRequest {
+                prefix: "raw/".to_owned(),
+                start_after: None,
+                max_keys: 1000,
+            })
+            .await?;
+        if !raw_inventory
             .objects
             .iter()
             .any(|object| object.key == single_key.as_str())
-    );
-    raw.delete(&single_key).await?;
-    raw.delete(&single_key).await?;
+        {
+            return Err(std::io::Error::other("single PUT was absent from inventory").into());
+        }
+        raw.delete(&single_key).await?;
+        raw.delete(&single_key).await?;
 
-    let abort_key = ObjectKey::new(format!("raw/conformance/{run_id}/aborted"))?;
-    let abort_session = raw
-        .create_multipart(CreateMultipartRequest {
+        let abort_session = raw
+            .create_multipart(CreateMultipartRequest {
+                key: abort_key.clone(),
+                content_type: "application/octet-stream".to_owned(),
+            })
+            .await?;
+        let abort_request = AbortMultipartRequest {
             key: abort_key.clone(),
-            content_type: "application/octet-stream".to_owned(),
-        })
-        .await?;
-    let abort_request = AbortMultipartRequest {
-        key: abort_key,
-        upload_id: abort_session.upload_id,
-    };
-    raw.abort_multipart(abort_request.clone()).await?;
-    raw.abort_multipart(abort_request).await?;
+            upload_id: abort_session.upload_id,
+        };
+        abort_multipart_idempotently(&raw, abort_request).await?;
 
-    let multipart_key = ObjectKey::new(format!("raw/conformance/{run_id}/multipart"))?;
-    let part_size = if requested_bytes >= 100 * 1024 * 1024 {
-        32 * 1024 * 1024
-    } else {
-        5 * 1024 * 1024
-    };
-    let multipart_reconnected = upload_sparse_multipart(
-        &settings,
-        multipart_key.clone(),
-        temp.path(),
-        requested_bytes,
-        part_size,
-    )
-    .await?;
-    assert_eq!(
-        raw.head(&multipart_key).await?.content_length,
-        requested_bytes
-    );
-    raw.delete(&multipart_key).await?;
+        let part_size = if requested_bytes >= 100 * 1024 * 1024 {
+            32 * 1024 * 1024
+        } else {
+            5 * 1024 * 1024
+        };
+        let multipart_reconnected = upload_sparse_multipart(
+            &settings,
+            multipart_key.clone(),
+            temp.path(),
+            requested_bytes,
+            part_size,
+            &browser_origin,
+        )
+        .await?;
+        if raw.head(&multipart_key).await?.content_length != requested_bytes {
+            return Err(std::io::Error::other("multipart length mismatch").into());
+        }
+        raw.delete(&multipart_key).await?;
 
-    let derivative_path = temp.path().join("thumbnail.jpg");
-    tokio::fs::write(&derivative_path, b"\xff\xd8\xff\xe0g7mb-live-thumbnail").await?;
-    let derivative_key = ObjectKey::new(format!("media/conformance/{run_id}/thumbnail.jpg"))?;
-    derivative
-        .put_file(PutFileRequest {
-            key: derivative_key.clone(),
-            source: derivative_path.clone(),
-            content_type: "image/jpeg".to_owned(),
-        })
-        .await?;
-    assert_eq!(
-        derivative.head(&derivative_key).await?.content_length,
-        tokio::fs::metadata(&derivative_path).await?.len()
-    );
-    let signed_get = derivative
-        .presign_get(PresignGetRequest {
-            key: derivative_key.clone(),
-            expires_in: Duration::from_secs(300),
-        })
-        .await?;
-    let delivered_path = temp.path().join("delivered-thumbnail.jpg");
-    curl_get(signed_get.url.expose_secret(), &delivered_path)?;
-    assert_eq!(
-        tokio::fs::read(delivered_path).await?,
-        tokio::fs::read(&derivative_path).await?
-    );
-    let derivative_inventory = derivative
-        .list_objects(ListObjectsRequest {
-            prefix: "media/".to_owned(),
-            start_after: None,
-            max_keys: 1000,
-        })
-        .await?;
-    assert!(
-        derivative_inventory
+        let derivative_path = temp.path().join("thumbnail.jpg");
+        tokio::fs::write(&derivative_path, b"\xff\xd8\xff\xe0g7mb-live-thumbnail").await?;
+        derivative
+            .put_file(PutFileRequest {
+                key: derivative_key.clone(),
+                source: derivative_path.clone(),
+                content_type: "image/jpeg".to_owned(),
+            })
+            .await?;
+        if derivative.head(&derivative_key).await?.content_length
+            != tokio::fs::metadata(&derivative_path).await?.len()
+        {
+            return Err(std::io::Error::other("derivative PUT length mismatch").into());
+        }
+        let signed_get = derivative
+            .presign_get(PresignGetRequest {
+                key: derivative_key.clone(),
+                expires_in: Duration::from_secs(300),
+            })
+            .await?;
+        let delivered_path = temp.path().join("delivered-thumbnail.jpg");
+        curl_get(signed_get.url.expose_secret(), &delivered_path)?;
+        if tokio::fs::read(delivered_path).await? != tokio::fs::read(&derivative_path).await? {
+            return Err(std::io::Error::other("derivative GET bytes mismatch").into());
+        }
+        let derivative_inventory = derivative
+            .list_objects(ListObjectsRequest {
+                prefix: "media/".to_owned(),
+                start_after: None,
+                max_keys: 1000,
+            })
+            .await?;
+        if !derivative_inventory
             .objects
             .iter()
             .any(|object| object.key == derivative_key.as_str())
-    );
-    derivative.delete(&derivative_key).await?;
+        {
+            return Err(std::io::Error::other("derivative was absent from inventory").into());
+        }
+        derivative.delete(&derivative_key).await?;
+        Ok(multipart_reconnected)
+    }
+    .await;
 
+    let cleanup = cleanup_protocol_objects(
+        &raw,
+        &derivative,
+        [&single_key, &abort_key, &multipart_key],
+        &derivative_key,
+    )
+    .await;
+    let multipart_reconnected = match (result, cleanup) {
+        (Ok(value), Ok(())) => value,
+        (Err(error), Ok(())) => return Err(error),
+        (Ok(_), Err(error)) => return Err(error),
+        (Err(error), Err(cleanup_error)) => {
+            return Err(std::io::Error::other(format!(
+                "provider conformance failed: {error}; cleanup also failed: {cleanup_error}"
+            ))
+            .into());
+        }
+    };
     assert_object_missing(&raw, &single_key).await?;
+    assert_object_missing(&raw, &abort_key).await?;
     assert_object_missing(&raw, &multipart_key).await?;
     assert_object_missing(&derivative, &derivative_key).await?;
 
     eprintln!(
-        "live-provider-conformance PASS profile={} label={label} multipart_bytes={requested_bytes} large_5gib={} multipart_reconnect={} object_count=0",
+        "live-provider-conformance PASS profile={} label={label} multipart_bytes={requested_bytes} large_5gib={} multipart_reconnect={} browser_cors=1 object_count=0",
         profile.as_str(),
         requested_bytes == FIVE_GIB,
         multipart_reconnected
@@ -339,6 +377,28 @@ async fn assert_object_missing(
     }
 }
 
+async fn cleanup_protocol_objects(
+    raw: &S3CompatibleStore,
+    derivative: &S3CompatibleStore,
+    raw_keys: [&ObjectKey; 3],
+    derivative_key: &ObjectKey,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let mut failures = Vec::new();
+    for key in raw_keys {
+        if let Err(error) = raw.delete(key).await {
+            failures.push(format!("raw cleanup failed: {error}"));
+        }
+    }
+    if let Err(error) = derivative.delete(derivative_key).await {
+        failures.push(format!("derivative cleanup failed: {error}"));
+    }
+    if failures.is_empty() {
+        Ok(())
+    } else {
+        Err(std::io::Error::other(failures.join("; ")).into())
+    }
+}
+
 fn provider_label_from_environment() -> Result<String, Box<dyn std::error::Error>> {
     let label = env::var("G7MB_LIVE_S3_LABEL").unwrap_or_else(|_| "external".to_owned());
     if !valid_provider_label(&label) {
@@ -353,6 +413,30 @@ fn valid_provider_label(label: &str) -> bool {
         && label
             .bytes()
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
+}
+
+fn browser_origin_from_environment() -> Result<String, Box<dyn std::error::Error>> {
+    parse_browser_origin(&env::var("G7MB_LIVE_S3_ORIGIN")?)
+}
+
+fn parse_browser_origin(value: &str) -> Result<String, Box<dyn std::error::Error>> {
+    let parsed = url::Url::parse(value)?;
+    let normalized = parsed.origin().ascii_serialization();
+    if parsed.scheme() != "https"
+        || parsed.host_str().is_none()
+        || !parsed.username().is_empty()
+        || parsed.password().is_some()
+        || parsed.path() != "/"
+        || parsed.query().is_some()
+        || parsed.fragment().is_some()
+        || normalized != value
+    {
+        return Err(std::io::Error::other(
+            "G7MB_LIVE_S3_ORIGIN must be an exact HTTPS origin without path, query, or credentials",
+        )
+        .into());
+    }
+    Ok(normalized)
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -416,6 +500,48 @@ fn live_provider_label_is_log_safe() {
 }
 
 #[test]
+fn live_browser_origin_is_exact_and_https_only() {
+    assert_eq!(
+        parse_browser_origin("https://g7.example.com:8443")
+            .ok()
+            .as_deref(),
+        Some("https://g7.example.com:8443")
+    );
+    assert!(parse_browser_origin("http://g7.example.com").is_err());
+    assert!(parse_browser_origin("https://g7.example.com/path").is_err());
+    assert!(parse_browser_origin("https://user@g7.example.com").is_err());
+}
+
+#[test]
+fn live_browser_cors_header_contract_is_exact() {
+    let headers = concat!(
+        "HTTP/1.1 200 OK\r\n",
+        "Access-Control-Allow-Origin: https://g7.example.com\r\n",
+        "Access-Control-Allow-Methods: GET, PUT, HEAD\r\n",
+        "Access-Control-Allow-Headers: content-type, x-amz-meta-test\r\n",
+        "Access-Control-Expose-Headers: ETag\r\n\r\n",
+    );
+    assert!(
+        require_exact_header(
+            headers,
+            "access-control-allow-origin",
+            "https://g7.example.com"
+        )
+        .is_ok()
+    );
+    assert!(require_header_token(headers, "access-control-allow-methods", "put").is_ok());
+    assert!(require_header_token(headers, "access-control-expose-headers", "etag").is_ok());
+    assert!(
+        require_exact_header(
+            headers,
+            "access-control-allow-origin",
+            "https://other.example.com"
+        )
+        .is_err()
+    );
+}
+
+#[test]
 fn live_provider_profile_is_bound_to_provider_specific_settings() {
     let mut settings = StorageSettings {
         provider: StorageProvider::R2,
@@ -453,6 +579,7 @@ async fn upload_sparse_multipart(
     directory: &Path,
     total_bytes: u64,
     part_size: u64,
+    browser_origin: &str,
 ) -> Result<bool, Box<dyn std::error::Error>> {
     let part_count = total_bytes.div_ceil(part_size);
     if part_count == 0 || part_count > 10_000 {
@@ -499,6 +626,7 @@ async fn upload_sparse_multipart(
                 signed.url.expose_secret(),
                 &signed.required_headers,
                 &part_path,
+                browser_origin,
             )?
             .ok_or_else(|| std::io::Error::other("multipart PUT returned no ETag"))?;
             completed.push(CompletedPart { part_number, etag });
@@ -513,14 +641,47 @@ async fn upload_sparse_multipart(
         Ok(reconnected)
     }
     .await;
-    if result.is_err()
-        && let Ok(cleanup_store) = S3CompatibleStore::for_raw_bucket(settings).await
-    {
-        let _cleanup_result = cleanup_store
-            .abort_multipart(AbortMultipartRequest { key, upload_id })
-            .await;
+    match result {
+        Ok(value) => Ok(value),
+        Err(error) => {
+            let cleanup_store =
+                S3CompatibleStore::for_raw_bucket(settings)
+                    .await
+                    .map_err(|cleanup_error| {
+                        std::io::Error::other(format!(
+                            "multipart failed: {error}; cleanup client failed: {cleanup_error}"
+                        ))
+                    })?;
+            if let Err(cleanup_error) = abort_multipart_idempotently(
+                &cleanup_store,
+                AbortMultipartRequest { key, upload_id },
+            )
+            .await
+            {
+                return Err(std::io::Error::other(format!(
+                    "multipart failed: {error}; abort cleanup failed: {cleanup_error}"
+                ))
+                .into());
+            }
+            Err(error)
+        }
     }
-    result
+}
+
+async fn abort_multipart_idempotently(
+    store: &S3CompatibleStore,
+    request: AbortMultipartRequest,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let first = store.abort_multipart(request.clone()).await;
+    let second = store.abort_multipart(request).await;
+    match (first, second) {
+        (Ok(()), Ok(())) => Ok(()),
+        (Err(error), Ok(())) | (Ok(()), Err(error)) => Err(error.into()),
+        (Err(first_error), Err(second_error)) => Err(std::io::Error::other(format!(
+            "multipart abort failed twice: {first_error}; {second_error}"
+        ))
+        .into()),
+    }
 }
 
 fn settings_from_environment()
@@ -561,6 +722,7 @@ fn curl_put(
     signed_url: &str,
     required_headers: &BTreeMap<String, String>,
     body: &Path,
+    browser_origin: &str,
 ) -> Result<Option<String>, Box<dyn std::error::Error>> {
     let mut command = Command::new("curl");
     command.args([
@@ -574,6 +736,9 @@ fn curl_put(
         "--output",
         "/dev/null",
     ]);
+    command
+        .arg("--header")
+        .arg(format!("Origin: {browser_origin}"));
     for (name, value) in required_headers {
         command.arg("--header").arg(format!("{name}: {value}"));
     }
@@ -586,11 +751,116 @@ fn curl_put(
         return Err(std::io::Error::other("presigned object-store PUT failed").into());
     }
     let headers = String::from_utf8(output.stdout)?;
+    require_exact_header(&headers, "access-control-allow-origin", browser_origin)?;
+    require_header_token(&headers, "access-control-expose-headers", "etag")?;
     Ok(headers.lines().find_map(|line| {
         let (name, value) = line.split_once(':')?;
         name.eq_ignore_ascii_case("etag")
             .then(|| value.trim().to_owned())
     }))
+}
+
+fn assert_browser_put_preflight(
+    signed_url: &str,
+    required_headers: &BTreeMap<String, String>,
+    browser_origin: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let requested_headers = required_headers
+        .keys()
+        .map(|name| name.to_ascii_lowercase())
+        .filter(|name| !matches!(name.as_str(), "content-length" | "host" | "origin"))
+        .collect::<BTreeSet<_>>();
+    let mut command = Command::new("curl");
+    command.args([
+        "--fail-with-body",
+        "--silent",
+        "--show-error",
+        "--request",
+        "OPTIONS",
+        "--dump-header",
+        "-",
+        "--output",
+        "/dev/null",
+        "--header",
+        &format!("Origin: {browser_origin}"),
+        "--header",
+        "Access-Control-Request-Method: PUT",
+    ]);
+    if !requested_headers.is_empty() {
+        command.arg("--header").arg(format!(
+            "Access-Control-Request-Headers: {}",
+            requested_headers
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>()
+                .join(",")
+        ));
+    }
+    let output = command.arg(signed_url).output()?;
+    if !output.status.success() {
+        return Err(std::io::Error::other("object-store browser CORS preflight failed").into());
+    }
+    let headers = String::from_utf8(output.stdout)?;
+    require_exact_header(&headers, "access-control-allow-origin", browser_origin)?;
+    require_header_token(&headers, "access-control-allow-methods", "put")?;
+    for name in requested_headers {
+        let wildcard = header_tokens(&headers, "access-control-allow-headers")
+            .iter()
+            .any(|value| value == "*");
+        if !wildcard {
+            require_header_token(&headers, "access-control-allow-headers", &name)?;
+        }
+    }
+    Ok(())
+}
+
+fn require_exact_header(
+    headers: &str,
+    name: &str,
+    expected: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let matched = headers.lines().any(|line| {
+        line.split_once(':').is_some_and(|(candidate, value)| {
+            candidate.eq_ignore_ascii_case(name) && value.trim() == expected
+        })
+    });
+    if !matched {
+        return Err(std::io::Error::other(format!(
+            "object-store CORS response omitted exact {name}"
+        ))
+        .into());
+    }
+    Ok(())
+}
+
+fn require_header_token(
+    headers: &str,
+    name: &str,
+    expected: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    if !header_tokens(headers, name)
+        .iter()
+        .any(|value| value.eq_ignore_ascii_case(expected))
+    {
+        return Err(std::io::Error::other(format!(
+            "object-store CORS response omitted {expected} from {name}"
+        ))
+        .into());
+    }
+    Ok(())
+}
+
+fn header_tokens(headers: &str, name: &str) -> Vec<String> {
+    headers
+        .lines()
+        .filter_map(|line| {
+            let (candidate, value) = line.split_once(':')?;
+            candidate.eq_ignore_ascii_case(name).then_some(value)
+        })
+        .flat_map(|value| value.split(','))
+        .map(|value| value.trim().to_ascii_lowercase())
+        .filter(|value| !value.is_empty())
+        .collect()
 }
 
 fn curl_get(signed_url: &str, output: &Path) -> Result<(), Box<dyn std::error::Error>> {

@@ -84,8 +84,9 @@ Lightsail 단일 bucket access key를 쓸 때는 같은 private bucket 안의 `r
 - 자격 증명 없는 실행 파일: `/usr/local/libexec/g7mb-sandbox`
 
 최초 설정은 `sudo g7mbctl setup` CUI로 생성합니다. systemd unit은 root-only source를
-`LoadCredential=`로 서비스 전용 메모리 파일에 전달합니다. 데몬·PHP·브라우저는 입력을 받거나
-S3/R2 비밀값을 공유하지 않습니다. 상세 절차는 [설치·저장소 설정](../docs/SETUP_CUI.md)을
+`LoadCredential=`로 API·worker·maintenance 각각의 서비스 전용 credential directory에
+전달합니다. PHP·브라우저·sandbox에는 S3/R2 비밀값을 전달하지 않습니다. 상세 절차는
+[설치·저장소 설정](../docs/SETUP_CUI.md)을
 따릅니다.
 
 `[storage].provider`는 필수이며 `r2`, `aws-s3`, `lightsail`, `generic`만 허용합니다. 이전 개발

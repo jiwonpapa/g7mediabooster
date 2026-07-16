@@ -1268,6 +1268,7 @@ dependencies = [
  "tempfile",
  "time",
  "tokio",
+ "url",
 ]
 
 [[package]]

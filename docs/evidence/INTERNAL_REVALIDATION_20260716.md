@@ -20,7 +20,7 @@
 | `cargo xtask ci` / `cargo xtask rustdoc` | fmt, check, Clippy `-D warnings`, 전체 Rust test, 문서 경고 0, OpenAPI, setup/preflight/package, bench compile PASS |
 | `cargo xtask coverage` | 7,629/9,404 lines, 81.13%, 80% ratchet PASS |
 | `cargo xtask supply-chain` | 378 dependency, RustSec 1,160 advisories scan, bans/licenses/sources PASS |
-| `scripts/live-storage-preflight-smoke.sh` | 필수값 7개, secret redaction, HTTPS·provider label·R2/Lightsail profile shape guard PASS |
+| `scripts/live-storage-preflight-smoke.sh` | 필수값 8개, secret redaction, HTTPS endpoint·exact browser origin·provider label·R2/Lightsail profile shape guard PASS |
 | G7 media contract | 공개 `gnuboard/g7@fcaacad` + patch 6개, 29/29 + parser + 실제 activation, MySQL 115 tests/283 assertions PASS |
 | G7 module package | 0.4.3 ZIP 153,244 bytes, SHA-256 `1137edfb…ecac`, 실제 ZipInstallHelper·checkout 무변경 PASS |
 
@@ -41,6 +41,10 @@ presigned URL을 기록하지 않았습니다.
    넘으면 provider 업로드 전에 거부합니다. 최종 수치는 위 재검증 결과에 반영했습니다.
 6. `g7mbctl` 선택 provider를 TOML 정본으로 영속화하고 API·worker·S3 adapter/admin이
    endpoint·region·bucket shape drift를 네트워크 요청 전에 거부하도록 통합했습니다.
+7. Lightsail bucket access key로 불가능한 CreateBucket·S3 CORS 관리를 네트워크 전에 거부하고,
+   외부 provider gate가 실제 G7 origin의 OPTIONS/PUT CORS와 `ETag` 노출까지 확인하도록
+   보강했습니다. R2/AWS와 Lightsail의 관리 API 경계를 설치 CLI에도 동일하게 적용하고,
+   중간 실패에서도 알려진 protocol object key 전체를 정리하도록 했습니다.
 
 ## 완료 경계
 
