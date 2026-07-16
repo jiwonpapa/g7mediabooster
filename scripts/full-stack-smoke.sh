@@ -225,6 +225,15 @@ fi
 
 cargo build --quiet --locked --package g7mb-api --package g7mb-worker
 cargo build --quiet --locked --package g7mb-sandbox --features native-vips
+sandbox_capabilities="$(target/debug/g7mb-sandbox capabilities)"
+printf 'sandbox-capabilities %s\n' "$sandbox_capabilities"
+jq -e '
+    (["avif", "gif", "heif", "jpeg", "png", "webp"] - .image_inputs | length == 0)
+    and (["avif", "jpeg", "png", "webp"] - .image_outputs | length == 0)
+    and (["mov", "mp4"] - .video_inputs | length == 0)
+    and .mp4_thumbnail
+    and .mp4_h264_fallback
+' <<<"$sandbox_capabilities" >/dev/null
 
 export G7MB__SERVER__BIND_ADDR="$API_ADDR"
 export G7MB__DATABASE__URL="sqlite://$TMP/g7mb.db"

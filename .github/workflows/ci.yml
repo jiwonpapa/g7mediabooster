@@ -21,7 +21,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
       - name: Install native development libraries
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends pkg-config libvips-dev libvips-tools ffmpeg
+        run: >-
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends
+          pkg-config libvips-dev libvips-tools ffmpeg
+          libheif-plugin-aomdec libheif-plugin-aomenc
+          libheif-plugin-libde265 libheif-plugin-x265
+          ripgrep unzip zip
       - name: Verify pinned toolchain
         run: rustup show active-toolchain && rustc --version && cargo --version
       - name: Install pinned nextest harness
@@ -66,7 +71,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
       - name: Install native runtime
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends pkg-config libvips-dev libvips-tools ffmpeg
+        run: >-
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends
+          pkg-config libvips-dev libvips-tools ffmpeg
+          libheif-plugin-aomdec libheif-plugin-aomenc
+          libheif-plugin-libde265 libheif-plugin-x265
       - name: Record exact native dependency inventory
         run: cargo xtask native-inventory
       - name: Execute actual AVIF and MP4 round trips
@@ -90,7 +99,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
       - name: Install native runtime
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends pkg-config libvips-dev libvips-tools ffmpeg
+        run: >-
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends
+          pkg-config libvips-dev libvips-tools ffmpeg
+          libheif-plugin-aomdec libheif-plugin-aomenc
+          libheif-plugin-libde265 libheif-plugin-x265
       - name: Run actual API, MinIO, worker, and sandbox media flow
         run: cargo xtask full-stack-smoke
 

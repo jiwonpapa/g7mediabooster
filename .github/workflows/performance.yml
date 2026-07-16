@@ -18,7 +18,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
       - name: Install native runtime
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends pkg-config libvips-dev libvips-tools ffmpeg
+        run: >-
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends
+          pkg-config libvips-dev libvips-tools ffmpeg
+          libheif-plugin-aomdec libheif-plugin-aomenc
+          libheif-plugin-libde265 libheif-plugin-x265
       - name: Record native inventory
         run: cargo xtask native-inventory
       - name: Run Criterion benchmarks

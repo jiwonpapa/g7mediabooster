@@ -10,6 +10,7 @@ ignore = []
 
 [licenses]
 confidence-threshold = 0.93
+unused-license-exception = "allow"
 allow = [
     "Apache-2.0",
     "BSD-2-Clause",
@@ -18,7 +19,9 @@ allow = [
     "Unicode-3.0",
     "Zlib",
 ]
-exceptions = []
+exceptions = [
+    { allow = ["ISC", "MIT-0"], crate = "aws-lc-sys" },
+]
 
 [bans]
 multiple-versions = "allow"
