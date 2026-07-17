@@ -7,6 +7,7 @@
 - sandbox의 `native-vips` feature는 Rust `mp4` parser와 source-built OpenH264 폴백도
   함께 고정
 - 선택 도구: nextest, llvm-cov, cargo-audit, cargo-deny, cargo-fuzz
+- Python 3.11+ (배포·SSH·통합 하네스), 개발 게이트는 Ruff/Mypy/Pytest 고정 버전
 
 ## 일상 명령
 
@@ -14,6 +15,7 @@
 cargo xtask quick          # fmt, check, clippy, test, doc
 cargo xtask rustdoc        # 공개 문서 누락, 링크, 코드블록, HTML 등 rustdoc lint 강제
 cargo xtask ci             # quick + OpenAPI drift + bench compile
+cargo xtask harness-governance --require-tools # Python-first 소유권·타입·크기 ratchet
 cargo xtask supply-chain   # advisory, license, source 검사
 cargo xtask native-smoke   # AVIF/HEIF, MP4/MOV, FFmpeg 부재 OpenH264 폴백
 cargo xtask api-smoke      # 실제 binary health/header smoke
@@ -42,6 +44,8 @@ cargo xtask openapi write  # 의도적 계약 갱신
 CI의 `server-bundle` job은 생성물 목록만 확인하지 않습니다. 일회용 Ubuntu에 bundle을 실제
 설치하고 MinIO를 대상으로 non-interactive setup, `g7mediabooster.target`, `status`, native와
 single/multipart storage `doctor`까지 실행한 뒤 설치 경로를 정리합니다.
+
+하네스 언어 선택과 Bash 제한은 [하네스 언어 거버넌스](HARNESS_GOVERNANCE.md)를 따릅니다.
 
 ## 정본 우선순위
 

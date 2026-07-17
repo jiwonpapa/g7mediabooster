@@ -20,6 +20,13 @@ enum Harness {
     Rustdoc,
     /// Full pull-request gate excluding external credentials.
     Ci,
+    /// Enforce Python-first infrastructure harness ownership and shell size ratchets.
+    #[command(name = "harness-governance")]
+    Governance {
+        /// Require Ruff, Mypy, Pytest, and ShellCheck instead of using dependency-free gates only.
+        #[arg(long)]
+        require_tools: bool,
+    },
     /// RustSec, licenses, bans, and dependency source checks.
     SupplyChain,
     /// Use nextest while retaining separate doctests.
@@ -99,6 +106,7 @@ fn main() -> anyhow::Result<()> {
         Harness::Quick => quick(),
         Harness::Rustdoc => rustdoc(),
         Harness::Ci => ci(),
+        Harness::Governance { require_tools } => harness_governance(require_tools),
         Harness::SupplyChain => supply_chain(),
         Harness::Nextest => nextest(),
         Harness::Coverage => coverage(),
@@ -118,7 +126,10 @@ fn main() -> anyhow::Result<()> {
         Harness::HeavyAvif => run("bash", ["scripts/heavy-avif.sh"]),
         Harness::CgroupSmoke => run("bash", ["scripts/cgroup-smoke.sh"]),
         Harness::StorageConformance => run("bash", ["scripts/storage-conformance.sh"]),
-        Harness::FullStackSmoke => run("bash", ["scripts/full-stack-smoke.sh"]),
+        Harness::FullStackSmoke => run(
+            "python3",
+            ["-m", "tools.harness.g7mb_harness", "full-stack-smoke"],
+        ),
         Harness::G7PolicySmoke => run("bash", ["scripts/g7-policy-smoke.sh"]),
         Harness::LargeMultipartSmoke => run("bash", ["scripts/large-multipart-smoke.sh"]),
         Harness::LiveStorageConformance => run("bash", ["scripts/live-storage-conformance.sh"]),
@@ -256,12 +267,21 @@ fn inherits_workspace_lints(manifest: &str) -> bool {
 }
 
 fn ci() -> anyhow::Result<()> {
+    harness_governance(false)?;
     quick()?;
     openapi(OpenApiAction::Check)?;
     run("bash", ["scripts/setup-cli-smoke.sh"])?;
     run("bash", ["scripts/live-storage-preflight-smoke.sh"])?;
     run("bash", ["scripts/package-g7-module.sh"])?;
     bench(true)
+}
+
+fn harness_governance(require_tools: bool) -> anyhow::Result<()> {
+    let mut args = vec!["-m", "tools.harness.g7mb_harness", "governance"];
+    if require_tools {
+        args.push("--require-tools");
+    }
+    run("python3", args)
 }
 
 fn supply_chain() -> anyhow::Result<()> {

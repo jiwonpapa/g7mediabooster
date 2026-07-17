@@ -108,6 +108,18 @@ const PAYLOAD_FILES: &[PayloadFile] = &[
         maximum_bytes: 256 * 1024,
     },
     PayloadFile {
+        source: "gnuboard7/g7mb-harness.pyz",
+        destination: "/usr/local/share/g7mediabooster/gnuboard7/g7mb-harness.pyz",
+        mode: 0o644,
+        maximum_bytes: 2 * 1024 * 1024,
+    },
+    PayloadFile {
+        source: "gnuboard7/verify-gnuboard7-module-host.php",
+        destination: "/usr/local/share/g7mediabooster/gnuboard7/verify-gnuboard7-module-host.php",
+        mode: 0o644,
+        maximum_bytes: 64 * 1024,
+    },
+    PayloadFile {
         source: "gnuboard7/0001.patch",
         destination: "/usr/local/share/g7mediabooster/gnuboard7/0001.patch",
         mode: 0o644,

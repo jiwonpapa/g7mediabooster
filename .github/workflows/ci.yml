@@ -26,7 +26,11 @@ jobs:
           pkg-config libvips-dev libvips-tools ffmpeg
           libheif-plugin-aomdec libheif-plugin-aomenc
           libheif-plugin-libde265 libheif-plugin-x265
-          ripgrep unzip zip
+          ripgrep shellcheck unzip zip
+      - name: Install pinned Python harness tools
+        run: python3 -m pip install --user -e './tools/harness[dev]'
+      - name: Enforce Python harness governance
+        run: cargo xtask harness-governance --require-tools
       - name: Verify pinned toolchain
         run: rustup show active-toolchain && rustc --version && cargo --version
       - name: Install pinned nextest harness

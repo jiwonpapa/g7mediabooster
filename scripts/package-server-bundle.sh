@@ -8,7 +8,7 @@ if [[ "$(uname -s)" != "Linux" ]]; then
     echo "server bundle must be built on Linux" >&2
     exit 2
 fi
-for command_name in cargo cmp find git gzip install jq sha256sum tar; do
+for command_name in cargo cmp find git gzip install jq python3 sha256sum tar; do
     if ! command -v "$command_name" >/dev/null 2>&1; then
         echo "required command is unavailable: $command_name" >&2
         exit 2
@@ -85,6 +85,10 @@ install -m 0644 docs/SERVER_INSTALL.md "$bundle/INSTALL.md"
 install -m 0644 deploy/official-features-v1.json "$bundle/gnuboard7/official-features-v1.json"
 install -m 0755 scripts/verify-gnuboard7-media-contract.sh \
     "$bundle/gnuboard7/verify-gnuboard7-media-contract.sh"
+python3 -m tools.harness.g7mb_harness package-zipapp \
+    "$bundle/gnuboard7/g7mb-harness.pyz"
+install -m 0644 scripts/verify-gnuboard7-module-host.php \
+    "$bundle/gnuboard7/verify-gnuboard7-module-host.php"
 install -m 0644 \
     "output/releases/jiwonpapa-g7mediabooster-$module_version.zip" \
     "$bundle/gnuboard7/jiwonpapa-g7mediabooster.zip"

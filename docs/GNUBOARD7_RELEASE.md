@@ -36,6 +36,15 @@ shasum -a 256 -c jiwonpapa-g7mediabooster-<version>.zip.sha256
 번들에서 `sudo ./bin/g7mbctl install`을 한 번 실행하고, G7 관리자는 출력된 ZIP 설치와 HMAC
 연결만 수행합니다.
 
+통합 서버 Release의 검증기는 dependency-free Python ZIP application을 함께 설치합니다.
+저장소 checkout 없이 source 계약과 실제 DB에서 해석된 사용자·관리자 uploader mount까지
+확인하려면 다음 명령을 사용합니다.
+
+```bash
+/usr/local/share/g7mediabooster/gnuboard7/verify-gnuboard7-media-contract.sh \
+  /path/to/gnuboard7 --runtime
+```
+
 ## 운영 사이트 즉시 적용·해제
 
 저장소 설정과 G7 모듈 설치가 끝난 서버는 SSH 하네스로 Rust target과 G7 모듈을 함께
