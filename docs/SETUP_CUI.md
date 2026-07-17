@@ -30,6 +30,12 @@ Cloudflare REST API의 Bearer token value나 클라이언트 인증서는 받지
 호환 API는 `CreateBucket`과 bucket CORS를 지원하므로 권한이 있는 S3 credential이면 별도
 REST token 입력 없이 설치 과정에서 처리할 수 있습니다.
 
+브라우저가 presigned URL로 R2에 직접 PUT/GET하므로 이 S3 credential을 **웹 서버 IP로
+제한하면 안 됩니다**. 실제 요청 IP는 최종 사용자 IP이기 때문입니다. R2 토큰은 MediaBooster
+전용 private bucket의 개체 읽기·쓰기·나열로 범위를 제한하고, CORS origin을 정확한 G5/G7
+HTTPS origin으로 제한합니다. 서버 IP 제한이 필요한 운영 모델은 별도 upload proxy가 필요하며
+기본 직접 업로드 모델과는 다릅니다.
+
 선택한 공급자는 일반 TOML의 `[storage].provider`에 `r2`, `aws-s3`, `lightsail`, `generic` 중
 하나로 저장합니다. API·worker·`g7mbctl storage`와 S3 adapter는 네트워크 요청 전에 같은 계약을
 검사합니다. R2의 canonical account endpoint/`auto`, AWS의 기본 endpoint/실 region,
@@ -128,6 +134,20 @@ sudo g7mbctl setup \
 기존 파일의 내용이 다르면 기본적으로 중단합니다. `--force`는 각 credential을 같은 디렉터리의
 임시 파일에서 원자 교체하고 일반 설정을 마지막에 교체합니다. HMAC도 회전하므로 G7 관리자 값을
 함께 갱신할 때만 사용합니다. 같은 입력으로 재실행하면 기존 HMAC을 유지하고 변경 없이 통과합니다.
+
+## 운영 중 자격증명 재입력
+
+동일한 값을 확인할 때는 실행 중에도 `sudo g7mbctl setup`을 다시 실행할 수 있습니다. 실제
+credential을 교체할 때는 G7 관리자에서 먼저 MediaBooster를 비활성화한 뒤 다음 순서로 진행합니다.
+
+1. `sudo g7mbctl setup --force`에서 새 Access Key ID와 Secret Access Key를 숨김 입력
+2. 새 credential의 bucket·single PUT·multipart canary PASS 확인
+3. `sudo systemctl restart g7mediabooster.target`
+4. root-only `g7-hmac-secret`을 G7 관리자 HMAC 필드에 한 번 입력하고 다시 활성화
+5. `sudo g7mbctl doctor`로 서비스·native codec·실 저장소 재검증
+
+`--force`는 저장소 키와 HMAC을 함께 원자 교체합니다. 따라서 G7 비활성화와 HMAC 재연결 없이
+일부 파일만 수동 교체하지 않습니다.
 
 ## 지원 경계
 

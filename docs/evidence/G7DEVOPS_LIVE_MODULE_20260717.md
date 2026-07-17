@@ -28,10 +28,11 @@
 설정 화면에는 워터마크 정책, 서비스 활성화, Rust 제어 API origin, HMAC key/secret,
 요청 timeout, 멀티업로드 동시성·재시도·조회 간격·첨부 보존일 설정이 표시됩니다.
 
-## 현재 경계
+## 후속 실서버 승격
 
-Rust server bundle, R2 credential, HMAC pairing은 아직 적용하지 않았습니다. 따라서 G7 모듈은
-활성 상태지만 기본 설정 `enabled=false`이며 실제 업로드 예약은 열리지 않습니다.
+Rust server `0.1.1`, private R2, HMAC pairing과 실제 JPEG·MP4 직접 업로드까지 후속 적용했습니다.
+현재 런타임 결과와 정리 증거는
+[G7DEVOPS_LIVE_R2_E2E_20260717.md](G7DEVOPS_LIVE_R2_E2E_20260717.md)에 고정합니다.
 
 ## 제어·원복
 

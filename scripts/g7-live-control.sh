@@ -164,7 +164,7 @@ case "$action" in
             echo "FAIL g7mbctl is not installed" >&2
             exit 1
         }
-        [[ -f /etc/g7mediabooster/g7mb.toml ]] || {
+        sudo test -f /etc/g7mediabooster/g7mb.toml || {
             echo "FAIL setup is incomplete: /etc/g7mediabooster/g7mb.toml" >&2
             exit 1
         }
@@ -173,11 +173,20 @@ case "$action" in
             exit 1
         fi
         sudo systemctl enable --now g7mediabooster.target
-        if ! sudo /usr/local/bin/g7mbctl status; then
+        ready=false
+        for _ in $(seq 1 30); do
+            if sudo /usr/local/bin/g7mbctl status >/dev/null 2>&1; then
+                ready=true
+                break
+            fi
+            sleep 1
+        done
+        if [[ "$ready" != "true" ]]; then
             sudo systemctl disable --now g7mediabooster.target >/dev/null 2>&1 || true
             echo "FAIL service readiness; target was stopped" >&2
             exit 1
         fi
+        sudo /usr/local/bin/g7mbctl status
         if ! module_is_active; then
             if ! artisan module:activate "$module_id"; then
                 sudo systemctl disable --now g7mediabooster.target >/dev/null 2>&1 || true
