@@ -261,6 +261,7 @@ pub(crate) fn install(options: InstallOptions) -> anyhow::Result<()> {
         let settings = Settings::load(Some(Path::new(INSTALLED_CONFIG)))
             .context("설치된 설정을 읽지 못했습니다")?;
         wait_until_ready(settings.server.bind_addr, Duration::from_secs(30))?;
+        wait_until_active_units(Duration::from_secs(30))?;
         status(Path::new(INSTALLED_CONFIG))?;
     }
 
@@ -836,6 +837,32 @@ fn wait_until_ready(address: SocketAddr, timeout: Duration) -> anyhow::Result<()
         bail!("API ready 확인 시간 초과: {error}");
     }
     bail!("API ready 확인 시간 초과")
+}
+
+fn wait_until_active_units(timeout: Duration) -> anyhow::Result<()> {
+    let deadline = Instant::now() + timeout;
+    let mut last_pending = Vec::new();
+    while Instant::now() < deadline {
+        last_pending.clear();
+        for unit in ACTIVE_UNITS {
+            let output = Command::new("systemctl")
+                .args(["is-active", unit])
+                .output()
+                .with_context(|| format!("{unit} 상태를 확인하지 못했습니다"))?;
+            let state = String::from_utf8_lossy(&output.stdout).trim().to_owned();
+            if !output.status.success() || state != "active" {
+                last_pending.push(format!("{unit}={state}"));
+            }
+        }
+        if last_pending.is_empty() {
+            return Ok(());
+        }
+        thread::sleep(Duration::from_millis(500));
+    }
+    bail!(
+        "systemd 서비스 active 확인 시간 초과: {}",
+        last_pending.join(", ")
+    )
 }
 
 fn check_http_ready(address: SocketAddr) -> anyhow::Result<()> {

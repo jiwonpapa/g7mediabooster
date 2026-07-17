@@ -125,6 +125,33 @@ if [[ "$api_ready" != true ]]; then
         --no-pager || true
     exit 1
 fi
+status_ready=false
+stable_checks=0
+for _ in $(seq 1 120); do
+    if sudo /usr/local/bin/g7mbctl status >/dev/null 2>&1; then
+        stable_checks=$((stable_checks + 1))
+        if [[ "$stable_checks" -ge 4 ]]; then
+            status_ready=true
+            break
+        fi
+    else
+        stable_checks=0
+    fi
+    sleep 0.25
+done
+if [[ "$status_ready" != true ]]; then
+    sudo systemctl status \
+        g7mediabooster.target \
+        g7mediabooster-api.service \
+        g7mediabooster-worker.service \
+        --no-pager || true
+    sudo journalctl \
+        --unit g7mediabooster-api.service \
+        --unit g7mediabooster-worker.service \
+        --lines 200 \
+        --no-pager || true
+    exit 1
+fi
 sudo /usr/local/bin/g7mbctl status
 sudo /usr/local/bin/g7mbctl doctor
 sudo test -s \
