@@ -19,8 +19,9 @@ sudo ./bin/g7mbctl install
 `install` 한 번이 다음을 fail-closed 순서로 수행합니다.
 
 1. systemd Linux, root와 payload 일반 파일·크기·정확한 SHA-256 manifest를 검사
-2. libvips·FFmpeg가 없으면 Ubuntu 24.04에서 필요한 runtime package를 자동 설치하고, 번들
-   sandbox의 실제 native doctor·capability fixture 실행
+2. libvips·FFmpeg가 없으면 각각의 용도를 안내하고 `설치할까요? [Y/n]` 확인 후 Ubuntu
+   24.04의 검증된 최소 runtime package를 설치하며, 번들 sandbox의 실제 native
+   doctor·capability fixture 실행
 3. `g7mediabooster` system user/group과 제한된 디렉터리 생성
 4. API·worker·sandbox·CLI와 hardened unit을 원자적으로 설치
 5. `g7mbctl setup` CUI로 R2/S3·exact G7 origin과 root-only 비밀값 설정
@@ -33,6 +34,13 @@ sudo ./bin/g7mbctl install
 sudo ./bin/g7mbctl install --skip-setup --skip-start
 sudo /usr/local/bin/g7mbctl setup --non-interactive <필수 file-input 옵션>
 sudo systemctl enable --now g7mediabooster.target
+```
+
+TTY가 없는 자동 배포에서는 묻지 않고 설치하지 않습니다. OS package 설치를 허용할 때만
+명시적으로 다음 옵션을 추가합니다.
+
+```bash
+sudo ./bin/g7mbctl install --install-dependencies --skip-setup --skip-start
 ```
 
 OS package를 이미지 빌드 단계에서 관리하는 환경은 `--skip-dependency-install`을 추가합니다.

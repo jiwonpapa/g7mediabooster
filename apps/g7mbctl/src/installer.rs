@@ -4,7 +4,7 @@ use std::{
     collections::BTreeMap,
     env,
     fs::{self, File, OpenOptions},
-    io::{Read as _, Write as _},
+    io::{self, IsTerminal as _, Read as _, Write as _},
     net::{SocketAddr, TcpStream},
     path::{Component, Path, PathBuf},
     process::{Command, Stdio},
@@ -206,6 +206,7 @@ pub(crate) struct InstallOptions {
     pub(crate) force: bool,
     pub(crate) skip_setup: bool,
     pub(crate) skip_start: bool,
+    pub(crate) install_dependencies: bool,
     pub(crate) skip_dependency_install: bool,
 }
 
@@ -225,7 +226,10 @@ pub(crate) fn install(options: InstallOptions) -> anyhow::Result<()> {
     ] {
         require_command(program, argument)?;
     }
-    ensure_native_runtime(options.skip_dependency_install)?;
+    ensure_native_runtime(
+        options.install_dependencies,
+        options.skip_dependency_install,
+    )?;
 
     let bundle = resolve_bundle_dir(options.bundle_dir.as_deref())?;
     validate_bundle(&bundle)?;
@@ -679,12 +683,14 @@ fn require_command(program: &str, version_argument: &str) -> anyhow::Result<()> 
     Ok(())
 }
 
-fn ensure_native_runtime(skip_install: bool) -> anyhow::Result<()> {
+fn ensure_native_runtime(install_without_prompt: bool, skip_install: bool) -> anyhow::Result<()> {
     if native_runtime_available()? {
         return Ok(());
     }
     if skip_install {
-        bail!("libvips·FFmpeg runtime이 없고 --skip-dependency-install이 지정됐습니다");
+        bail!(
+            "libvips·FFmpeg runtime이 없습니다. 먼저 설치한 뒤 다시 시도하거나 --install-dependencies를 사용하십시오"
+        );
     }
     let os_release = fs::read_to_string("/etc/os-release")
         .context("native runtime 자동 설치를 위한 /etc/os-release를 읽지 못했습니다")?;
@@ -694,6 +700,26 @@ fn ensure_native_runtime(skip_install: bool) -> anyhow::Result<()> {
         );
     }
     require_command("apt-get", "--version")?;
+    if !install_without_prompt {
+        if !io::stdin().is_terminal() {
+            bail!(
+                "libvips·FFmpeg runtime이 없습니다. 자동화에서는 동의 표시로 --install-dependencies를 지정하십시오"
+            );
+        }
+        println!("필수 미디어 런타임이 없습니다:");
+        println!("  - libvips: 이미지 판별·리사이즈·최신 포맷 처리");
+        println!("  - FFmpeg/ffprobe: 동영상 판별·메타데이터·썸네일 처리");
+        println!("Ubuntu 24.04의 검증된 최소 runtime 패키지를 설치합니다.");
+        print!("설치할까요? [Y/n] ");
+        io::stdout().flush()?;
+        let mut answer = String::new();
+        io::stdin().read_line(&mut answer)?;
+        if !dependency_install_confirmed(&answer) {
+            bail!(
+                "필수 runtime 설치가 취소됐습니다. libvips와 FFmpeg를 설치한 뒤 다시 시도하십시오"
+            );
+        }
+    }
     run_checked("apt-get", &["update"])?;
     let status = Command::new("apt-get")
         .env("DEBIAN_FRONTEND", "noninteractive")
@@ -715,6 +741,13 @@ fn ensure_native_runtime(skip_install: bool) -> anyhow::Result<()> {
     }
     println!("PASS dependencies libvips=installed ffmpeg=installed");
     Ok(())
+}
+
+fn dependency_install_confirmed(answer: &str) -> bool {
+    matches!(
+        answer.trim().to_ascii_lowercase().as_str(),
+        "" | "y" | "yes"
+    )
 }
 
 fn native_runtime_available() -> anyhow::Result<bool> {
@@ -876,7 +909,8 @@ mod tests {
     use std::{fs, path::Path};
 
     use super::{
-        PAYLOAD_FILES, install_payload, is_supported_ubuntu, sha256_file, validate_bundle,
+        PAYLOAD_FILES, dependency_install_confirmed, install_payload, is_supported_ubuntu,
+        sha256_file, validate_bundle,
     };
 
     fn fake_bundle(root: &Path) -> Result<(), Box<dyn std::error::Error>> {
@@ -968,5 +1002,14 @@ mod tests {
         assert!(is_supported_ubuntu("ID=ubuntu\nVERSION_ID=\"24.04\"\n"));
         assert!(!is_supported_ubuntu("ID=ubuntu\nVERSION_ID=\"22.04\"\n"));
         assert!(!is_supported_ubuntu("ID=debian\nVERSION_ID=\"12\"\n"));
+    }
+
+    #[test]
+    fn dependency_install_confirmation_defaults_to_yes_and_rejects_other_input() {
+        assert!(dependency_install_confirmed("\n"));
+        assert!(dependency_install_confirmed("Y\n"));
+        assert!(dependency_install_confirmed("yes\n"));
+        assert!(!dependency_install_confirmed("n\n"));
+        assert!(!dependency_install_confirmed("later\n"));
     }
 }

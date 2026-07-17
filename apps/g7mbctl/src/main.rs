@@ -57,8 +57,11 @@ struct InstallArgs {
     /// Does not enable or start the product target after configuration.
     #[arg(long)]
     skip_start: bool,
+    /// Explicitly installs missing libvips and FFmpeg packages without prompting.
+    #[arg(long, conflicts_with = "skip_dependency_install")]
+    install_dependencies: bool,
     /// Refuses missing libvips/FFmpeg instead of installing Ubuntu runtime packages.
-    #[arg(long)]
+    #[arg(long, conflicts_with = "install_dependencies")]
     skip_dependency_install: bool,
 }
 
@@ -217,6 +220,7 @@ async fn main() -> anyhow::Result<()> {
             force: args.force,
             skip_setup: args.skip_setup,
             skip_start: args.skip_start,
+            install_dependencies: args.install_dependencies,
             skip_dependency_install: args.skip_dependency_install,
         }),
         Command::Setup(args) => setup(*args).await,

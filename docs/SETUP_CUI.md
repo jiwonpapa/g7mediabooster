@@ -10,6 +10,10 @@
 sudo ./bin/g7mbctl install
 ```
 
+libvips 또는 FFmpeg가 없으면 설치기는 이미지·영상 처리에 필요한 이유와 설치 대상 패키지를
+먼저 표시하고 `설치할까요? [Y/n]`를 묻습니다. 거부하면 시스템을 변경하지 않고 종료합니다.
+TTY 없는 자동화는 `--install-dependencies`를 명시해야만 OS package를 설치합니다.
+
 설정과 기동을 분리하는 자동화 환경에서만 `install --skip-setup --skip-start`와 아래 setup
 명령을 따로 사용합니다. 개별 API·worker·timer unit을 직접 enable하지 않습니다.
 

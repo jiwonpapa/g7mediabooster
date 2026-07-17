@@ -36,6 +36,30 @@ shasum -a 256 -c jiwonpapa-g7mediabooster-<version>.zip.sha256
 번들에서 `sudo ./bin/g7mbctl install`을 한 번 실행하고, G7 관리자는 출력된 ZIP 설치와 HMAC
 연결만 수행합니다.
 
+## 운영 사이트 즉시 적용·해제
+
+저장소 설정과 G7 모듈 설치가 끝난 서버는 SSH 하네스로 Rust target과 G7 모듈을 함께
+켜고 끕니다. 기본 대상은 SSH 별칭 `g7devops`, G7 경로
+`/home/g7devops/public_html`, 실행 사용자는 `g7devops`입니다.
+
+```bash
+scripts/g7-live-control.sh preflight
+scripts/g7-live-control.sh status
+scripts/g7-live-control.sh apply --confirm g7devops
+scripts/g7-live-control.sh disable --confirm g7devops
+scripts/g7-live-control.sh rollback \
+  --deployment-id <deployment-id> \
+  --confirm g7devops
+```
+
+`apply`는 설정·서비스·모듈이 모두 준비되지 않으면 변경 없이 실패합니다. 서비스 기동 후
+ready 또는 모듈 활성화가 실패하면 target을 다시 중지합니다. `disable`은 모듈을 먼저
+비활성화한 뒤 target 하나를 중지하며 설정, 비밀값, DB 행, 원본·파생 객체는 삭제하지 않아
+같은 `apply` 명령으로 즉시 재활성화할 수 있습니다. 다른 서버는
+`G7MB_SSH_HOST`, `G7MB_G7_ROOT`, `G7MB_G7_USER`를 명시합니다.
+`rollback`은 설치 receipt의 원본 G7 파일까지 복원하고 모듈을 제거하되, 사용자 데이터와
+미디어 객체 보호를 위해 모듈 데이터 테이블·설정은 삭제하지 않습니다.
+
 G7의 파일 설치 API는 ZIP만 허용합니다. `tar.gz`는 관리자 설치용이 아니라 서버 수동 배치용입니다.
 현재 저장소는 Rust와 PHP를 함께 보관하는 모노레포이므로 G7의 **GitHub에서 설치**에 이 저장소
 URL을 직접 넣으면 안 됩니다. 전용 모듈 저장소가 생기기 전에는 Release ZIP을 사용합니다.

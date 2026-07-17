@@ -86,6 +86,7 @@ chmod 0600 "$TEMP/access-key" "$TEMP/secret-key"
 
 sudo "$bundle/bin/g7mbctl" install \
     --bundle-dir "$bundle" \
+    --install-dependencies \
     --skip-setup \
     --skip-start
 # The pinned MinIO protocol fixture does not implement PutBucketCors. Exact browser
