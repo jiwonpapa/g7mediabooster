@@ -1142,7 +1142,7 @@ dependencies = [
 
 [[package]]
 name = "g7mb-api"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1174,7 +1174,7 @@ dependencies = [
 
 [[package]]
 name = "g7mb-application"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "async-trait",
  "g7mb-domain",
@@ -1190,7 +1190,7 @@ dependencies = [
 
 [[package]]
 name = "g7mb-auth"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "base64",
  "hex",
@@ -1202,7 +1202,7 @@ dependencies = [
 
 [[package]]
 name = "g7mb-config"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "config",
  "secrecy",
@@ -1213,7 +1213,7 @@ dependencies = [
 
 [[package]]
 name = "g7mb-contracts"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -1224,7 +1224,7 @@ dependencies = [
 
 [[package]]
 name = "g7mb-domain"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "criterion",
  "proptest",
@@ -1236,7 +1236,7 @@ dependencies = [
 
 [[package]]
 name = "g7mb-media"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "g7mb-application",
  "g7mb-domain",
@@ -1254,7 +1254,7 @@ dependencies = [
 
 [[package]]
 name = "g7mb-object-store-s3"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "async-trait",
  "aws-credential-types",
@@ -1273,7 +1273,7 @@ dependencies = [
 
 [[package]]
 name = "g7mb-persistence-sqlite"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "async-trait",
  "g7mb-application",
@@ -1289,7 +1289,7 @@ dependencies = [
 
 [[package]]
 name = "g7mb-sandbox"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "base64",
@@ -1309,7 +1309,7 @@ dependencies = [
 
 [[package]]
 name = "g7mb-telemetry"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "metrics-exporter-prometheus",
  "thiserror 2.0.18",
@@ -1319,7 +1319,7 @@ dependencies = [
 
 [[package]]
 name = "g7mb-test-support"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "tempfile",
  "thiserror 2.0.18",
@@ -1327,7 +1327,7 @@ dependencies = [
 
 [[package]]
 name = "g7mb-worker"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1354,7 +1354,7 @@ dependencies = [
 
 [[package]]
 name = "g7mbctl"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "clap",
@@ -3794,7 +3794,7 @@ checksum = "66fee0b777b0f5ac1c69bb06d361268faafa61cd4682ae064a171c16c433e9e4"
 
 [[package]]
 name = "xtask"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "clap",

@@ -23,7 +23,7 @@ jobs:
           pkg-config libvips-dev libvips-tools ffmpeg
           libheif-plugin-aomdec libheif-plugin-aomenc
           libheif-plugin-libde265 libheif-plugin-x265
-          jq unzip zip
+          jq ripgrep unzip zip
       - name: Validate server tag
         run: |
           version="$(awk '
