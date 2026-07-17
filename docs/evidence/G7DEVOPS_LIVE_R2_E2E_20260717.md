@@ -50,6 +50,7 @@ G7 `gallery` 게시판의 인증·권한 middleware와 PHP HMAC client를 통과
 - 게시글에 연결되지 않은 attachment URL은 `404`로 fail-closed
 - 세 test upload 모두 삭제 예약 후 cleanup service `claimed=3 completed=3 failed=0`
 - 최종 상태 세 건 모두 `deleted`, `deletion_pending=false`
+- guard 조건으로 test native attachment 2개와 G7 upload session 3개만 대조 후 DB에서 제거
 - disable/apply 실왕복에서 root-only config 검사가 일반 사용자 권한으로 실패하는 하네스 결함 발견
 - config 확인을 `sudo test`로 고치고 API ready 최대 30초 대기를 추가한 뒤 실왕복 PASS
 
