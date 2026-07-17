@@ -103,6 +103,27 @@ sudo /usr/local/bin/g7mbctl setup \
     --skip-cors \
     --force-path-style
 sudo systemctl enable --now g7mediabooster.target
+api_ready=false
+for _ in $(seq 1 120); do
+    if curl --fail --silent http://127.0.0.1:8088/health/ready >/dev/null; then
+        api_ready=true
+        break
+    fi
+    sleep 0.25
+done
+if [[ "$api_ready" != true ]]; then
+    sudo systemctl status \
+        g7mediabooster.target \
+        g7mediabooster-api.service \
+        g7mediabooster-worker.service \
+        --no-pager || true
+    sudo journalctl \
+        --unit g7mediabooster-api.service \
+        --unit g7mediabooster-worker.service \
+        --lines 200 \
+        --no-pager || true
+    exit 1
+fi
 sudo /usr/local/bin/g7mbctl status
 sudo /usr/local/bin/g7mbctl doctor
 sudo test -s \
