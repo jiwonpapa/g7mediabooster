@@ -50,6 +50,8 @@ enum Harness {
     G7Adapter,
     /// Build the reproducible Gnuboard 7 module archive and SHA-256 file.
     G7ModulePackage,
+    /// Build the complete Linux server bundle with its one-command installer.
+    ServerPackage,
     /// Install and verify the Gnuboard 5 PHP/TypeScript adapter harness.
     G5Adapter,
     /// Verify the Gnuboard 5 session/link/deletion store against MySQL and MyISAM fixtures.
@@ -108,6 +110,7 @@ fn main() -> anyhow::Result<()> {
         Harness::SetupSmoke => run("bash", ["scripts/setup-cli-smoke.sh"]),
         Harness::G7Adapter => g7_adapter(),
         Harness::G7ModulePackage => run("bash", ["scripts/package-g7-module.sh"]),
+        Harness::ServerPackage => run("bash", ["scripts/package-server-bundle.sh"]),
         Harness::G5Adapter => g5_adapter(),
         Harness::G5HostSmoke => run("bash", ["scripts/gnuboard5-session-store-smoke.sh"]),
         Harness::Load100 => run("bash", ["scripts/load-100.sh"]),

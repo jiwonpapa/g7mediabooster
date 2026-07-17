@@ -18,6 +18,7 @@ g7mb-object-store-s3.workspace = true
 hex.workspace = true
 rpassword.workspace = true
 secrecy.workspace = true
+sha2.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 toml.workspace = true
 url.workspace = true

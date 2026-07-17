@@ -23,6 +23,29 @@ form/Ready attachment bridge·보존 삭제 대조까지 연결됐습니다. G7 
 - SQLite WAL 단일 노드 durable queue
 - OpenAPI, HMAC-SHA256, Prometheus 형식 메트릭
 
+## Linux 서버 설치
+
+사용자가 API·worker·cleanup·inventory·backup unit을 각각 등록하지 않습니다. 서버 Release
+번들을 풀고 다음 한 명령만 실행합니다.
+
+```bash
+sudo ./bin/g7mbctl install
+```
+
+설치기는 Linux/native runtime과 번들을 먼저 검사하고 service user·경로·hardened systemd
+unit을 설치한 뒤 기존 `g7mbctl setup` CUI, `g7mediabooster.target` 기동, API ready 확인까지
+연속 수행합니다. 상시 프로세스는 API와 worker 두 개지만 사용자에게는 target 하나로
+노출합니다. sandbox는 작업별 자식 프로세스이고 나머지는 timer입니다. 공식 서버 번들 기준
+환경은 Ubuntu 24.04이며 libvips·FFmpeg가 없으면 installer가 runtime package를 설치합니다.
+
+```bash
+sudo g7mbctl status
+sudo g7mbctl doctor
+```
+
+서버 번들 생성은 Linux에서 `cargo xtask server-package`로 수행합니다. 상세 절차는
+[Linux 서버 통합 설치](docs/SERVER_INSTALL.md)를 따릅니다.
+
 ## 공식 저장소 지원 범위
 
 배포판이 보장하는 범위는 S3 전체 관리 API가 아니라 G7MediaBooster가 사용하는 object 작업입니다.
@@ -49,6 +72,7 @@ cargo xtask ci
 cargo xtask native-smoke
 cargo xtask api-smoke
 cargo xtask g7-adapter
+cargo xtask server-package # Linux Release bundle
 cargo xtask storage-conformance
 cargo xtask full-stack-smoke
 cargo xtask g7-policy-smoke

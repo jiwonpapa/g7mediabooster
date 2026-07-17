@@ -1,5 +1,6 @@
 [Unit]
 Description=G7MediaBooster bounded non-destructive provider inventory audit
+PartOf=g7mediabooster.target
 After=network-online.target g7mediabooster-api.service
 Wants=network-online.target
 

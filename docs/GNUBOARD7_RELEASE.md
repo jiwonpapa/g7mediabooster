@@ -2,7 +2,15 @@
 
 ## 사용자 설치 경로
 
-1. GitHub Release `g7-module-v<version>`에서 다음 두 파일을 받습니다.
+서버 통합 Release를 설치한 경우 모듈 ZIP은 이미 다음 경로에 있습니다.
+
+```text
+/usr/local/share/g7mediabooster/gnuboard7/jiwonpapa-g7mediabooster.zip
+```
+
+별도 모듈 Release를 쓰는 경우 `g7-module-v<version>`에서 다음 두 파일을 받습니다.
+
+1. 다음 두 파일을 같은 디렉터리에 둡니다.
    - `jiwonpapa-g7mediabooster-<version>.zip`
    - `jiwonpapa-g7mediabooster-<version>.zip.sha256`
 2. 같은 디렉터리에서 checksum을 검증합니다.
@@ -23,6 +31,10 @@ shasum -a 256 -c jiwonpapa-g7mediabooster-<version>.zip.sha256
 5. 모듈을 활성화한 뒤 **미디어 부스터** 설정에서 HMAC key ID·secret을 Rust 서비스와 맞춥니다.
 6. 같은 서버의 기본 제어 endpoint는 `http://127.0.0.1:8088`입니다. 별도 서버는 HTTPS origin을
    입력합니다.
+
+서버의 API·worker·timer 등록은 G7 관리자가 수행하지 않습니다. 서버 관리자가 Release
+번들에서 `sudo ./bin/g7mbctl install`을 한 번 실행하고, G7 관리자는 출력된 ZIP 설치와 HMAC
+연결만 수행합니다.
 
 G7의 파일 설치 API는 ZIP만 허용합니다. `tar.gz`는 관리자 설치용이 아니라 서버 수동 배치용입니다.
 현재 저장소는 Rust와 PHP를 함께 보관하는 모노레포이므로 G7의 **GitHub에서 설치**에 이 저장소

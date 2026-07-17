@@ -1,5 +1,6 @@
 [Unit]
 Description=G7MediaBooster API
+PartOf=g7mediabooster.target
 After=network-online.target
 Wants=network-online.target
 

@@ -1,5 +1,6 @@
 [Unit]
 Description=G7MediaBooster bounded object lifecycle cleanup
+PartOf=g7mediabooster.target
 After=network-online.target g7mediabooster-api.service
 Wants=network-online.target
 

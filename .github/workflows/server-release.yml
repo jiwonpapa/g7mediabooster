@@ -1,0 +1,63 @@
+name: server-release
+
+on:
+  push:
+    tags:
+      - "server-v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - name: Checkout tagged source
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          fetch-depth: 0
+      - name: Install native and archive dependencies
+        run: >-
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends
+          pkg-config libvips-dev libvips-tools ffmpeg
+          libheif-plugin-aomdec libheif-plugin-aomenc
+          libheif-plugin-libde265 libheif-plugin-x265
+          jq unzip zip
+      - name: Validate server tag
+        run: |
+          version="$(awk '
+            $0 == "[workspace.package]" { package = 1; next }
+            package && /^\[/ { exit }
+            package && /^version = "/ {
+              value = $0
+              sub(/^version = "/, "", value)
+              sub(/"$/, "", value)
+              print value
+              exit
+            }
+          ' Cargo.toml)"
+          test "$GITHUB_REF_NAME" = "server-v$version"
+      - name: Run code, contract, and native gates
+        run: |
+          cargo xtask ci
+          cargo xtask native-smoke
+      - name: Build complete server bundle
+        run: cargo xtask server-package
+      - name: Publish server release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${GITHUB_REF_NAME#server-v}"
+          status="$(jq -er '.release_status' deploy/official-features-v1.json)"
+          release_flags=()
+          if test "$status" = "candidate"; then
+            release_flags+=(--prerelease)
+          fi
+          gh release create "$GITHUB_REF_NAME" \
+            output/releases/g7mediabooster-server-"$version"-linux-*.tar.gz \
+            output/releases/g7mediabooster-server-"$version"-linux-*.tar.gz.sha256 \
+            --verify-tag \
+            --generate-notes \
+            --title "G7MediaBooster server $version" \
+            "${release_flags[@]}"

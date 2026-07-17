@@ -1,5 +1,6 @@
 [Unit]
 Description=G7MediaBooster verified online SQLite backup
+PartOf=g7mediabooster.target
 After=g7mediabooster-api.service
 
 [Service]

@@ -1,5 +1,6 @@
 [Unit]
 Description=Run G7MediaBooster lifecycle cleanup every 15 minutes
+PartOf=g7mediabooster.target
 
 [Timer]
 OnBootSec=5min

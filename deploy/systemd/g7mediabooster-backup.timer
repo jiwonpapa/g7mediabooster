@@ -1,5 +1,6 @@
 [Unit]
 Description=Create a verified G7MediaBooster SQLite backup daily
+PartOf=g7mediabooster.target
 
 [Timer]
 OnCalendar=daily

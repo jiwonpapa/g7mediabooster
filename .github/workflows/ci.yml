@@ -182,3 +182,23 @@ jobs:
             modules/_bundled/sirsoft-board/tests/Unit/AttachmentServiceTest.php \
             modules/_bundled/sirsoft-board/tests/Unit/AttachmentUrlFilterTest.php \
             tests/Unit/Services/LayoutExtensionServiceTest.php
+
+  server-bundle:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          fetch-depth: 0
+      - name: Install native and archive dependencies
+        run: >-
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends
+          pkg-config libvips-dev libvips-tools ffmpeg
+          libheif-plugin-aomdec libheif-plugin-aomenc
+          libheif-plugin-libde265 libheif-plugin-x265
+          jq unzip zip
+      - name: Build and verify one-command server bundle
+        run: cargo xtask server-package
+      - name: Install, configure, start, and diagnose the bundled server
+        run: bash scripts/server-install-smoke.sh

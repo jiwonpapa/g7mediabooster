@@ -22,6 +22,7 @@ cargo xtask g7-policy-smoke # G7 PHP HMAC policy -> Rust worker watermark -> rol
 cargo xtask large-multipart-smoke # 로컬 정확한 5GiB direct multipart + API RSS gate
 cargo xtask g7-adapter     # G7 PHP/TypeScript unit, typecheck, production build
 cargo xtask g7-module-package # 재현 가능한 G7 설치 ZIP·tar.gz + 각각의 SHA-256
+cargo xtask server-package  # Linux API·worker·sandbox·systemd·G7 ZIP 통합 Release bundle
 cargo xtask load100        # 실제 JPEG 100건, RSS/temp disk 상한, 만료 lease 복구
 cargo xtask heavy-image    # 25,000px JPEG, heavy lane, RSS 상한
 cargo xtask heavy-avif     # 64MP AVIF 처리, 200MP full-decode 전 거부, RSS 상한
@@ -37,6 +38,10 @@ cargo xtask native-inventory
 cargo xtask openapi check  # 계약 drift 확인
 cargo xtask openapi write  # 의도적 계약 갱신
 ```
+
+CI의 `server-bundle` job은 생성물 목록만 확인하지 않습니다. 일회용 Ubuntu에 bundle을 실제
+설치하고 MinIO를 대상으로 non-interactive setup, `g7mediabooster.target`, `status`, native와
+single/multipart storage `doctor`까지 실행한 뒤 설치 경로를 정리합니다.
 
 ## 정본 우선순위
 

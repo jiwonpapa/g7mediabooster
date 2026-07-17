@@ -22,7 +22,7 @@
 | 14 큐 | PASS | 모든 변환 SQLite WAL durable queue, lease·retry·dead-letter·backpressure | 멀티노드는 v1 제외 |
 | 15 워터마크 | PASS | 자산 SHA-256 pin, 위치·여백·비율·투명도 제한, revision key, current-admin Ready 자산 선택과 실제 PHP→Rust→worker 출력·rollback 종단 PASS | 배포별 자산·정책 변경 감시는 운영 설정 |
 | 16 G7 관리자 설정 | PASS | encrypted secret, signed monotonic policy revision, exact worker revision, provider 영속화·runtime shape 검증, 실제 G7 설치·설정 화면과 PHP HMAC PUT/GET→worker 적용 종단 PASS | production secret 주입은 배포 설정 |
-| 17 운영 기능 | PASS | lifecycle, 365일 bounded tombstone 보존·purge, byte quota, orphan audit/prune, verified backup·restore, API rate/concurrency limit, queue·worker 단계별 metrics | 실제 배포 Prometheus·alert route 연결은 운영 설정 |
+| 17 운영 기능 | PASS | lifecycle, 365일 bounded tombstone 보존·purge, byte quota, orphan audit/prune, verified backup·restore, API rate/concurrency limit, queue·worker 단계별 metrics, SHA-256 bundle→native dependency→systemd target→setup→MinIO doctor 통합 설치 gate | 실제 배포 Prometheus·alert route 연결은 운영 설정 |
 
 ## 이번 마감에서 확정한 Ready 계약
 

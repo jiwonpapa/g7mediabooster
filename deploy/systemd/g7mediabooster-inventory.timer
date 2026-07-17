@@ -1,5 +1,6 @@
 [Unit]
 Description=Audit G7MediaBooster provider inventory daily
+PartOf=g7mediabooster.target
 
 [Timer]
 OnBootSec=30min

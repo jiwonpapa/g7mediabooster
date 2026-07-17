@@ -14,6 +14,7 @@
 | 스펙·헌법 | PASS | `SPEC.md`, `DEVELOPMENT_CONSTITUTION.md`, ADR·보안·개발 문서 |
 | 기본·전체 feature 빌드 | PASS | `cargo xtask ci` |
 | fmt/clippy/rustdoc | PASS | 경고 0 |
+| Linux 통합 설치 | PASS | payload SHA-256, Ubuntu native runtime, service user·경로, 단일 systemd target, setup, API ready, MinIO storage doctor를 CI에서 실제 실행 |
 | 테스트 | PASS | 공통 Rust 101개 + Linux seccomp 1개 통과, 실패 0 |
 | OpenAPI drift | PASS | 생성 계약과 저장본 일치 |
 | 커버리지 | PASS | 7,350/8,622 lines, 85.25%, 하한 80% |

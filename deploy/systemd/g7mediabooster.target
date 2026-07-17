@@ -1,0 +1,8 @@
+[Unit]
+Description=G7MediaBooster media service
+Requires=g7mediabooster-api.service g7mediabooster-worker.service
+Wants=g7mediabooster-cleanup.timer g7mediabooster-inventory.timer g7mediabooster-backup.timer
+After=network-online.target
+
+[Install]
+WantedBy=multi-user.target

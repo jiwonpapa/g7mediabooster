@@ -1364,6 +1364,7 @@ dependencies = [
  "hex",
  "rpassword",
  "secrecy",
+ "sha2 0.11.0",
  "tempfile",
  "tokio",
  "toml",

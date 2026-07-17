@@ -1,5 +1,7 @@
 //! Interactive and automation-safe installer for G7MediaBooster.
 
+mod installer;
+
 use std::{
     fs::{self, OpenOptions},
     io::{self, IsTerminal as _, Read as _, Write as _},
@@ -26,13 +28,48 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Command {
+    /// Installs the complete Linux server bundle, runs setup, and starts one product target.
+    Install(InstallArgs),
     /// Creates a production configuration using an interactive CUI or explicit files.
     Setup(Box<SetupArgs>),
+    /// Shows the product-level service state without exposing individual unit management.
+    Status(ConfigArg),
+    /// Checks systemd, API, sandbox, configuration, and optional live storage access.
+    Doctor(DoctorArgs),
     /// Runs storage bootstrap and live runtime checks after setup.
     Storage {
         #[command(subcommand)]
         command: StorageCommand,
     },
+}
+
+#[derive(Debug, Args)]
+struct InstallArgs {
+    /// Extracted server bundle root; normally detected from `bin/g7mbctl`.
+    #[arg(long)]
+    bundle_dir: Option<PathBuf>,
+    /// Replaces installed binaries and unit files that differ from this bundle.
+    #[arg(long)]
+    force: bool,
+    /// Registers the product but does not run the interactive storage setup.
+    #[arg(long)]
+    skip_setup: bool,
+    /// Does not enable or start the product target after configuration.
+    #[arg(long)]
+    skip_start: bool,
+    /// Refuses missing libvips/FFmpeg instead of installing Ubuntu runtime packages.
+    #[arg(long)]
+    skip_dependency_install: bool,
+}
+
+#[derive(Debug, Args)]
+struct DoctorArgs {
+    /// Installed TOML configuration file.
+    #[arg(long, default_value = DEFAULT_CONFIG)]
+    config: PathBuf,
+    /// Checks local services and native media only, without provider canary objects.
+    #[arg(long)]
+    skip_storage: bool,
 }
 
 #[derive(Debug, Subcommand)]
@@ -175,9 +212,35 @@ struct SetupValues {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     match Cli::parse().command {
+        Command::Install(args) => installer::install(installer::InstallOptions {
+            bundle_dir: args.bundle_dir,
+            force: args.force,
+            skip_setup: args.skip_setup,
+            skip_start: args.skip_start,
+            skip_dependency_install: args.skip_dependency_install,
+        }),
         Command::Setup(args) => setup(*args).await,
+        Command::Status(args) => installer::status(&args.config).map(|_| ()),
+        Command::Doctor(args) => doctor(args).await,
         Command::Storage { command } => storage(command).await,
     }
+}
+
+async fn doctor(args: DoctorArgs) -> anyhow::Result<()> {
+    let settings = installer::status(&args.config)?;
+    installer::sandbox_doctor(&settings.worker.sandbox_binary)?;
+    if !args.skip_storage {
+        let report = S3StorageAdmin::new(&settings.storage)?
+            .canary(&settings.storage)
+            .await
+            .context("저장소 canary에 실패했습니다")?;
+        println!(
+            "PASS storage buckets={} single_object={} multipart={}",
+            report.buckets_checked, report.single_object, report.multipart
+        );
+    }
+    println!("PASS doctor");
+    Ok(())
 }
 
 async fn storage(command: StorageCommand) -> anyhow::Result<()> {

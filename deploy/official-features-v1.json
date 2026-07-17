@@ -19,6 +19,7 @@
     {"id": "single_node_durable_queue", "title": "SQLite WAL 단일 노드 durable queue, lease 복구와 backpressure"},
     {"id": "resource_security_limits", "title": "sandbox no-network, decoder hard limit, CPU·RSS·동시성 제한"},
     {"id": "private_delivery_lifecycle", "title": "권한 기반 private 전달, quota, lifecycle, orphan·backup·metrics"},
+    {"id": "one_command_linux_install", "title": "Ubuntu 24.04 native runtime·systemd target·설정·진단 통합 설치"},
     {
       "id": "gnuboard7_module",
       "title": "Gnuboard7 관리자 설정, 직접 업로드와 native attachment 연동",

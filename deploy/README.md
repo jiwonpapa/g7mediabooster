@@ -75,7 +75,13 @@ Lightsail 단일 bucket access key를 쓸 때는 같은 private bucket 안의 `r
 `systemd` 예시는 API와 worker 전체에 CPU, RSS, process 수 상한을 적용합니다. worker 내부도
 동시 작업 수와 libvips/FFmpeg thread 수를 별도로 제한하므로 두 제한을 함께 사용해야 합니다.
 
-설치 전 다음 경로와 전용 사용자를 만듭니다.
+서버 Release 사용자는 경로, 전용 사용자, unit을 직접 만들지 않습니다.
+
+```bash
+sudo ./bin/g7mbctl install
+```
+
+설치기가 다음 운영 경계를 생성하고 `g7mediabooster.target` 하나로 등록합니다.
 
 - 일반 설정: `/etc/g7mediabooster/g7mb.toml` (`root:g7mediabooster`, `0640`)
 - root-only credential source: `/etc/g7mediabooster/credentials/` (`root:root`, `0700`, 파일 `0600`)
@@ -83,7 +89,10 @@ Lightsail 단일 bucket access key를 쓸 때는 같은 private bucket 안의 `r
 - 실행 파일: `/usr/local/bin/g7mbctl`, `/usr/local/bin/g7mb-api`, `/usr/local/bin/g7mb-worker`
 - 자격 증명 없는 실행 파일: `/usr/local/libexec/g7mb-sandbox`
 
-최초 설정은 `sudo g7mbctl setup` CUI로 생성합니다. systemd unit은 root-only source를
+내부 상시 프로세스는 API·worker 두 개이고 sandbox는 작업별 자식, cleanup·inventory·backup은
+timer입니다. 사용자는 `g7mbctl status`와 `g7mbctl doctor`로 전체를 한 번에 확인합니다.
+
+통합 설치 중 최초 설정은 `g7mbctl setup` CUI로 생성합니다. systemd unit은 root-only source를
 `LoadCredential=`로 API·worker·maintenance 각각의 서비스 전용 credential directory에
 전달합니다. PHP·브라우저·sandbox에는 S3/R2 비밀값을 전달하지 않습니다. 상세 절차는
 [설치·저장소 설정](../docs/SETUP_CUI.md)을
@@ -127,3 +136,12 @@ cargo xtask g7-module-package
 두 압축본은 Git commit의 module subtree에서 각각 두 번 생성해 byte-for-byte 일치를 확인하며
 `vendor`, `node_modules`, tests, PHPUnit cache를 포함하지 않습니다. 압축 내부 `module.json`
 버전과 공식 기능 manifest 버전이 다르면 생성 자체를 거부합니다.
+
+Linux 전체 서버 번들은 다음 명령으로 생성하며 G7 ZIP도 함께 넣습니다.
+
+```bash
+cargo xtask server-package
+```
+
+통합 설치 후 관리자가 올릴 파일은
+`/usr/local/share/g7mediabooster/gnuboard7/jiwonpapa-g7mediabooster.zip`입니다.
