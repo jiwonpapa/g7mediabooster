@@ -88,17 +88,19 @@ sudo "$bundle/bin/g7mbctl" install \
     --bundle-dir "$bundle" \
     --skip-setup \
     --skip-start
+# The pinned MinIO protocol fixture does not implement PutBucketCors. Exact browser
+# CORS remains covered by the provider-gated live conformance harness.
 sudo /usr/local/bin/g7mbctl setup \
     --non-interactive \
     --provider generic \
     --endpoint-url "$endpoint" \
     --region us-east-1 \
     --bucket g7mb-install-private \
-    --origin https://g7.example.test \
     --access-key-id-file "$TEMP/access-key" \
     --secret-access-key-file "$TEMP/secret-key" \
     --tenant-id install-smoke \
     --create-buckets \
+    --skip-cors \
     --force-path-style
 sudo systemctl enable --now g7mediabooster.target
 sudo /usr/local/bin/g7mbctl status
