@@ -48,7 +48,7 @@ SOURCE_EXCEPTIONS = {
     "crates/g7mb-application/src/inventory.rs": 627,
     "crates/g7mb-application/src/lifecycle.rs": 618,
     "crates/g7mb-application/src/policies.rs": 580,
-    "xtask/src/main.rs": 536,
+    "xtask/src/main.rs": 535,
     "adapters/gnuboard7/jiwonpapa-g7mediabooster/resources/js/upload/MultiUploader.ts": 507,
 }
 

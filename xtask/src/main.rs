@@ -306,10 +306,9 @@ fn nextest() -> anyhow::Result<()> {
 
 fn coverage() -> anyhow::Result<()> {
     fs::create_dir_all(workspace_root().join("reports"))?;
-    // cargo-llvm-cov keeps instrumented objects between invocations. An explicit
-    // workspace clean prevents stale binaries from unrelated packages from
-    // diluting or inflating the enforced package report.
-    cargo(["llvm-cov", "clean", "--workspace"])?;
+    // Coverage uses a separate target directory. Remove it wholesale so stale
+    // instrumented objects cannot consume backup or local disk space.
+    cargo(["clean", "--target-dir", "target/llvm-cov-target"])?;
     let coverage_result = (|| {
         cargo([
             "llvm-cov",
@@ -349,9 +348,9 @@ fn coverage() -> anyhow::Result<()> {
             ],
         )
     })();
-    // The LCOV report is already outside Cargo's coverage target. Always prune
-    // instrumented objects, including after a failed threshold check.
-    let cleanup_result = cargo(["llvm-cov", "clean", "--workspace"]);
+    // The LCOV report is already outside Cargo's coverage target. Always remove
+    // the entire instrumented target, including after a failed threshold check.
+    let cleanup_result = cargo(["clean", "--target-dir", "target/llvm-cov-target"]);
     coverage_result?;
     cleanup_result
 }

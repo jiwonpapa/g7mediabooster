@@ -52,9 +52,13 @@ single/multipart storage `doctor`까지 실행한 뒤 설치 경로를 정리합
 native media와 AWS SDK 의존성 조합은 전체 게이트를 반복하면 Cargo 증분 객체가 수십 GiB까지
 증가할 수 있습니다. 따라서 dev/test/release 증분 빌드를 끄고, dev/test의 first-party crate에는
 backtrace용 줄 번호만 유지하며 dependency debug symbol은 생성하지 않습니다. `cargo xtask coverage`는
-`reports/lcov.info`를 보존한 뒤 계측 전용 객체를 성공·실패와 관계없이 자동 정리합니다.
+`reports/lcov.info`만 보존하고 `target/llvm-cov-target` 전체를 성공·실패와 관계없이 자동
+정리합니다. MacMiniBackup은 `target/`, `target-*`, `node_modules`, `vendor`, `build`를 전역
+제외하므로 재생성 가능한 산출물이 백업 스냅샷에 들어가지 않습니다.
 
-모든 로컬 Cargo 산출물을 즉시 비워야 할 때만 저장소 루트에서 `cargo clean`을 실행합니다.
+일반 `target/debug`는 다음 빌드 속도를 위한 재사용 캐시입니다. 증분 객체를 만들지 않아 반복
+게이트 후에도 수십 GiB로 폭증하지 않으며 백업에서도 제외됩니다. 전체 캐시를 즉시 비워야 할
+때만 저장소 루트에서 `cargo clean`을 실행합니다.
 
 ## 정본 우선순위
 
