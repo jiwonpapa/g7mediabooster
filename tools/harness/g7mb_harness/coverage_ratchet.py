@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Mapping
 
 COMPONENT_THRESHOLDS: dict[str, float] = {
     "apps/g7mb-api/": 80.0,
