@@ -6,6 +6,7 @@ import argparse
 import sys
 
 from . import (
+    coverage_ratchet,
     full_stack,
     g7_install_cli,
     g7_live,
@@ -24,6 +25,7 @@ def parser() -> argparse.ArgumentParser:
     governance_parser = commands.add_parser("governance", help="run language and size gates")
     governance_parser.add_argument("--require-tools", action="store_true")
 
+    coverage_ratchet.add_arguments(commands.add_parser("coverage-ratchet"))
     full_stack.add_arguments(commands.add_parser("full-stack-smoke"))
     g7_live.add_arguments(commands.add_parser("g7-live-control"))
     g7_install_cli.add_arguments(commands.add_parser("g7-live-install-remote"))
@@ -38,6 +40,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     if args.command == "governance":
         return governance.main(["--require-tools"] if args.require_tools else [])
+    if args.command == "coverage-ratchet":
+        return coverage_ratchet.main(args)
     if args.command == "full-stack-smoke":
         return full_stack.main(args)
     if args.command == "g7-live-control":

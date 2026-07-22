@@ -20,7 +20,7 @@ g7mb-contracts.workspace = true
 g7mb-domain.workspace = true
 g7mb-object-store-s3.workspace = true
 g7mb-persistence-sqlite.workspace = true
-g7mb-telemetry.workspace = true
+g7mb-telemetry = { workspace = true, features = ["prometheus"] }
 metrics-exporter-prometheus.workspace = true
 metrics.workspace = true
 secrecy.workspace = true

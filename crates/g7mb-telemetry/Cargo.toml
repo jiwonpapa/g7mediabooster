@@ -9,8 +9,12 @@ repository.workspace = true
 [lints]
 workspace = true
 
+[features]
+default = []
+prometheus = ["dep:metrics-exporter-prometheus"]
+
 [dependencies]
-metrics-exporter-prometheus.workspace = true
+metrics-exporter-prometheus = { workspace = true, optional = true }
 thiserror.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true

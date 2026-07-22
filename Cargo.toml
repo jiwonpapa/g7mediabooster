@@ -102,8 +102,25 @@ unimplemented = "deny"
 unwrap_used = "deny"
 wildcard_dependencies = "deny"
 
+[profile.dev]
+# Keep source line information for useful backtraces without retaining full
+# dependency debug symbols or multi-gigabyte incremental object graphs.
+debug = "line-tables-only"
+incremental = false
+
+[profile.dev.package."*"]
+debug = false
+
+[profile.test]
+debug = "line-tables-only"
+incremental = false
+
+[profile.test.package."*"]
+debug = false
+
 [profile.release]
 codegen-units = 1
+incremental = false
 lto = "thin"
 panic = "abort"
 strip = "debuginfo"

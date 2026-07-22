@@ -4,7 +4,9 @@ quick = "xtask quick"
 ci = "xtask ci"
 
 [build]
-incremental = true
+# This workspace links native media and AWS SDK dependencies. Persisting every
+# incremental object made a fully exercised local target directory exceed 80 GiB.
+incremental = false
 
 [term]
 color = "auto"

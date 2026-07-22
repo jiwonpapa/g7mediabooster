@@ -29,27 +29,42 @@ jobs:
           ripgrep shellcheck unzip zip
       - name: Install pinned Python harness tools
         run: python3 -m pip install --user -e './tools/harness[dev]'
-      - name: Enforce Python harness governance
-        run: cargo xtask harness-governance --require-tools
       - name: Verify pinned toolchain
         run: rustup show active-toolchain && rustc --version && cargo --version
-      - name: Install pinned nextest harness
-        run: cargo install --locked cargo-nextest --version 0.9.140
-      - name: Run full Rust quality gate
+      - name: Run non-duplicated Rust and repository quality gate
         run: cargo xtask ci
-      - name: Run nextest and doctests
-        run: cargo xtask nextest
       - name: Run API process smoke
         run: cargo xtask api-smoke
+
+  adapters:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Gnuboard 7
+            command: g7-adapter
+          - name: Gnuboard 5
+            command: g5-adapter
+    name: adapter-${{ matrix.command }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
       - name: Verify Gnuboard adapter toolchains
         run: php --version && composer --version && node --version && npm --version
-      - name: Run Gnuboard 7 adapter gate
-        run: cargo xtask g7-adapter
-      - name: Run Gnuboard 5 adapter gate
-        run: cargo xtask g5-adapter
+      - name: Run ${{ matrix.name }} adapter gate
+        run: cargo xtask ${{ matrix.command }}
+
+  coverage:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
       - name: Install coverage harness
         run: cargo install --locked cargo-llvm-cov --version 0.8.7
-      - name: Enforce control-plane coverage ratchet
+      - name: Enforce aggregate and component coverage ratchets
         run: cargo xtask coverage
 
   supply-chain:

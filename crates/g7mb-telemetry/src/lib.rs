@@ -1,7 +1,9 @@
 //! Structured logging and Prometheus recorder setup.
 
+#[cfg(feature = "prometheus")]
 use std::net::SocketAddr;
 
+#[cfg(feature = "prometheus")]
 use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
 use thiserror::Error;
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt as _, util::SubscriberInitExt as _};
@@ -13,6 +15,7 @@ pub enum TelemetryError {
     #[error("failed to install tracing subscriber: {0}")]
     Tracing(String),
     /// A global metrics recorder already exists or could not be installed.
+    #[cfg(feature = "prometheus")]
     #[error("failed to install metrics recorder: {0}")]
     Metrics(String),
 }
@@ -35,6 +38,7 @@ pub fn init_tracing() -> Result<(), TelemetryError> {
 }
 
 /// Installs the process-wide Prometheus recorder and returns its render handle.
+#[cfg(feature = "prometheus")]
 pub fn install_metrics() -> Result<PrometheusHandle, TelemetryError> {
     PrometheusBuilder::new()
         .install_recorder()
@@ -42,6 +46,7 @@ pub fn install_metrics() -> Result<PrometheusHandle, TelemetryError> {
 }
 
 /// Installs a loopback HTTP Prometheus exporter for a long-running worker process.
+#[cfg(feature = "prometheus")]
 pub fn install_metrics_http(bind_addr: SocketAddr) -> Result<(), TelemetryError> {
     if !bind_addr.ip().is_loopback() {
         return Err(TelemetryError::Metrics(

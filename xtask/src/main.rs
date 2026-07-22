@@ -101,6 +101,15 @@ enum OpenApiAction {
     Write,
 }
 
+impl OpenApiAction {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Check => "check",
+            Self::Write => "write",
+        }
+    }
+}
+
 fn main() -> anyhow::Result<()> {
     match Cli::parse().command {
         Harness::Quick => quick(),
@@ -151,14 +160,8 @@ fn main() -> anyhow::Result<()> {
 
 fn quick() -> anyhow::Result<()> {
     cargo(["fmt", "--all", "--", "--check"])?;
-    cargo(["check", "--workspace", "--all-targets", "--locked"])?;
-    cargo([
-        "check",
-        "--workspace",
-        "--all-targets",
-        "--all-features",
-        "--locked",
-    ])?;
+    // Clippy performs the same type checking as `cargo check`. Keep the default
+    // and all-feature surfaces, but do not compile either surface twice.
     cargo([
         "clippy",
         "--workspace",
@@ -267,12 +270,11 @@ fn inherits_workspace_lints(manifest: &str) -> bool {
 }
 
 fn ci() -> anyhow::Result<()> {
-    harness_governance(false)?;
+    harness_governance(true)?;
     quick()?;
     openapi(OpenApiAction::Check)?;
     run("bash", ["scripts/setup-cli-smoke.sh"])?;
     run("bash", ["scripts/live-storage-preflight-smoke.sh"])?;
-    run("bash", ["scripts/package-g7-module.sh"])?;
     bench(true)
 }
 
@@ -308,34 +310,50 @@ fn coverage() -> anyhow::Result<()> {
     // workspace clean prevents stale binaries from unrelated packages from
     // diluting or inflating the enforced package report.
     cargo(["llvm-cov", "clean", "--workspace"])?;
-    cargo([
-        "llvm-cov",
-        "--package",
-        "g7mb-api",
-        "--package",
-        "g7mb-application",
-        "--package",
-        "g7mb-auth",
-        "--package",
-        "g7mb-config",
-        "--package",
-        "g7mb-domain",
-        "--package",
-        "g7mb-media",
-        "--package",
-        "g7mb-object-store-s3",
-        "--package",
-        "g7mb-persistence-sqlite",
-        "--package",
-        "g7mb-worker",
-        "--lib",
-        "--locked",
-        "--lcov",
-        "--output-path",
-        "reports/lcov.info",
-        "--fail-under-lines",
-        "80",
-    ])
+    let coverage_result = (|| {
+        cargo([
+            "llvm-cov",
+            "--package",
+            "g7mb-api",
+            "--package",
+            "g7mb-application",
+            "--package",
+            "g7mb-auth",
+            "--package",
+            "g7mb-config",
+            "--package",
+            "g7mb-domain",
+            "--package",
+            "g7mb-media",
+            "--package",
+            "g7mb-object-store-s3",
+            "--package",
+            "g7mb-persistence-sqlite",
+            "--package",
+            "g7mb-worker",
+            "--lib",
+            "--locked",
+            "--lcov",
+            "--output-path",
+            "reports/lcov.info",
+            "--fail-under-lines",
+            "80",
+        ])?;
+        run(
+            "python3",
+            [
+                "-m",
+                "tools.harness.g7mb_harness",
+                "coverage-ratchet",
+                "reports/lcov.info",
+            ],
+        )
+    })();
+    // The LCOV report is already outside Cargo's coverage target. Always prune
+    // instrumented objects, including after a failed threshold check.
+    let cleanup_result = cargo(["llvm-cov", "clean", "--workspace"]);
+    coverage_result?;
+    cleanup_result
 }
 
 fn bench(no_run: bool) -> anyhow::Result<()> {
@@ -418,26 +436,19 @@ fn g5_adapter() -> anyhow::Result<()> {
 }
 
 fn openapi(action: OpenApiAction) -> anyhow::Result<()> {
-    let path = workspace_root().join("openapi/g7mediabooster-v1.json");
-    let generated = format!("{}\n", g7mb_api::openapi_json()?);
-    match action {
-        OpenApiAction::Write => {
-            let parent = path
-                .parent()
-                .context("OpenAPI output path has no parent directory")?;
-            fs::create_dir_all(parent)?;
-            fs::write(&path, generated)?;
-            Ok(())
-        }
-        OpenApiAction::Check => {
-            let committed = fs::read_to_string(&path)
-                .with_context(|| format!("missing OpenAPI snapshot: {}", path.display()))?;
-            if committed != generated {
-                bail!("OpenAPI drift detected; run `cargo xtask openapi write`");
-            }
-            Ok(())
-        }
-    }
+    // Keep the repository command router independent from the complete API,
+    // AWS SDK, and SQLx graph. Only this command compiles the API generator.
+    cargo([
+        "run",
+        "--quiet",
+        "--locked",
+        "--package",
+        "g7mb-api",
+        "--bin",
+        "g7mb-openapi",
+        "--",
+        action.as_str(),
+    ])
 }
 
 fn cargo<I, S>(args: I) -> anyhow::Result<()>

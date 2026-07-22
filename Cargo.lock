@@ -1341,7 +1341,6 @@ dependencies = [
  "g7mb-telemetry",
  "hex",
  "metrics",
- "metrics-exporter-prometheus",
  "serde_json",
  "sha2 0.11.0",
  "sqlx",
@@ -3798,7 +3797,6 @@ version = "0.1.1"
 dependencies = [
  "anyhow",
  "clap",
- "g7mb-api",
 ]
 
 [[package]]

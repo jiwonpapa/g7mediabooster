@@ -70,7 +70,8 @@
 - 성능·강건성: `cargo xtask bench`, `cargo xtask fuzz`, `cargo xtask miri`
 - 재현성: OpenAPI drift, SBOM, native inventory, 고정 Rust toolchain과 lockfile
 
-CI는 고정 버전 nextest와 CycloneDX 도구를 설치해 실제 실행하고, 배포판 libvips 8.15+
+CI는 동일 Rust test surface를 한 번만 실행하고 adapter·coverage를 병렬화하며 CycloneDX 도구를
+실행합니다. 배포판 libvips 8.15+
 빌드 기준 위에서 codec fixture를 검증합니다. 운영 참조 이미지는 libvips 8.18.x와 실제
 AVIF/HEIF round-trip을 함께 고정합니다.
 

@@ -6,16 +6,18 @@ import argparse
 import json
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 
 from .process import require_programs, run
 
 DEFAULT_SHELL_LIMIT = 100
-SHELL_TOTAL_LIMIT = 2_700
+SHELL_TOTAL_LIMIT = 2_137
 DEFAULT_PYTHON_LIMIT = 300
+PYTHON_TOTAL_LIMIT = 2_736
+DEFAULT_SOURCE_LIMIT = 500
 SHELL_EXCEPTIONS = {
     "scripts/cgroup-smoke-inner.sh": 109,
-    "scripts/g7-live-module-install-remote.sh": 20,
     "scripts/heavy-avif.sh": 180,
     "scripts/heavy-image.sh": 154,
     "scripts/live-storage-conformance.sh": 139,
@@ -25,13 +27,31 @@ SHELL_EXCEPTIONS = {
     "scripts/package-g7-module.sh": 212,
     "scripts/package-server-bundle.sh": 152,
     "scripts/server-install-smoke.sh": 160,
-    "scripts/verify-gnuboard7-media-contract.sh": 20,
 }
 PYTHON_EXCEPTIONS = {
     # Streamed as a self-contained program to the remote host.
-    "tools/harness/g7mb_harness/g7_remote.py": 350,
-    # Transactional remote installation deliberately keeps rollback close to apply.
-    "tools/harness/g7mb_harness/g7_install.py": 320,
+    "tools/harness/g7mb_harness/g7_remote.py": 343,
+}
+SOURCE_EXCEPTIONS = {
+    "crates/g7mb-persistence-sqlite/src/lib.rs": 3_525,
+    "apps/g7mb-api/src/lib.rs": 2_398,
+    "apps/g7mb-worker/src/lib.rs": 1_947,
+    "crates/g7mb-media/src/lib.rs": 1_497,
+    "crates/g7mb-object-store-s3/src/lib.rs": 1_341,
+    "crates/g7mb-application/src/uploads.rs": 1_291,
+    "crates/g7mb-config/src/lib.rs": 1_177,
+    "apps/g7mbctl/src/installer.rs": 1_054,
+    "apps/g7mbctl/src/main.rs": 1_039,
+    "crates/g7mb-object-store-s3/tests/live_provider_conformance.rs": 876,
+    "crates/g7mb-domain/src/lib.rs": 817,
+    "apps/g7mb-worker/src/main.rs": 790,
+    "apps/g7mb-sandbox/src/main.rs": 758,
+    "crates/g7mb-application/src/delivery.rs": 753,
+    "crates/g7mb-application/src/inventory.rs": 627,
+    "crates/g7mb-application/src/lifecycle.rs": 618,
+    "crates/g7mb-application/src/policies.rs": 580,
+    "xtask/src/main.rs": 536,
+    "adapters/gnuboard7/jiwonpapa-g7mediabooster/resources/js/upload/MultiUploader.ts": 507,
 }
 
 
@@ -60,6 +80,8 @@ def shell_budget(root: Path) -> dict[str, int]:
         maximum = SHELL_EXCEPTIONS.get(relative, DEFAULT_SHELL_LIMIT)
         if count > maximum:
             failures.append(f"{relative}: {count} lines exceeds {maximum}")
+        elif relative in SHELL_EXCEPTIONS and count < maximum:
+            failures.append(f"{relative}: lower its stale exception from {maximum} to {count}")
     total = sum(counts.values())
     if total > SHELL_TOTAL_LIMIT:
         failures.append(f"shell total: {total} lines exceeds {SHELL_TOTAL_LIMIT}")
@@ -81,9 +103,54 @@ def python_budget(root: Path) -> dict[str, int]:
         maximum = PYTHON_EXCEPTIONS.get(relative, DEFAULT_PYTHON_LIMIT)
         if count > maximum:
             failures.append(f"{relative}: {count} lines exceeds {maximum}")
+        elif relative in PYTHON_EXCEPTIONS and count < maximum:
+            failures.append(f"{relative}: lower its stale exception from {maximum} to {count}")
+    total = sum(counts.values())
+    if total > PYTHON_TOTAL_LIMIT:
+        failures.append(f"Python total: {total} lines exceeds {PYTHON_TOTAL_LIMIT}")
     if failures:
         raise RuntimeError("Python harness budget failed:\n" + "\n".join(failures))
+    return {"files": len(counts), "lines": total}
+
+
+def source_budget(root: Path) -> dict[str, int]:
+    """Stop existing source monoliths growing and reject new files over 500 lines."""
+
+    failures: list[str] = []
+    counts: dict[str, int] = {}
+    for source_root in ("apps", "crates", "adapters", "xtask"):
+        directory = root / source_root
+        if not directory.exists():
+            continue
+        for path in sorted(directory.rglob("*")):
+            if not path.is_file() or path.suffix not in {".rs", ".php", ".ts"}:
+                continue
+            if {"dist", "node_modules", "vendor"}.intersection(path.parts):
+                continue
+            relative = path.relative_to(root).as_posix()
+            count = line_count(path)
+            counts[relative] = count
+            maximum = SOURCE_EXCEPTIONS.get(relative, DEFAULT_SOURCE_LIMIT)
+            if count > maximum:
+                failures.append(f"{relative}: {count} lines exceeds {maximum}")
+            elif relative in SOURCE_EXCEPTIONS and count < maximum:
+                failures.append(f"{relative}: lower its stale exception from {maximum} to {count}")
+    if failures:
+        raise RuntimeError("source size ratchet failed:\n" + "\n".join(failures))
     return {"files": len(counts), "lines": sum(counts.values())}
+
+
+def rust_harness_dependency_budget(root: Path) -> dict[str, int]:
+    """Keep xtask independent from product crates and their transitive graph."""
+
+    manifest_path = root / "xtask" / "Cargo.toml"
+    manifest = tomllib.loads(manifest_path.read_text(encoding="utf-8"))
+    dependencies = manifest.get("dependencies", {})
+    product_dependencies = sorted(name for name in dependencies if name.startswith("g7mb-"))
+    if product_dependencies:
+        joined = ", ".join(product_dependencies)
+        raise RuntimeError(f"xtask must not depend on product crates: {joined}")
+    return {"direct_dependencies": len(dependencies), "product_dependencies": 0}
 
 
 def python_static_gate(root: Path) -> None:
@@ -147,10 +214,14 @@ def execute(*, require_tools: bool = False) -> dict[str, object]:
         run(["pytest", "-c", "tools/harness/pyproject.toml"], cwd=root)
     shell = shell_budget(root)
     python = python_budget(root)
+    sources = source_budget(root)
+    rust_harness = rust_harness_dependency_budget(root)
     result: dict[str, object] = {
         "status": "PASS",
         "python": python,
         "shell": shell,
+        "sources": sources,
+        "rust_harness": rust_harness,
     }
     print(json.dumps(result, sort_keys=True, separators=(",", ":")))
     return result
