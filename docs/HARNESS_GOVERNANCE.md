@@ -39,11 +39,15 @@ cargo xtask harness-governance --require-tools
 
 신규 Rust/PHP/TypeScript 수기 source는 500줄을 상한으로 하고 기존 초과 파일은 현재 줄 수를
 상한으로 고정합니다. 이 수치는 성장 경보이며 새 crate를 만들거나 응집된 코드를 기계적으로
-분할하라는 기준이 아닙니다. Python과 Bash 전체 줄 수도 현재 통과값에서 증가할 수 없습니다.
+분할하라는 기준이 아닙니다. Python과 Bash의 언어별·합계 줄 수는 현재 통과값으로 고정합니다.
+Bash 정본을 Python으로 이관하는 변경만 Bash 감소량이 Python 증가량보다 크고 합계가 감소할 때
+Python 상한 갱신을 허용하며, 같은 변경에서 세 상한을 새 통과값으로 다시 고정합니다.
 
 현재 Python 정본으로 전환된 주요 경로는 full-stack media smoke, G7 운영 apply/disable/rollback,
-G7 원격 설치, G7 source·DB-resolved layout 계약입니다. 기존 `.sh` 경로는 사용자 명령 호환을 위해
-Python 모듈로 `exec`하는 얇은 래퍼로 유지합니다.
+G7 원격 설치, G7 source·DB-resolved layout 계약, 25,000px JPEG·64MP AVIF·100개 실제 JPEG 자원
+게이트입니다. 기존 `.sh` 경로는 사용자 명령 호환을 위해 Python 모듈로 `exec`하는 얇은 래퍼로
+유지합니다. 자원 게이트의 timeout은 프로세스 그룹 전체를 종료하고 wait하며, RSS는 자식 트리,
+부하 임시 디스크는 격리 runtime 경로를 측정합니다.
 
 서버 Release에는 같은 Python 소스에서 결정적으로 만든 `g7mb-harness.pyz`를 포함합니다. 따라서
 설치 후 저장소 checkout 없이도 다음 검증 명령을 실행할 수 있습니다.

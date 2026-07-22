@@ -19,6 +19,7 @@
 4. adapter와 coverage는 Rust quality job에서 분리해 병렬 실행합니다.
 5. aggregate coverage 80%와 함께 component별 현재 통과값을 하한으로 고정합니다.
 6. 신규 수기 source 500줄 상한과 기존 대형 파일·Bash·Python 총량의 비증가 ratchet을 둡니다.
+   Bash→Python 정본 이관의 총량 예외와 재고정 규칙은 ADR-0005를 따릅니다.
 7. 파일 줄 수만 줄이기 위한 새 crate/service/package는 만들지 않습니다.
 
 ## 결과

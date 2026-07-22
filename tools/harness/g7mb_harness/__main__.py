@@ -12,6 +12,7 @@ from . import (
     g7_live,
     governance,
     package_zipapp,
+    resource_gates,
     verify_g7_contract,
 )
 
@@ -31,6 +32,8 @@ def parser() -> argparse.ArgumentParser:
     g7_install_cli.add_arguments(commands.add_parser("g7-live-install-remote"))
     verify_g7_contract.add_arguments(commands.add_parser("verify-g7-contract"))
     package_zipapp.add_arguments(commands.add_parser("package-zipapp"))
+    for command in ("heavy-image", "heavy-avif", "load-100"):
+        commands.add_parser(command)
     return root
 
 
@@ -52,6 +55,8 @@ def main(argv: list[str] | None = None) -> int:
         return verify_g7_contract.main(args)
     if args.command == "package-zipapp":
         return package_zipapp.main(args)
+    if args.command in {"heavy-image", "heavy-avif", "load-100"}:
+        return resource_gates.main(args.command)
     raise AssertionError(f"unhandled command: {args.command}")
 
 

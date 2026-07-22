@@ -36,6 +36,17 @@ class PythonBudgetTest(unittest.TestCase):
         self.assertLessEqual(result["lines"], governance.PYTHON_TOTAL_LIMIT)
 
 
+class OrchestrationBudgetTest(unittest.TestCase):
+    """Allow Python-first migrations only when combined harness LOC falls."""
+
+    def test_repository_orchestration_budget_passes(self) -> None:
+        root = governance.repository_root()
+        shell = governance.shell_budget(root)
+        python = governance.python_budget(root)
+        result = governance.orchestration_budget(shell["lines"], python["lines"])
+        self.assertLessEqual(result["lines"], governance.ORCHESTRATION_TOTAL_LIMIT)
+
+
 class SourceBudgetTest(unittest.TestCase):
     """Prevent unreviewed growth of existing and new source monoliths."""
 

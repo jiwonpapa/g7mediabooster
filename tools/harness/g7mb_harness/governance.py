@@ -12,17 +12,15 @@ from pathlib import Path
 from .process import require_programs, run
 
 DEFAULT_SHELL_LIMIT = 100
-SHELL_TOTAL_LIMIT = 2_137
+SHELL_TOTAL_LIMIT = 1_636
 DEFAULT_PYTHON_LIMIT = 300
-PYTHON_TOTAL_LIMIT = 2_736
+PYTHON_TOTAL_LIMIT = 3_182
+ORCHESTRATION_TOTAL_LIMIT = 4_818
 DEFAULT_SOURCE_LIMIT = 500
 SHELL_EXCEPTIONS = {
     "scripts/cgroup-smoke-inner.sh": 109,
-    "scripts/heavy-avif.sh": 180,
-    "scripts/heavy-image.sh": 154,
     "scripts/live-storage-conformance.sh": 139,
     "scripts/live-storage-preflight-smoke.sh": 141,
-    "scripts/load-100.sh": 185,
     "scripts/native-smoke.sh": 191,
     "scripts/package-g7-module.sh": 212,
     "scripts/package-server-bundle.sh": 152,
@@ -111,6 +109,17 @@ def python_budget(root: Path) -> dict[str, int]:
     if failures:
         raise RuntimeError("Python harness budget failed:\n" + "\n".join(failures))
     return {"files": len(counts), "lines": total}
+
+
+def orchestration_budget(shell_lines: int, python_lines: int) -> dict[str, int]:
+    """Keep the combined Bash and Python harness smaller after language migrations."""
+
+    total = shell_lines + python_lines
+    if total > ORCHESTRATION_TOTAL_LIMIT:
+        raise RuntimeError(
+            f"orchestration total: {total} lines exceeds {ORCHESTRATION_TOTAL_LIMIT}"
+        )
+    return {"lines": total}
 
 
 def source_budget(root: Path) -> dict[str, int]:
@@ -214,12 +223,14 @@ def execute(*, require_tools: bool = False) -> dict[str, object]:
         run(["pytest", "-c", "tools/harness/pyproject.toml"], cwd=root)
     shell = shell_budget(root)
     python = python_budget(root)
+    orchestration = orchestration_budget(shell["lines"], python["lines"])
     sources = source_budget(root)
     rust_harness = rust_harness_dependency_budget(root)
     result: dict[str, object] = {
         "status": "PASS",
         "python": python,
         "shell": shell,
+        "orchestration": orchestration,
         "sources": sources,
         "rust_harness": rust_harness,
     }
