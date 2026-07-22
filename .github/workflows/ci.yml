@@ -19,7 +19,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Install native development libraries
         run: >-
           sudo apt-get update && sudo apt-get install -y --no-install-recommends
@@ -50,7 +50,7 @@ jobs:
     name: adapter-${{ matrix.command }}
     steps:
       - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Verify Gnuboard adapter toolchains
         run: php --version && composer --version && node --version && npm --version
       - name: Run ${{ matrix.name }} adapter gate
@@ -61,7 +61,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Install coverage harness
         run: cargo install --locked cargo-llvm-cov --version 0.8.7
       - name: Enforce aggregate and component coverage ratchets
@@ -72,7 +72,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Install pinned supply-chain tools
         run: |
           cargo install --locked cargo-audit --version 0.22.2
@@ -88,7 +88,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Install native runtime
         run: >-
           sudo apt-get update && sudo apt-get install -y --no-install-recommends
@@ -105,7 +105,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Verify Docker runtime
         run: docker version
       - name: Run pinned MinIO S3 protocol conformance
@@ -116,7 +116,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Install native runtime
         run: >-
           sudo apt-get update && sudo apt-get install -y --no-install-recommends
@@ -131,7 +131,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Verify PHP, Composer, and Docker runtimes
         run: php --version && composer --version && docker version
       - name: Install Gnuboard 5 adapter dependencies
@@ -155,9 +155,9 @@ jobs:
           --health-interval=5s --health-timeout=5s --health-retries=20
     steps:
       - name: Checkout G7MediaBooster
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Checkout pinned public Gnuboard7 baseline
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: gnuboard/g7
           ref: fcaacad8d16d47a8b5bcee65990869992de0a0d8
@@ -207,7 +207,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
       - name: Install native and archive dependencies
