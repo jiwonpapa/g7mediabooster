@@ -4,7 +4,10 @@ use std::{path::PathBuf, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use clap::Parser;
-use g7mb_api::{ApiAuth, ApiRateLimitPolicy, ApiState, probe_sandbox_capabilities, router};
+use g7mb_api::{
+    ApiAuth, ApiRateLimitPolicy, ApiState, PublicDeliveryPolicy, PublicDeliveryState,
+    probe_sandbox_capabilities, public_delivery_router, router,
+};
 use g7mb_application::{
     delivery::{DerivativeDeliveryPolicy, DerivativeDeliveryService},
     lifecycle::{LifecyclePolicy, LifecycleService},
@@ -103,9 +106,33 @@ async fn main() -> anyhow::Result<()> {
             signed_url_ttl: Duration::from_secs(settings.delivery.signed_url_ttl_seconds),
             manifest_cache_ttl: Duration::from_secs(settings.delivery.manifest_cache_ttl_seconds),
             manifest_cache_max_bytes: settings.delivery.manifest_cache_max_bytes,
+            redirect_allowed_authorities: settings
+                .storage
+                .derivative_redirect_authorities()
+                .context("failed to derive provider redirect authorities")?,
         },
     )
     .context("failed to initialize derivative delivery")?;
+    let public_delivery = settings
+        .delivery
+        .public_enabled
+        .then(|| {
+            PublicDeliveryState::new(
+                settings.auth.tenant_id.clone(),
+                delivery_service.clone(),
+                settings.delivery.public_signing_secret.clone(),
+                PublicDeliveryPolicy {
+                    token_max_ttl: Duration::from_secs(
+                        settings.delivery.public_token_max_ttl_seconds,
+                    ),
+                    requests_per_second: settings.delivery.public_rate_limit_requests_per_second,
+                    burst: settings.delivery.public_rate_limit_burst,
+                    max_in_flight: settings.delivery.public_max_in_flight_requests,
+                },
+            )
+        })
+        .transpose()
+        .context("failed to initialize public derivative delivery")?;
     let allowed_skew_seconds = i64::try_from(settings.auth.allowed_skew_seconds)
         .context("auth clock skew exceeds signed range")?;
     let auth = ApiAuth::new(
@@ -119,7 +146,7 @@ async fn main() -> anyhow::Result<()> {
         .await
         .context("failed to bind API listener")?;
     tracing::info!(bind_addr = %settings.server.bind_addr, "g7mb API ready");
-    axum::serve(
+    let control_server = axum::serve(
         listener,
         router(
             ApiState::new(true, Some(metrics))
@@ -141,9 +168,22 @@ async fn main() -> anyhow::Result<()> {
             settings.server.request_body_limit_bytes,
         ),
     )
-    .with_graceful_shutdown(shutdown_signal())
-    .await
-    .context("API server failed")?;
+    .with_graceful_shutdown(shutdown_signal());
+    if let Some(public_delivery) = public_delivery {
+        let public_listener = tokio::net::TcpListener::bind(settings.delivery.public_bind_addr)
+            .await
+            .context("failed to bind public delivery listener")?;
+        tracing::info!(
+            bind_addr = %settings.delivery.public_bind_addr,
+            "g7mb signed public thumbnail listener ready"
+        );
+        let public_server = axum::serve(public_listener, public_delivery_router(public_delivery))
+            .with_graceful_shutdown(shutdown_signal());
+        tokio::try_join!(control_server, public_server)
+            .context("API or public delivery server failed")?;
+    } else {
+        control_server.await.context("API server failed")?;
+    }
     Ok(())
 }
 

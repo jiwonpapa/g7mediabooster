@@ -1,6 +1,7 @@
 //! Application ports shared by API and infrastructure adapters.
 
 pub mod delivery;
+mod delivery_security;
 pub mod inventory;
 pub mod lifecycle;
 pub mod operations;

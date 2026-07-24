@@ -68,6 +68,8 @@ G7MB-HMAC-SHA256
 
 - TLS는 reverse proxy에서 종료합니다.
 - API는 `127.0.0.1` 또는 private interface에만 bind합니다.
+- 선택형 공개 썸네일은 별도 loopback listener를 사용하며 control·health·metrics route를
+  포함하지 않습니다. `/media/v1/` 이외 경로는 `404`입니다.
 - `/metrics`는 public ingress에서 차단합니다.
 - raw bucket public access와 listing을 모두 차단합니다.
 - sandbox root filesystem read-only, `PrivateTmp`, `NoNewPrivileges`, capability drop을 적용합니다.
@@ -103,6 +105,10 @@ G7MB-HMAC-SHA256
   site-policy 참조 자산을 거부합니다. 삭제 대기 상태에서는 파생 URL을 반환하지 않습니다.
 - 구현: 썸네일 bytes와 presigned URL은 캐시하지 않습니다. immutable manifest만 기본
   4MiB·60초로 제한하고, delivery마다 SQLite의 Ready/deletion guard를 다시 확인합니다.
+- 공개 URL은 exact tenant·upload UUID·preset·`thumbnail.jpg`·만료시간을 HMAC-SHA256으로
+  묶습니다. 추가·중복 query와 임의 크기·filter·remote URL을 거부합니다.
+- object-store presign 결과도 설정에서 도출한 exact scheme·authority allowlist와 다시
+  대조하며 불일치 URL은 PHP나 브라우저에 전달하지 않습니다.
   durable 삭제 요청 성공 시 해당 manifest를 즉시 invalidate합니다.
 - 구현: 만료 created multipart abort와 rejected/failed 원본 보존 정리를 최대 100개 batch,
   5분 lease, 1분 retry, 기본 10회 attempt 상한으로 실행하고 derivative→raw 성공 뒤에만

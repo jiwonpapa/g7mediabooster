@@ -1,56 +1,21 @@
 //! Tenant-scoped private derivative delivery without proxying media bytes.
 
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 
 use g7mb_domain::{UploadId, UploadState};
 use metrics::{counter, gauge};
 use moka::future::Cache;
-use secrecy::SecretString;
+use secrecy::{ExposeSecret as _, SecretString};
 use thiserror::Error;
 use time::OffsetDateTime;
 
 use crate::{
     ObjectStore, ObjectStoreError, PresignGetRequest,
+    delivery_security::{trusted_redirect, valid_preset, valid_tenant},
     uploads::{StoredDerivative, UploadRepository, UploadRepositoryError, UploadStatusSnapshot},
 };
 
-const MIN_DELIVERY_TTL: Duration = Duration::from_secs(30);
-const MAX_DELIVERY_TTL: Duration = Duration::from_secs(15 * 60);
-const MIN_MANIFEST_CACHE_TTL: Duration = Duration::from_secs(1);
-const MAX_MANIFEST_CACHE_TTL: Duration = Duration::from_secs(5 * 60);
-const MIN_MANIFEST_CACHE_BYTES: u64 = 64 * 1024;
-const MAX_MANIFEST_CACHE_BYTES: u64 = 64 * 1024 * 1024;
-
-/// Bounded private-delivery and immutable-manifest cache policy.
-#[derive(Clone, Copy, Debug)]
-pub struct DerivativeDeliveryPolicy {
-    /// Provider signature lifetime.
-    pub signed_url_ttl: Duration,
-    /// Maximum age of an immutable derivative manifest in memory.
-    pub manifest_cache_ttl: Duration,
-    /// Approximate total bytes admitted to the manifest cache.
-    pub manifest_cache_max_bytes: u64,
-}
-
-impl Default for DerivativeDeliveryPolicy {
-    fn default() -> Self {
-        Self {
-            signed_url_ttl: Duration::from_secs(5 * 60),
-            manifest_cache_ttl: Duration::from_secs(60),
-            manifest_cache_max_bytes: 4 * 1024 * 1024,
-        }
-    }
-}
-
-impl DerivativeDeliveryPolicy {
-    fn is_valid(self) -> bool {
-        (MIN_DELIVERY_TTL..=MAX_DELIVERY_TTL).contains(&self.signed_url_ttl)
-            && (MIN_MANIFEST_CACHE_TTL..=MAX_MANIFEST_CACHE_TTL).contains(&self.manifest_cache_ttl)
-            && self.manifest_cache_ttl <= self.signed_url_ttl
-            && (MIN_MANIFEST_CACHE_BYTES..=MAX_MANIFEST_CACHE_BYTES)
-                .contains(&self.manifest_cache_max_bytes)
-    }
-}
+pub use crate::delivery_security::DerivativeDeliveryPolicy;
 
 /// One authorized private derivative redirect target.
 #[derive(Clone, Debug)]
@@ -93,6 +58,9 @@ pub enum DerivativeDeliveryError {
     /// Object-store signing failed without exposing the signed URL.
     #[error(transparent)]
     ObjectStore(#[from] ObjectStoreError),
+    /// Object-store response escaped the configured provider authority.
+    #[error("derivative provider redirect is not trusted")]
+    UntrustedRedirect,
 }
 
 /// Authorizes tenant ownership and signs the immutable derivative key only.
@@ -141,6 +109,32 @@ impl DerivativeDeliveryService {
         upload_id: UploadId,
         variant: &str,
     ) -> Result<DerivativeDelivery, DerivativeDeliveryError> {
+        self.presign_inner(tenant_id, upload_id, None, variant)
+            .await
+    }
+
+    /// Returns a short-lived URL only when the immutable preset and variant match exactly.
+    pub async fn presign_exact(
+        &self,
+        tenant_id: &str,
+        upload_id: UploadId,
+        preset_id: &str,
+        variant: &str,
+    ) -> Result<DerivativeDelivery, DerivativeDeliveryError> {
+        if !valid_preset(preset_id) {
+            return Err(DerivativeDeliveryError::InvalidVariant);
+        }
+        self.presign_inner(tenant_id, upload_id, Some(preset_id), variant)
+            .await
+    }
+
+    async fn presign_inner(
+        &self,
+        tenant_id: &str,
+        upload_id: UploadId,
+        preset_id: Option<&str>,
+        variant: &str,
+    ) -> Result<DerivativeDelivery, DerivativeDeliveryError> {
         if !valid_tenant(tenant_id) {
             return Err(DerivativeDeliveryError::InvalidTenant);
         }
@@ -183,6 +177,9 @@ impl DerivativeDeliveryService {
         let derivative = manifest
             .derivative(variant)
             .ok_or(DerivativeDeliveryError::NotFound)?;
+        if preset_id.is_some_and(|expected| derivative.preset_id != expected) {
+            return Err(DerivativeDeliveryError::NotFound);
+        }
         let signed = self
             .derivative_store
             .presign_get(PresignGetRequest {
@@ -190,6 +187,14 @@ impl DerivativeDeliveryService {
                 expires_in: self.policy.signed_url_ttl,
             })
             .await?;
+        if !trusted_redirect(
+            signed.url.expose_secret(),
+            &self.policy.redirect_allowed_authorities,
+        ) {
+            counter!("g7mb_delivery_redirect_rejections_total", "reason" => "authority")
+                .increment(1);
+            return Err(DerivativeDeliveryError::UntrustedRedirect);
+        }
         Ok(DerivativeDelivery {
             preset_id: derivative.preset_id.clone(),
             variant: derivative.variant.clone(),
@@ -326,14 +331,6 @@ fn manifest_weight(key: &ManifestKey, manifest: &Arc<DerivativeManifest>) -> u32
             .saturating_add(std::mem::size_of::<StoredDerivative>());
     }
     u32::try_from(bytes).unwrap_or(u32::MAX)
-}
-
-fn valid_tenant(value: &str) -> bool {
-    !value.is_empty()
-        && value.len() <= 64
-        && value
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
 }
 
 #[cfg(test)]

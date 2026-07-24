@@ -36,6 +36,7 @@
     {"id": "live_provider_retention_delete", "reason": "보존 만료부터 실 provider object count 0까지 종단 미실행"},
     {"id": "multi_node_postgresql", "reason": "v1 기본 범위 제외"},
     {"id": "dynamic_resize_and_video_transcoding", "reason": "v1 기본 범위 제외"},
+    {"id": "signed_public_thumbnail_delivery", "reason": "기본 비활성; G7 URL producer와 실제 Nginx ingress 종단 검증 전 공식 미게시"},
     {"id": "webm_jpegxl_hevc_av1_fallback", "reason": "release fixture·fallback 미검증"},
     {"id": "s3_management_apis", "reason": "ACL, Object Lock, replication, inventory, IAM/STS, SSE-KMS는 제품 runtime 범위 아님"}
   ]

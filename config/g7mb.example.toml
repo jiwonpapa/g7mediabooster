@@ -86,6 +86,16 @@ tombstone_purge_batch_size = 100
 signed_url_ttl_seconds = 300
 manifest_cache_ttl_seconds = 60
 manifest_cache_max_bytes = 4194304
+# Disabled until Nginx exposes only /media/v1/ to this separate loopback listener.
+public_enabled = false
+public_bind_addr = "127.0.0.1:8089"
+public_signing_secret = "replace-with-at-least-32-characters"
+# Production may reuse the domain-separated HMAC credential or pin a separate root-only file:
+# public_signing_secret_file = "/etc/g7mediabooster/credentials/public-url-signing-secret"
+public_token_max_ttl_seconds = 300
+public_rate_limit_requests_per_second = 100
+public_rate_limit_burst = 200
+public_max_in_flight_requests = 128
 
 [watermark]
 # Disabled by default. When enabled the worker copies this registered local asset into each

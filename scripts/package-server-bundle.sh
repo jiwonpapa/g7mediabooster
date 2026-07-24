@@ -70,17 +70,17 @@ cleanup() {
     rm -f -- "$temporary_one" "$temporary_two"
 }
 trap cleanup EXIT
-
 install -d -m 0755 \
     "$bundle/bin" \
     "$bundle/libexec" \
-    "$bundle/systemd" \
+    "$bundle/systemd" "$bundle/nginx" \
     "$bundle/gnuboard7"
 install -m 0755 target/release/g7mbctl "$bundle/bin/g7mbctl"
 install -m 0755 target/release/g7mb-api "$bundle/bin/g7mb-api"
 install -m 0755 target/release/g7mb-worker "$bundle/bin/g7mb-worker"
 install -m 0755 target/release/g7mb-sandbox "$bundle/libexec/g7mb-sandbox"
 install -m 0644 deploy/systemd/* "$bundle/systemd/"
+install -m 0644 deploy/nginx/g7mediabooster-public.conf "$bundle/nginx/"
 install -m 0644 docs/SERVER_INSTALL.md "$bundle/INSTALL.md"
 install -m 0644 deploy/official-features-v1.json "$bundle/gnuboard7/official-features-v1.json"
 install -m 0755 scripts/verify-gnuboard7-media-contract.sh \
@@ -109,7 +109,7 @@ fi
 printf '%s\n' "$version" >"$bundle/VERSION"
 (
     cd "$bundle"
-    find bin libexec systemd gnuboard7 -type f -print0 \
+    find bin libexec systemd nginx gnuboard7 -type f -print0 \
         | LC_ALL=C sort -z \
         | xargs -0 sha256sum >MANIFEST.sha256
     sha256sum INSTALL.md VERSION >>MANIFEST.sha256

@@ -1,5 +1,10 @@
 //! HTTP control-plane router and generated OpenAPI contract.
 
+mod openapi;
+mod public_delivery;
+
+pub use public_delivery::{PublicDeliveryPolicy, PublicDeliveryState, public_delivery_router};
+
 use std::{
     collections::BTreeMap,
     fmt,
@@ -55,7 +60,7 @@ use tower_http::{
     timeout::TimeoutLayer,
     trace::TraceLayer,
 };
-use utoipa::{OpenApi, openapi::OpenApi as OpenApiDocument};
+use utoipa::openapi::OpenApi as OpenApiDocument;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -426,7 +431,7 @@ fn status_class(status: StatusCode) -> &'static str {
 /// Returns the generated OpenAPI document.
 #[must_use]
 pub fn openapi() -> OpenApiDocument {
-    ApiDoc::openapi()
+    openapi::document()
 }
 
 /// Returns deterministic pretty JSON used by the contract drift harness.
@@ -1432,7 +1437,8 @@ impl ApiFailure {
             DerivativeDeliveryError::InvalidTenant
             | DerivativeDeliveryError::InvalidPolicy
             | DerivativeDeliveryError::ObjectStore(_)
-            | DerivativeDeliveryError::Repository(_) => Self::not_ready(),
+            | DerivativeDeliveryError::Repository(_)
+            | DerivativeDeliveryError::UntrustedRedirect => Self::not_ready(),
             DerivativeDeliveryError::InvalidVariant => Self::invalid_path(),
             DerivativeDeliveryError::NotFound => Self {
                 status: StatusCode::NOT_FOUND,
@@ -1479,57 +1485,6 @@ fn required_header<'a>(headers: &'a HeaderMap, name: &'static str) -> Result<&'a
         .map_err(|_| ApiFailure::invalid_auth_field())
 }
 
-#[derive(OpenApi)]
-#[openapi(
-    paths(
-        liveness,
-        readiness,
-        metrics,
-        capabilities,
-        publish_site_policy,
-        get_site_policy,
-        create_upload_batch,
-        presign_upload_part,
-        complete_multipart_upload,
-        abort_multipart_upload,
-        confirm_single_upload,
-        get_upload_status,
-        get_derivative_delivery,
-        request_upload_deletion
-    ),
-    components(schemas(
-        HealthResponse,
-        CapabilitiesResponse,
-        PublishSitePolicyRequest,
-        SitePolicySnapshotResponse,
-        g7mb_contracts::SitePolicyWatermarkRequest,
-        SitePolicyWatermarkResponse,
-        SitePolicyWatermarkPosition,
-        ErrorResponse,
-        CreateUploadBatchRequest,
-        CreateUploadBatchResponse,
-        UploadIntentResponse,
-        UploadKind,
-        UploadMethod,
-        PresignUploadPartRequest,
-        PresignUploadPartResponse,
-        CompleteMultipartUploadRequest,
-        g7mb_contracts::CompletedUploadPart,
-        UploadStatusResponse,
-        UploadStatusValue,
-        UploadDerivativeResponse,
-        DerivativeDeliveryResponse
-    )),
-    tags(
-        (name = "health", description = "Liveness and dependency readiness"),
-        (name = "internal", description = "Private operational endpoints"),
-        (name = "media", description = "Verified runtime media capabilities"),
-        (name = "policy", description = "Authenticated immutable tenant policy snapshots"),
-        (name = "uploads", description = "Authenticated bounded direct uploads")
-    )
-)]
-struct ApiDoc;
-
 #[cfg(test)]
 mod tests {
     use std::{
@@ -1574,6 +1529,13 @@ mod tests {
     struct ApiFakeStore {
         head_length: AtomicU64,
         puts: AtomicU64,
+    }
+
+    fn api_delivery_policy() -> DerivativeDeliveryPolicy {
+        DerivativeDeliveryPolicy {
+            redirect_allowed_authorities: vec!["private-storage.invalid".to_owned()],
+            ..DerivativeDeliveryPolicy::default()
+        }
     }
 
     #[tokio::test]
@@ -2082,7 +2044,7 @@ mod tests {
             .with_derivative_delivery(DerivativeDeliveryService::new(
                 database.clone(),
                 storage.clone(),
-                DerivativeDeliveryPolicy::default(),
+                api_delivery_policy(),
             )?)
             .with_upload_control(
                 UploadIntentService::new(storage, database.clone(), UploadBatchPolicy::default()),
@@ -2203,7 +2165,7 @@ mod tests {
             .with_derivative_delivery(DerivativeDeliveryService::new(
                 database,
                 storage,
-                DerivativeDeliveryPolicy::default(),
+                api_delivery_policy(),
             )?);
         let delivery_path = format!("/v1/uploads/{upload_id}/derivatives/thumbnail/delivery");
         let deliverable = router(state.clone(), 1024)

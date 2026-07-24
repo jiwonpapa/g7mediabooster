@@ -1,5 +1,7 @@
 //! Linux bundle installation and product-level service diagnostics.
 
+mod directories;
+
 use std::{
     collections::BTreeMap,
     env,
@@ -15,6 +17,8 @@ use std::{
 use anyhow::{Context as _, bail};
 use g7mb_config::Settings;
 use sha2::{Digest as _, Sha256};
+
+use directories::{prepare_directories, prepare_install_directories};
 
 const SERVICE_USER: &str = "g7mediabooster";
 const SERVICE_TARGET: &str = "g7mediabooster.target";
@@ -206,6 +210,12 @@ const PAYLOAD_FILES: &[PayloadFile] = &[
     PayloadFile {
         source: "systemd/g7mediabooster-backup.timer",
         destination: "/etc/systemd/system/g7mediabooster-backup.timer",
+        mode: 0o644,
+        maximum_bytes: 64 * 1024,
+    },
+    PayloadFile {
+        source: "nginx/g7mediabooster-public.conf",
+        destination: "/usr/local/share/g7mediabooster/nginx/g7mediabooster-public.conf",
         mode: 0o644,
         maximum_bytes: 64 * 1024,
     },
@@ -640,45 +650,6 @@ fn prepare_service_account() -> anyhow::Result<()> {
     let group = command_stdout("id", &["-gn", SERVICE_USER])?;
     if group.trim() != SERVICE_USER {
         bail!("기존 g7mediabooster 사용자의 primary group이 올바르지 않습니다");
-    }
-    Ok(())
-}
-
-fn prepare_directories() -> anyhow::Result<()> {
-    for (path, mode) in [
-        ("/etc/g7mediabooster", 0o750),
-        ("/etc/g7mediabooster/credentials", 0o700),
-        ("/var/lib/g7mediabooster", 0o750),
-        ("/var/lib/g7mediabooster/tmp", 0o700),
-        ("/var/lib/g7mediabooster/backups", 0o700),
-    ] {
-        create_directory(Path::new(path), mode)?;
-    }
-    run_checked("chown", &["root:root", "/etc/g7mediabooster/credentials"])?;
-    run_checked("chgrp", &[SERVICE_USER, "/etc/g7mediabooster"])?;
-    for path in [
-        "/var/lib/g7mediabooster",
-        "/var/lib/g7mediabooster/tmp",
-        "/var/lib/g7mediabooster/backups",
-    ] {
-        run_checked("chown", &["g7mediabooster:g7mediabooster", path])?;
-    }
-    Ok(())
-}
-
-fn prepare_install_directories() -> anyhow::Result<()> {
-    for path in [
-        "/usr/local/bin",
-        "/usr/local/libexec",
-        "/etc/systemd/system",
-    ] {
-        ensure_directory(Path::new(path), 0o755)?;
-    }
-    for path in [
-        "/usr/local/share/g7mediabooster",
-        "/usr/local/share/g7mediabooster/gnuboard7",
-    ] {
-        create_directory(Path::new(path), 0o755)?;
     }
     Ok(())
 }

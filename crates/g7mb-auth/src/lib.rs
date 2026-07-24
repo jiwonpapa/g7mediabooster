@@ -8,6 +8,51 @@ use thiserror::Error;
 
 type HmacSha256 = Hmac<Sha256>;
 
+/// Canonical immutable media URL covered by a short-lived public signature.
+#[derive(Clone, Copy, Debug)]
+pub struct SignedMediaUrl<'a> {
+    /// Exact percent-encoded path beginning with `/media/v1/`.
+    pub path: &'a str,
+    /// Absolute Unix expiration included in the query string.
+    pub expires_at: i64,
+    /// Base64url-no-padding HMAC signature.
+    pub signature: &'a str,
+}
+
+impl SignedMediaUrl<'_> {
+    /// Builds the exact payload shared by PHP URL producers and the Rust delivery listener.
+    #[must_use]
+    pub fn canonical_payload(&self) -> String {
+        format!(
+            "G7MB-MEDIA-HMAC-SHA256\nGET\n{}\n{}",
+            self.path, self.expires_at
+        )
+    }
+}
+
+/// Signed immutable media URL verification failure.
+#[derive(Clone, Copy, Debug, Error, Eq, PartialEq)]
+pub enum MediaUrlVerificationError {
+    /// The URL path or expiration is outside the canonical contract.
+    #[error("media URL contains an invalid field")]
+    InvalidField,
+    /// The URL has expired.
+    #[error("media URL has expired")]
+    Expired,
+    /// The requested lifetime exceeds the configured ceiling.
+    #[error("media URL lifetime exceeds the configured ceiling")]
+    ExcessiveLifetime,
+    /// Signature is not valid base64url.
+    #[error("media URL signature encoding is invalid")]
+    InvalidEncoding,
+    /// Signature does not match.
+    #[error("media URL signature is invalid")]
+    InvalidSignature,
+    /// Secret cannot initialize HMAC.
+    #[error("media URL verification key is invalid")]
+    InvalidKey,
+}
+
 /// Inputs covered by the PHP-to-Rust request signature.
 #[derive(Clone, Copy, Debug)]
 pub struct SignedRequest<'a> {
@@ -118,6 +163,59 @@ pub fn sha256_hex(body: &[u8]) -> String {
     hex::encode(Sha256::digest(body))
 }
 
+/// Produces the PHP-compatible signature for one immutable public media path.
+pub fn sign_media_url(
+    media: &SignedMediaUrl<'_>,
+    secret: &SecretString,
+) -> Result<String, MediaUrlVerificationError> {
+    validate_media_url_fields(media)?;
+    let mut mac = media_url_mac(secret)?;
+    mac.update(media.canonical_payload().as_bytes());
+    Ok(URL_SAFE_NO_PAD.encode(mac.finalize().into_bytes()))
+}
+
+/// Verifies an immutable public media path, its bounded expiration, and its HMAC.
+pub fn verify_media_url(
+    media: &SignedMediaUrl<'_>,
+    secret: &SecretString,
+    now_unix_seconds: i64,
+    max_lifetime_seconds: u64,
+) -> Result<(), MediaUrlVerificationError> {
+    validate_media_url_fields(media)?;
+    if media.expires_at < now_unix_seconds {
+        return Err(MediaUrlVerificationError::Expired);
+    }
+    if media.expires_at.abs_diff(now_unix_seconds) > max_lifetime_seconds {
+        return Err(MediaUrlVerificationError::ExcessiveLifetime);
+    }
+    let signature = URL_SAFE_NO_PAD
+        .decode(media.signature)
+        .map_err(|_| MediaUrlVerificationError::InvalidEncoding)?;
+    let mut mac = media_url_mac(secret)?;
+    mac.update(media.canonical_payload().as_bytes());
+    mac.verify_slice(&signature)
+        .map_err(|_| MediaUrlVerificationError::InvalidSignature)
+}
+
+fn validate_media_url_fields(media: &SignedMediaUrl<'_>) -> Result<(), MediaUrlVerificationError> {
+    if !media.path.starts_with("/media/v1/")
+        || media.path.len() > 2048
+        || !media.path.bytes().all(|byte| byte.is_ascii_graphic())
+        || media.expires_at <= 0
+    {
+        return Err(MediaUrlVerificationError::InvalidField);
+    }
+    Ok(())
+}
+
+fn media_url_mac(secret: &SecretString) -> Result<HmacSha256, MediaUrlVerificationError> {
+    if !(32..=256).contains(&secret.expose_secret().len()) {
+        return Err(MediaUrlVerificationError::InvalidKey);
+    }
+    HmacSha256::new_from_slice(secret.expose_secret().as_bytes())
+        .map_err(|_| MediaUrlVerificationError::InvalidKey)
+}
+
 fn valid_field(request: &SignedRequest<'_>) -> bool {
     !request.key_id.is_empty()
         && request.key_id.len() <= 128
@@ -149,7 +247,10 @@ mod tests {
     use secrecy::SecretString;
     use sha2::Sha256;
 
-    use super::{SignedRequest, VerificationError, sha256_hex, verify};
+    use super::{
+        MediaUrlVerificationError, SignedMediaUrl, SignedRequest, VerificationError, sha256_hex,
+        sign_media_url, verify, verify_media_url,
+    };
 
     fn signed_request<'a>(
         body_hash: &'a str,
@@ -214,5 +315,41 @@ mod tests {
             verify(&noncanonical, &strong_secret, 1_700_000_000, 300),
             Err(VerificationError::InvalidField)
         );
+    }
+
+    #[test]
+    fn media_url_signature_rejects_tamper_expiry_and_excessive_lifetime()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let secret = SecretString::from("0123456789abcdef0123456789abcdef".to_owned());
+        let path = "/media/v1/site-a/018f5a0c-7282-7a77-87dd-7a944e3b6f22/board-v1/thumbnail.jpg";
+        let unsigned = SignedMediaUrl {
+            path,
+            expires_at: 1_700_000_300,
+            signature: "",
+        };
+        let signature = sign_media_url(&unsigned, &secret)?;
+        let signed = SignedMediaUrl {
+            signature: &signature,
+            ..unsigned
+        };
+        verify_media_url(&signed, &secret, 1_700_000_000, 300)?;
+
+        let tampered = SignedMediaUrl {
+            path: "/media/v1/site-a/018f5a0c-7282-7a77-87dd-7a944e3b6f22/other/thumbnail.jpg",
+            ..signed
+        };
+        assert_eq!(
+            verify_media_url(&tampered, &secret, 1_700_000_000, 300),
+            Err(MediaUrlVerificationError::InvalidSignature)
+        );
+        assert_eq!(
+            verify_media_url(&signed, &secret, 1_700_000_301, 300),
+            Err(MediaUrlVerificationError::Expired)
+        );
+        assert_eq!(
+            verify_media_url(&signed, &secret, 1_699_999_999, 300),
+            Err(MediaUrlVerificationError::ExcessiveLifetime)
+        );
+        Ok(())
     }
 }

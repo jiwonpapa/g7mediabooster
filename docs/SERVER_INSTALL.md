@@ -77,5 +77,6 @@ G7 관리자에 업로드할 ZIP은 다음 위치에 설치됩니다.
 - 일반 설정: `/etc/g7mediabooster/g7mb.toml` (`0640`, root:g7mediabooster)
 - root-only 비밀값: `/etc/g7mediabooster/credentials/` (`0700`, 파일 `0600`)
 - SQLite·임시 파일·backup: `/var/lib/g7mediabooster`
-- API: loopback `127.0.0.1:8088`; 공개 reverse proxy 불필요
+- control API: loopback `127.0.0.1:8088`; 공개 reverse proxy 금지
+- 선택형 signed thumbnail: loopback `127.0.0.1:8089`; 기본 비활성, `/media/v1/`만 proxy
 - 브라우저 파일 본문: PHP/Rust를 거치지 않고 private R2/S3로 직접 전송

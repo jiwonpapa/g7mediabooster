@@ -1,5 +1,6 @@
 //! Typed, redacted configuration loaded from TOML and environment variables.
 
+mod delivery_settings;
 use std::{
     fs,
     net::SocketAddr,
@@ -10,6 +11,11 @@ use config::{Config, ConfigError, Environment, File, FileFormat};
 use secrecy::{ExposeSecret as _, SecretString};
 use serde::Deserialize;
 use url::Url;
+
+pub use delivery_settings::DeliverySettings;
+use delivery_settings::{
+    derive_redirect_authorities, resolve_public_secret, validate_delivery_settings,
+};
 
 /// Complete service configuration.
 #[derive(Clone, Debug, Deserialize)]
@@ -94,7 +100,14 @@ impl Settings {
             .set_default("lifecycle.tombstone_purge_batch_size", 100_i64)?
             .set_default("delivery.signed_url_ttl_seconds", 300_i64)?
             .set_default("delivery.manifest_cache_ttl_seconds", 60_i64)?
-            .set_default("delivery.manifest_cache_max_bytes", 4_194_304_i64)?;
+            .set_default("delivery.manifest_cache_max_bytes", 4_194_304_i64)?
+            .set_default("delivery.public_enabled", false)?
+            .set_default("delivery.public_bind_addr", "127.0.0.1:8089")?
+            .set_default("delivery.public_signing_secret", "")?
+            .set_default("delivery.public_token_max_ttl_seconds", 300_i64)?
+            .set_default("delivery.public_rate_limit_requests_per_second", 100_i64)?
+            .set_default("delivery.public_rate_limit_burst", 200_i64)?
+            .set_default("delivery.public_max_in_flight_requests", 128_i64)?;
         builder = builder
             .set_default("watermark.enabled", false)?
             .set_default("watermark.asset_path", "")?
@@ -139,6 +152,7 @@ impl Settings {
             self.storage.secret_access_key_file.as_deref(),
             "storage.secret_access_key",
         )?;
+        resolve_public_secret(&mut self.delivery)?;
         Ok(())
     }
 
@@ -289,16 +303,8 @@ impl Settings {
                     .to_owned(),
             ));
         }
-        if !(30..=15 * 60).contains(&self.delivery.signed_url_ttl_seconds)
-            || !(1..=5 * 60).contains(&self.delivery.manifest_cache_ttl_seconds)
-            || self.delivery.manifest_cache_ttl_seconds > self.delivery.signed_url_ttl_seconds
-            || !(64 * 1024..=64 * 1024 * 1024).contains(&self.delivery.manifest_cache_max_bytes)
-        {
-            return Err(ConfigError::Message(
-                "delivery settings violate signature, manifest TTL, or cache byte limits"
-                    .to_owned(),
-            ));
-        }
+        validate_delivery_settings(&self.delivery, self.server.bind_addr)?;
+        self.storage.derivative_redirect_authorities()?;
         Ok(())
     }
 }
@@ -492,6 +498,11 @@ impl StorageSettings {
         }
         Ok(())
     }
+
+    /// Returns the exact provider authorities that may receive derivative redirects.
+    pub fn derivative_redirect_authorities(&self) -> Result<Vec<String>, ConfigError> {
+        derive_redirect_authorities(self)
+    }
 }
 
 /// Runtime storage profile persisted by `g7mbctl` and enforced before network access.
@@ -629,17 +640,6 @@ pub struct LifecycleSettings {
     pub tombstone_retention_seconds: u64,
     /// Maximum old tombstones purged per cleanup invocation.
     pub tombstone_purge_batch_size: usize,
-}
-
-/// Bounded private derivative delivery settings.
-#[derive(Clone, Debug, Deserialize)]
-pub struct DeliverySettings {
-    /// Short-lived provider GET signature lifetime.
-    pub signed_url_ttl_seconds: u64,
-    /// Maximum immutable manifest age in process memory.
-    pub manifest_cache_ttl_seconds: u64,
-    /// Approximate total manifest cache weight in bytes.
-    pub manifest_cache_max_bytes: u64,
 }
 
 /// Versioned watermark settings loaded only by the Rust worker.
