@@ -9,13 +9,14 @@ import sys
 import tomllib
 from pathlib import Path
 
+from . import release_policy
 from .process import require_programs, run
 
 DEFAULT_SHELL_LIMIT = 100
 SHELL_TOTAL_LIMIT = 1_636
 DEFAULT_PYTHON_LIMIT = 300
-PYTHON_TOTAL_LIMIT = 3_182
-ORCHESTRATION_TOTAL_LIMIT = 4_818
+PYTHON_TOTAL_LIMIT = 3_425
+ORCHESTRATION_TOTAL_LIMIT = 5_061
 DEFAULT_SOURCE_LIMIT = 500
 SHELL_EXCEPTIONS = {
     "scripts/cgroup-smoke-inner.sh": 109,
@@ -226,6 +227,7 @@ def execute(*, require_tools: bool = False) -> dict[str, object]:
     orchestration = orchestration_budget(shell["lines"], python["lines"])
     sources = source_budget(root)
     rust_harness = rust_harness_dependency_budget(root)
+    releases = release_policy.validate_repository(root)
     result: dict[str, object] = {
         "status": "PASS",
         "python": python,
@@ -233,6 +235,7 @@ def execute(*, require_tools: bool = False) -> dict[str, object]:
         "orchestration": orchestration,
         "sources": sources,
         "rust_harness": rust_harness,
+        "release_policy": releases,
     }
     print(json.dumps(result, sort_keys=True, separators=(",", ":")))
     return result

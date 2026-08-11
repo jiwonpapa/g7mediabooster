@@ -19,6 +19,8 @@ jobs:
           fetch-depth: 0
       - name: Validate tag and release policy
         run: |
+          test "$(git cat-file -t "$GITHUB_REF_NAME")" = "tag"
+          python3 -m tools.harness.g7mb_harness release-policy --tag "$GITHUB_REF_NAME"
           # shellcheck disable=SC2016
           version="$(php -r '
             $manifest = json_decode(file_get_contents($argv[1]), true, 512, JSON_THROW_ON_ERROR);
@@ -52,6 +54,8 @@ jobs:
         run: |
           # shellcheck disable=SC2016
           version="${GITHUB_REF_NAME#g7-module-v}"
+          python3 -m tools.harness.g7mb_harness release-notes "$GITHUB_REF_NAME" \
+            > "$RUNNER_TEMP/release-notes.md"
           release_flags=()
           # shellcheck disable=SC2016
           status="$(php -r '
@@ -75,6 +79,6 @@ jobs:
             scripts/verify-gnuboard7-media-contract.sh \
             deploy/official-features-v1.json \
             --verify-tag \
-            --generate-notes \
+            --notes-file "$RUNNER_TEMP/release-notes.md" \
             --title "G7MediaBooster Gnuboard7 module $version" \
             "${release_flags[@]}"

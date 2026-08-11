@@ -26,6 +26,8 @@ jobs:
           jq ripgrep unzip zip
       - name: Validate server tag
         run: |
+          test "$(git cat-file -t "$GITHUB_REF_NAME")" = "tag"
+          python3 -m tools.harness.g7mb_harness release-policy --tag "$GITHUB_REF_NAME"
           version="$(awk '
             $0 == "[workspace.package]" { package = 1; next }
             package && /^\[/ { exit }
@@ -49,6 +51,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           version="${GITHUB_REF_NAME#server-v}"
+          python3 -m tools.harness.g7mb_harness release-notes "$GITHUB_REF_NAME" \
+            > "$RUNNER_TEMP/release-notes.md"
           status="$(jq -er '.release_status' deploy/official-features-v1.json)"
           release_flags=()
           if test "$status" = "candidate"; then
@@ -58,6 +62,6 @@ jobs:
             output/releases/g7mediabooster-server-"$version"-linux-*.tar.gz \
             output/releases/g7mediabooster-server-"$version"-linux-*.tar.gz.sha256 \
             --verify-tag \
-            --generate-notes \
+            --notes-file "$RUNNER_TEMP/release-notes.md" \
             --title "G7MediaBooster server $version" \
             "${release_flags[@]}"

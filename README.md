@@ -106,6 +106,8 @@ cargo xtask supply-chain
 
 ## 문서
 
+- [변경 이력](CHANGELOG.md)
+- [릴리스·Semantic Versioning 정책](docs/RELEASE_POLICY.md)
 - [제품 스펙](SPEC.md)
 - [개발 헌법](DEVELOPMENT_CONSTITUTION.md)
 - [아키텍처](docs/ARCHITECTURE.md)

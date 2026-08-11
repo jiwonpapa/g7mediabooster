@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
 
 from . import (
     coverage_ratchet,
@@ -12,6 +13,7 @@ from . import (
     g7_live,
     governance,
     package_zipapp,
+    release_policy,
     resource_gates,
     verify_g7_contract,
 )
@@ -25,6 +27,15 @@ def parser() -> argparse.ArgumentParser:
 
     governance_parser = commands.add_parser("governance", help="run language and size gates")
     governance_parser.add_argument("--require-tools", action="store_true")
+
+    release_policy_parser = commands.add_parser(
+        "release-policy", help="validate changelog and Semantic Versioning contracts"
+    )
+    release_policy_parser.add_argument("--tag")
+    release_notes_parser = commands.add_parser(
+        "release-notes", help="extract human-authored notes for one release tag"
+    )
+    release_notes_parser.add_argument("tag")
 
     coverage_ratchet.add_arguments(commands.add_parser("coverage-ratchet"))
     full_stack.add_arguments(commands.add_parser("full-stack-smoke"))
@@ -43,6 +54,12 @@ def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     if args.command == "governance":
         return governance.main(["--require-tools"] if args.require_tools else [])
+    if args.command == "release-policy":
+        release_policy.validate_repository(Path.cwd(), args.tag)
+        return 0
+    if args.command == "release-notes":
+        print(release_policy.release_notes(Path.cwd(), args.tag), end="")
+        return 0
     if args.command == "coverage-ratchet":
         return coverage_ratchet.main(args)
     if args.command == "full-stack-smoke":

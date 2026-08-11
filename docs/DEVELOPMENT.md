@@ -16,6 +16,7 @@ cargo xtask quick          # fmt, default/full Clippy, test 1회, rustdoc
 cargo xtask rustdoc        # 공개 문서 누락, 링크, 코드블록, HTML 등 rustdoc lint 강제
 cargo xtask ci             # 하네스 + quick + OpenAPI/setup/preflight + bench compile
 cargo xtask harness-governance --require-tools # Python-first 소유권·타입·크기 ratchet
+python3 -m tools.harness.g7mb_harness release-policy # CHANGELOG·SemVer·manifest drift
 cargo xtask supply-chain   # advisory, license, source 검사
 cargo xtask native-smoke   # AVIF/HEIF, MP4/MOV, FFmpeg 부재 OpenH264 폴백
 cargo xtask api-smoke      # 실제 binary health/header smoke
@@ -46,6 +47,7 @@ CI의 `server-bundle` job은 생성물 목록만 확인하지 않습니다. 일�
 single/multipart storage `doctor`까지 실행한 뒤 설치 경로를 정리합니다.
 
 하네스 언어 선택과 Bash 제한은 [하네스 언어 거버넌스](HARNESS_GOVERNANCE.md)를 따릅니다.
+릴리스 버전 선택, CHANGELOG 작성과 tag 절차는 [릴리스·버전 정책](RELEASE_POLICY.md)을 따릅니다.
 
 ## 로컬 빌드 디스크 정책
 

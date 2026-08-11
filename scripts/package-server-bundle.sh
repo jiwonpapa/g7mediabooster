@@ -82,6 +82,7 @@ install -m 0755 target/release/g7mb-sandbox "$bundle/libexec/g7mb-sandbox"
 install -m 0644 deploy/systemd/* "$bundle/systemd/"
 install -m 0644 deploy/nginx/g7mediabooster-public.conf "$bundle/nginx/"
 install -m 0644 docs/SERVER_INSTALL.md "$bundle/INSTALL.md"
+install -m 0644 CHANGELOG.md "$bundle/CHANGELOG.md"
 install -m 0644 deploy/official-features-v1.json "$bundle/gnuboard7/official-features-v1.json"
 install -m 0755 scripts/verify-gnuboard7-media-contract.sh \
     "$bundle/gnuboard7/verify-gnuboard7-media-contract.sh"
@@ -96,7 +97,6 @@ install -m 0644 \
     cd "$bundle/gnuboard7"
     sha256sum jiwonpapa-g7mediabooster.zip >jiwonpapa-g7mediabooster.zip.sha256
 )
-
 patch_index=1
 for patch in adapters/gnuboard7/upstream-contract/*.patch; do
     install -m 0644 "$patch" "$bundle/gnuboard7/$(printf '%04d.patch' "$patch_index")"
@@ -112,7 +112,7 @@ printf '%s\n' "$version" >"$bundle/VERSION"
     find bin libexec systemd nginx gnuboard7 -type f -print0 \
         | LC_ALL=C sort -z \
         | xargs -0 sha256sum >MANIFEST.sha256
-    sha256sum INSTALL.md VERSION >>MANIFEST.sha256
+    sha256sum CHANGELOG.md INSTALL.md VERSION >>MANIFEST.sha256
     LC_ALL=C sort -o MANIFEST.sha256 MANIFEST.sha256
 )
 
