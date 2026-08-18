@@ -135,7 +135,14 @@ jobs:
       - name: Verify PHP, Composer, and Docker runtimes
         run: php --version && composer --version && docker version
       - name: Install Gnuboard 5 adapter dependencies
-        run: composer install --working-dir=adapters/gnuboard5/jiwonpapa-g7mediabooster --no-interaction --prefer-dist
+        run: |
+          for attempt in 1 2 3; do
+            if composer install --working-dir=adapters/gnuboard5/jiwonpapa-g7mediabooster --no-interaction --prefer-dist; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 3 ]; then exit 1; fi
+            sleep "$((attempt * 5))"
+          done
       - name: Run MySQL and MyISAM host contract
         run: bash scripts/gnuboard5-session-store-smoke.sh
 

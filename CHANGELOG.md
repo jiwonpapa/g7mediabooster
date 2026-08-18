@@ -29,6 +29,8 @@
   informational advisory는 근거를 기록해 임시 예외 처리했습니다.
 - setup smoke가 API의 선택형 공개 listener secret-file 환경을 worker와 같은 개수로 가정하던
   회귀를 수정했습니다.
+- GitHub Actions checkout 런타임을 Node 24 기반 버전으로 올리고 일시적인 Composer 5xx 응답을
+  제한적으로 재시도해 CI 공급망 검증의 안정성을 높였습니다.
 
 ### Security
 
