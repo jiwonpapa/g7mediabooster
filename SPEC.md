@@ -2,8 +2,8 @@
 
 - 상태: Accepted
 - 스펙 버전: 1.1.0
-- 제품 버전: 0.1.0
-- 기준일: 2026-07-15
+- 제품 버전: 0.1.1
+- 기준일: 2026-08-18
 
 > 이 문서는 설명용 snapshot입니다. 최종 정본은 실행 가능한 소스 코드와 코드에서 생성한
 > OpenAPI, DB migration, 어댑터 contract test입니다. 충돌은 코드 기준으로 같은 변경에서
@@ -341,9 +341,10 @@ health/metrics를 제외한 모든 API는 인증과 tenant scope가 필요합니
 - G7 관리자 전용 capability proxy가 Rust 응답을 길이·형식 제한 후 반환합니다.
 - HMAC tenant-scoped 삭제 예약, G7 소유권 프록시, SQLite cleanup lease/retry/attempt 상한,
   만료 multipart abort, derivative/raw idempotent 삭제와 systemd timer를 구현했습니다.
-- G7 module 0.3.0에 form 자동 연결, Ready master·thumbnail 전건 검증, DB lock 기반 native
+- G7 module 0.4.3에 form 자동 연결, Ready master·thumbnail 전건 검증, DB lock 기반 native
   attachment 멱등 materialization, 게시글 scope·삭제글 정책을 재사용하는 private viewer redirect,
-  soft-delete 보존 대조를 구현하고 공개 G7 `fcaacad` 기준 `sirsoft-board` 1.0.2→1.1.0 upstream patch 6개와 29항목·activation 검증기를 준비했습니다.
+  soft-delete 보존 대조를 구현했습니다. 공식 G7 7.0.6의 `sirsoft-board` 1.0.3에는 필수
+  `secure-external-attachments` capability가 없어 stock 설치는 현재 fail-closed 합니다.
 - G5 5.6.24 core-free adapter에 PHP 8-safe hook, HMAC control proxy, browser direct single/multipart,
   MyISAM advisory-lock attachment 연결과 private delivery를 구현하고 실제 MySQL 8.4·MinIO 브라우저에서
   2개 동시 업로드→Rust 처리→게시글 첨부 표시와 비로그인 `403`을 검증했습니다.
@@ -352,5 +353,6 @@ health/metrics를 제외한 모든 API는 인증과 tenant scope가 필요합니
   SQLite/provider session으로 재개하고, complete 2회 멱등 처리·HEAD 길이·Quarantined 상태와
   API RSS 증가 416KiB를 확인했습니다.
 
-실제 R2/Lightsail credential별 conformance, G7 upstream merge와 실 provider 보존 삭제는
-외부 운영 게이트로 남아 있으며 `docs/IMPLEMENTATION_PLAN.md` 순서로 추진합니다.
+Cloudflare R2 object·multipart·CORS·이미지·영상·거부·삭제 종단은 실계정에서 통과했습니다.
+AWS S3·Lightsail 실계정, R2 5GiB 전체 전송·중단 재개, G7 upstream capability 반영과 실 provider
+보존 만료 삭제는 외부 운영 게이트로 남아 있습니다.

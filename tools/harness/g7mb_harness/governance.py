@@ -15,16 +15,16 @@ from .process import require_programs, run
 DEFAULT_SHELL_LIMIT = 100
 SHELL_TOTAL_LIMIT = 1_636
 DEFAULT_PYTHON_LIMIT = 300
-PYTHON_TOTAL_LIMIT = 3_425
-ORCHESTRATION_TOTAL_LIMIT = 5_061
+PYTHON_TOTAL_LIMIT = 3_566
+ORCHESTRATION_TOTAL_LIMIT = 5_159
 DEFAULT_SOURCE_LIMIT = 500
 SHELL_EXCEPTIONS = {
     "scripts/cgroup-smoke-inner.sh": 109,
     "scripts/live-storage-conformance.sh": 139,
     "scripts/live-storage-preflight-smoke.sh": 141,
     "scripts/native-smoke.sh": 191,
-    "scripts/package-g7-module.sh": 212,
-    "scripts/package-server-bundle.sh": 152,
+    "scripts/package-g7-module.sh": 174,
+    "scripts/package-server-bundle.sh": 143,
     "scripts/server-install-smoke.sh": 160,
 }
 PYTHON_EXCEPTIONS = {
@@ -39,7 +39,7 @@ SOURCE_EXCEPTIONS = {
     "crates/g7mb-object-store-s3/src/lib.rs": 1_341,
     "crates/g7mb-application/src/uploads.rs": 1_291,
     "crates/g7mb-config/src/lib.rs": 1_177,
-    "apps/g7mbctl/src/installer.rs": 1_025,
+    "apps/g7mbctl/src/installer.rs": 995,
     "apps/g7mbctl/src/main.rs": 985,
     "crates/g7mb-object-store-s3/tests/live_provider_conformance.rs": 876,
     "crates/g7mb-domain/src/lib.rs": 817,
@@ -49,7 +49,7 @@ SOURCE_EXCEPTIONS = {
     "crates/g7mb-application/src/inventory.rs": 627,
     "crates/g7mb-application/src/lifecycle.rs": 618,
     "crates/g7mb-application/src/policies.rs": 580,
-    "xtask/src/main.rs": 535,
+    "xtask/src/main.rs": 530,
     "adapters/gnuboard7/jiwonpapa-g7mediabooster/resources/js/upload/MultiUploader.ts": 507,
 }
 

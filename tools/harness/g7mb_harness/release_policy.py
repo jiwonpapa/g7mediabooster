@@ -11,6 +11,8 @@ from itertools import pairwise
 from pathlib import Path
 from typing import Any
 
+from . import feature_status
+
 SEMVER_PATTERN = re.compile(
     r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)"
     r"(?:-((?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)"
@@ -202,9 +204,10 @@ def validate_repository(root: Path, expected_tag: str | None = None) -> dict[str
 
     loaded = products(root)
     result = {product.name: validate_changelog(product) for product in loaded}
+    features = feature_status.validate_repository(root)
     if expected_tag is not None:
         product_for_tag(root, expected_tag)
-    return {"status": "PASS", "products": result}
+    return {"status": "PASS", "products": result, "features": features}
 
 
 def release_notes(root: Path, tag: str) -> str:

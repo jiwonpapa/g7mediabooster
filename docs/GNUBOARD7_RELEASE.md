@@ -1,5 +1,10 @@
 # Gnuboard7 모듈 배포와 설치
 
+> 현재 공식 Gnuboard 7.0.6 stock에는 필수 외부 첨부 capability가 없어 모듈 상태가
+> `BLOCKED`입니다. 서버 번들의 ZIP은 유지관리자 preview이며 사용자 설치·활성화를 권장하지
+> 않습니다. 아래 절차는 기능 상태 정본의 `gnuboard7_module.publishable=true` 전환 후에만
+> 정식 설치 절차가 됩니다.
+
 ## 사용자 설치 경로
 
 서버 통합 Release를 설치한 경우 모듈 ZIP은 이미 다음 경로에 있습니다.
@@ -25,7 +30,7 @@ macOS는 다음 명령을 사용합니다.
 shasum -a 256 -c jiwonpapa-g7mediabooster-<version>.zip.sha256
 ```
 
-3. Release에 함께 첨부된 `0001`~`0006` 계약이 반영된 G7인지
+3. 대상 G7이 versioned `secure-external-attachments` capability를 제공하는지
    `verify-gnuboard7-media-contract.sh /path/to/gnuboard7`로 확인합니다.
 4. G7 관리자에서 **모듈 관리 → 파일에서 설치**를 열고 검증한 ZIP을 업로드합니다.
 5. 모듈을 활성화한 뒤 **미디어 부스터** 설정에서 HMAC key ID·secret을 Rust 서비스와 맞춥니다.
@@ -90,7 +95,8 @@ cargo xtask ci
 GNUBOARD7_ROOT=/path/to/gnuboard7 cargo xtask g7-module-package
 ```
 
-배포는 명시적인 annotated tag만 허용합니다.
+배포는 기능 상태가 publishable일 때만 명시적인 annotated tag로 허용합니다. 현재 workflow는
+`BLOCKED` 상태에서 의도적으로 실패합니다.
 
 ```bash
 git tag -a g7-module-v0.4.3 -m "Gnuboard7 module 0.4.3"

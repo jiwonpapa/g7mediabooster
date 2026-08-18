@@ -1,7 +1,10 @@
 # G7 Media Booster for Gnuboard 7
 
-Gnuboard 7.0.4+와 `sirsoft-board` 1.1.0+ 보안 첨부 계약용 전용 모듈입니다. PHP는 로그인·게시판 권한·HMAC 제어 요청만 담당하고,
+Gnuboard 7.0.6+와 versioned 보안 첨부 capability용 전용 모듈입니다. PHP는 로그인·게시판 권한·HMAC 제어 요청만 담당하고,
 파일 바이트는 브라우저에서 S3/R2 quarantine bucket으로 직접 전송합니다.
+
+> 공식 Gnuboard 7.0.6의 `sirsoft-board` 1.0.3에는 필수 capability가 없어 현재 stock 설치는
+> `BLOCKED`입니다. ZIP은 개발 preview이며 정식 사용자 설치·활성화 대상이 아닙니다.
 
 ## 제공 기능
 
@@ -25,8 +28,9 @@ Gnuboard 7.0.4+와 `sirsoft-board` 1.1.0+ 보안 첨부 계약용 전용 모듈�
 
 PHP 8.2 이상과 `mbstring` 확장이 필요합니다.
 
-GitHub Release의 `jiwonpapa-g7mediabooster-<version>.zip`과 `.zip.sha256`을 받은 뒤 checksum을
-검증하고, G7 관리자 **모듈 관리 → 파일에서 설치**에 ZIP을 업로드하는 방식이 정식 경로입니다.
+기능 상태 정본에서 `gnuboard7_module.publishable=true`가 된 뒤 GitHub Release의
+`jiwonpapa-g7mediabooster-<version>.zip`과 `.zip.sha256`을 받고 checksum을 검증해 G7 관리자
+**모듈 관리 → 파일에서 설치**에 ZIP을 업로드하는 방식이 정식 경로입니다.
 G7의 파일 설치 API는 ZIP만 받으므로 `tar.gz`는 서버 수동 배치용입니다. 설치 전 아래 upstream
 계약 검증을 통과해야 합니다.
 
@@ -36,9 +40,8 @@ G7의 파일 설치 API는 ZIP만 받으므로 `tar.gz`는 서버 수동 배치�
 modules/jiwonpapa-g7mediabooster
 ```
 
-먼저 `adapters/gnuboard7/upstream-contract`의 board 계약과 module-prefixed overlay core patch가
-정식 반영된 `sirsoft-board >=1.1.0`인지 검증한 뒤 G7의 표준 모듈 설치·활성화 절차를 사용합니다.
-0.4.3은 공개 G7 main 기준 patch와 versioned capability·PHP 시그니처·layout target을 검사하며 하나라도 없으면 활성화 자체를
+먼저 대상 G7이 versioned capability·PHP 시그니처·layout target을 제공하는지 검증한 뒤 G7의
+표준 모듈 설치·활성화 절차를 사용합니다. 0.4.3은 하나라도 없으면 활성화 자체를
 거부합니다. 설치 시
 `g7mb_upload_sessions`, attachment bridge, retention queue migration이 실행되고 관리자 메뉴에 `미디어 부스터`가 추가됩니다.
 Rust API의 `key_id`, HMAC secret, tenant 설정은 G7 관리자 값과 정확히 맞아야 합니다.
@@ -111,13 +114,15 @@ G7 upstream 계약 검사입니다.
 이하만 선택합니다. 수동 UUID 입력은 노출하지 않습니다. 설치·설정·user/admin form 주입·disabled
 fail-safe와 MinIO single/multipart→create/update→private thumbnail, 자산 선택·저장·재로드·rollback은
 격리 브라우저 smoke를 통과했습니다. 비밀·블라인드·삭제글 전달과 삭제/복원·보존 lease는 실제
-G7 DB host gate를 통과했고 사용자별 403 매트릭스도 실제 브라우저에서 확인했습니다. 실제
+G7 DB host gate를 통과했고 사용자별 403 매트릭스도 실제 브라우저에서 확인했습니다. 이는
+patched 개발 호스트의 역사적 증거이며 공식 stock 7.0.6 호환 증거는 아닙니다. 실제
 PHP HMAC policy→Rust worker 워터마크 출력→rollback, 실제 MOV/H.264 worker 발행과
 API 재기동을 포함한 로컬 정확한 5GiB 직접 multipart 재개도
-통과했습니다. R2/Lightsail profile과 실 provider 만료 삭제는 별도 운영 게이트입니다.
+통과했습니다. R2 data-plane은 실계정에서 검증됐고 AWS S3·Lightsail과 실 provider 만료
+삭제는 별도 운영 게이트입니다.
 
 ## 아직 공식 지원으로 게시하지 않는 연동
 
-실 R2/Lightsail profile의 5GiB·중단/재개와 보존 만료 command→실 provider 삭제는 각 종단
-게이트 전 공식 지원으로 게시하지 않습니다. patch `0001`~`0006`이 완전하지 않은
-`sirsoft-board`에서는 module activation 계약 검사가 실행을 fail-closed 합니다.
+R2 5GiB·중단/재개, AWS S3·Lightsail profile과 보존 만료 command→실 provider 삭제는 각 종단
+게이트 전 공식 지원으로 게시하지 않습니다. versioned capability가 없는 `sirsoft-board`에서는
+module activation 계약 검사가 실행을 fail-closed 합니다.

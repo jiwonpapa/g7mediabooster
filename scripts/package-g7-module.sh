@@ -34,48 +34,10 @@ if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ || "$feature_version" != "$versio
     echo "module and official feature manifest versions must match semver" >&2
     exit 2
 fi
-spec_version="$(sed -n 's/^- 스펙 버전: //p' "$ROOT/SPEC.md" | head -n 1)"
-php -r '
-    $data = json_decode(file_get_contents($argv[1]), true, 512, JSON_THROW_ON_ERROR);
-    $fail = static function (string $message): never { throw new RuntimeException($message); };
-    ($data["schema_version"] ?? null) === 1 || $fail("official feature schema_version must be 1");
-    ($data["spec_version"] ?? null) === $argv[2] || $fail("official feature spec_version drift");
-    ($data["release_status"] ?? null) === "candidate" || $fail("external profiles are pending; release must remain candidate");
-    $publishable = $data["publishable_features"] ?? null;
-    $withheld = $data["withheld_until_verified"] ?? null;
-    is_array($publishable) && $publishable !== [] || $fail("publishable feature list is empty");
-    is_array($withheld) && $withheld !== [] || $fail("withheld feature list is empty");
-    $publishableIds = [];
-    foreach ($publishable as $feature) {
-        is_string($feature["id"] ?? null) && is_string($feature["title"] ?? null)
-            || $fail("publishable feature requires id and title");
-        $publishableIds[] = $feature["id"];
-    }
-    $withheldIds = [];
-    foreach ($withheld as $feature) {
-        is_string($feature["id"] ?? null) && is_string($feature["reason"] ?? null)
-            || $fail("withheld feature requires id and reason");
-        $withheldIds[] = $feature["id"];
-    }
-    count($publishableIds) === count(array_unique($publishableIds)) || $fail("duplicate publishable feature id");
-    count($withheldIds) === count(array_unique($withheldIds)) || $fail("duplicate withheld feature id");
-    array_intersect($publishableIds, $withheldIds) === [] || $fail("feature cannot be both publishable and withheld");
-    foreach (["cloudflare_r2_profile", "lightsail_object_storage_profile", "live_provider_retention_delete", "multi_node_postgresql"] as $required) {
-        in_array($required, $withheldIds, true) || $fail("required withheld feature is missing: ".$required);
-    }
-    $g7 = null;
-    foreach ($publishable as $feature) {
-        if (($feature["id"] ?? null) === "gnuboard7_module") {
-            $g7 = $feature;
-            break;
-        }
-    }
-    is_array($g7) || $fail("gnuboard7 publishable feature is missing");
-    ($g7["requires"] ?? null) === [
-        "upstream patch 0001-0006",
-        "media contract 29/29 + parser and activation validation",
-    ] || $fail("gnuboard7 activation requirements drift");
-' "$FEATURES" "$spec_version"
+(
+    cd "$ROOT"
+    python3 -m tools.harness.g7mb_harness feature-status
+)
 
 name="jiwonpapa-g7mediabooster-$version"
 tar_archive="$OUTPUT_DIR/$name.tar.gz"

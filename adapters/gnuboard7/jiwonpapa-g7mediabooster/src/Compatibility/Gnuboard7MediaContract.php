@@ -51,7 +51,6 @@ final class Gnuboard7MediaContract
         $root = self::resolveHostRoot($hostRoot);
         $boardRoot = $root.'/modules/_bundled/sirsoft-board';
 
-        self::assertBoardVersion($boardRoot.'/module.json');
         self::assertContractDocument(self::readJson($boardRoot.'/resources/contracts/external-media-v1.json'));
         self::assertRuntimeSurface();
         self::assertLayoutTargets($root, $boardRoot);
@@ -128,17 +127,6 @@ final class Gnuboard7MediaContract
         }
 
         return $resolved;
-    }
-
-    private static function assertBoardVersion(string $manifestPath): void
-    {
-        $manifest = self::readJson($manifestPath);
-        $version = $manifest['version'] ?? null;
-        if (! is_string($version)
-            || version_compare($version, '1.1.0', '<')
-            || version_compare($version, '2.0.0', '>=')) {
-            throw new LogicException('G7MB_SIRSOFT_BOARD_VERSION_UNSUPPORTED');
-        }
     }
 
     private static function assertRuntimeSurface(): void

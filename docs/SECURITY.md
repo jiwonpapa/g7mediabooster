@@ -1,5 +1,14 @@
 # 보안 모델
 
+## 공급망 예외
+
+`RUSTSEC-2026-0253`은 `lru <0.18.2`에서 key의 `Drop` panic과 unwind가 결합될 때 발생합니다.
+현재 `aws-sdk-s3` 최신 1.142.0이 `lru 0.16`을 요구하지만 사용 지점은 SDK 내부 S3 Express
+identity cache의 `CacheKey(String)`뿐이며 `Drop` 구현이 panic하지 않습니다. MediaBooster는
+S3 Express를 지원 범위로 게시하지도 않습니다. 따라서 `deny.toml`과 `cargo audit`에 같은 ID를
+한시적으로 예외 처리하고, AWS SDK가 `lru >=0.18.2`를 받는 즉시 제거합니다. 다른 advisory는
+계속 warning까지 fail-closed 합니다.
+
 ## 보호 자산
 
 - PHP 사용자 세션과 게시판 권한

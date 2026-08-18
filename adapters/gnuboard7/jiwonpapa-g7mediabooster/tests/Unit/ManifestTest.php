@@ -16,7 +16,8 @@ final class ManifestTest extends TestCase
 
         self::assertSame('jiwonpapa-g7mediabooster', $manifest['identifier']);
         self::assertSame('0.4.3', $manifest['version']);
-        self::assertSame('>=1.1.0', $manifest['dependencies']['modules']['sirsoft-board']);
+        self::assertSame('>=7.0.6', $manifest['g7_version']);
+        self::assertSame('>=1.0.3', $manifest['dependencies']['modules']['sirsoft-board']);
         self::assertSame(
             '>=1.0.0 <2.0.0',
             $manifest['compatibility']['contracts']['sirsoft-board.secure-external-attachments'],

@@ -62,7 +62,11 @@ test "$(mode_of "$CONFIG")" = "640"
 for unit in "$ROOT"/deploy/systemd/*.service; do
     if rg -q 'ExecStart=.*g7mb-(api|worker)' "$unit"; then
         test "$(rg -c '^LoadCredential=g7mb-' "$unit")" = "3"
-        test "$(rg -c '^Environment=G7MB__.*_FILE=%d/' "$unit")" = "3"
+        expected_environment_count=3
+        if [[ "$(basename "$unit")" == "g7mediabooster-api.service" ]]; then
+            expected_environment_count=4
+        fi
+        test "$(rg -c '^Environment=G7MB__.*_FILE=%d/' "$unit")" = "$expected_environment_count"
     fi
 done
 

@@ -249,7 +249,7 @@ mod tests {
 
     use super::{
         MediaUrlVerificationError, SignedMediaUrl, SignedRequest, VerificationError, sha256_hex,
-        sign_media_url, verify, verify_media_url,
+        sign, sign_media_url, verify, verify_media_url,
     };
 
     fn signed_request<'a>(
@@ -315,6 +315,14 @@ mod tests {
             verify(&noncanonical, &strong_secret, 1_700_000_000, 300),
             Err(VerificationError::InvalidField)
         );
+        assert_eq!(
+            sign(&noncanonical, &strong_secret),
+            Err(VerificationError::InvalidField)
+        );
+        assert_eq!(
+            sign(&request, &short_secret),
+            Err(VerificationError::InvalidKey)
+        );
     }
 
     #[test]
@@ -349,6 +357,19 @@ mod tests {
         assert_eq!(
             verify_media_url(&signed, &secret, 1_699_999_999, 300),
             Err(MediaUrlVerificationError::ExcessiveLifetime)
+        );
+        let invalid_path = SignedMediaUrl {
+            path: "not-an-absolute-media-path",
+            ..signed
+        };
+        assert_eq!(
+            sign_media_url(&invalid_path, &secret),
+            Err(MediaUrlVerificationError::InvalidField)
+        );
+        let short_secret = SecretString::from("too-short".to_owned());
+        assert_eq!(
+            sign_media_url(&unsigned, &short_secret),
+            Err(MediaUrlVerificationError::InvalidKey)
         );
         Ok(())
     }

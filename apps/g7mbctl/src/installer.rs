@@ -88,6 +88,12 @@ const PAYLOAD_FILES: &[PayloadFile] = &[
         maximum_bytes: 256 * 1024,
     },
     PayloadFile {
+        source: "CHANGELOG.md",
+        destination: "/usr/local/share/g7mediabooster/CHANGELOG.md",
+        mode: 0o644,
+        maximum_bytes: 256 * 1024,
+    },
+    PayloadFile {
         source: "gnuboard7/jiwonpapa-g7mediabooster.zip",
         destination: INSTALLED_MODULE,
         mode: 0o644,
@@ -122,42 +128,6 @@ const PAYLOAD_FILES: &[PayloadFile] = &[
         destination: "/usr/local/share/g7mediabooster/gnuboard7/verify-gnuboard7-module-host.php",
         mode: 0o644,
         maximum_bytes: 64 * 1024,
-    },
-    PayloadFile {
-        source: "gnuboard7/0001.patch",
-        destination: "/usr/local/share/g7mediabooster/gnuboard7/0001.patch",
-        mode: 0o644,
-        maximum_bytes: 2 * 1024 * 1024,
-    },
-    PayloadFile {
-        source: "gnuboard7/0002.patch",
-        destination: "/usr/local/share/g7mediabooster/gnuboard7/0002.patch",
-        mode: 0o644,
-        maximum_bytes: 2 * 1024 * 1024,
-    },
-    PayloadFile {
-        source: "gnuboard7/0003.patch",
-        destination: "/usr/local/share/g7mediabooster/gnuboard7/0003.patch",
-        mode: 0o644,
-        maximum_bytes: 2 * 1024 * 1024,
-    },
-    PayloadFile {
-        source: "gnuboard7/0004.patch",
-        destination: "/usr/local/share/g7mediabooster/gnuboard7/0004.patch",
-        mode: 0o644,
-        maximum_bytes: 2 * 1024 * 1024,
-    },
-    PayloadFile {
-        source: "gnuboard7/0005.patch",
-        destination: "/usr/local/share/g7mediabooster/gnuboard7/0005.patch",
-        mode: 0o644,
-        maximum_bytes: 2 * 1024 * 1024,
-    },
-    PayloadFile {
-        source: "gnuboard7/0006.patch",
-        destination: "/usr/local/share/g7mediabooster/gnuboard7/0006.patch",
-        mode: 0o644,
-        maximum_bytes: 2 * 1024 * 1024,
     },
     PayloadFile {
         source: "systemd/g7mediabooster.target",
@@ -288,7 +258,7 @@ pub(crate) fn install(options: InstallOptions) -> anyhow::Result<()> {
     }
 
     println!("PASS install target={SERVICE_TARGET}");
-    println!("PASS gnuboard7-module={INSTALLED_MODULE}");
+    println!("INFO gnuboard7-module-preview={INSTALLED_MODULE} capability-contract-required");
     if options.skip_setup {
         println!("NEXT sudo g7mbctl setup");
     } else if options.skip_start {

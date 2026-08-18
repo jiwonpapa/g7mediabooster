@@ -15,10 +15,26 @@
 ### Changed
 
 - 인프라 하네스의 주 구현을 Python으로 옮기고 빌드·coverage 산출물 정리를 자동화했습니다.
+- 기능별 구현·검증·공개 상태를 단일 manifest로 정본화하고 릴리스에서 동일하게 검증합니다.
+- 공식 Gnuboard 7.0.6·`sirsoft-board` 1.0.3을 최소 기준으로 기록하되 필수 capability가
+  없는 stock 설치에는 모듈 활성화와 배포를 차단합니다.
+
+### Fixed
+
+- coverage가 측정하지 않던 공개 썸네일 router·서명·redirect 분기를 lib 단위 회귀로 추가했습니다.
+- Miri·fuzz가 구체적인 Cargo 실행 경로에 `+nightly`를 잘못 전달하던 문제와 Miri isolation에서
+  proptest failure persistence가 현재 디렉터리를 읽어 실패하던 문제를 수정했습니다.
+- 서버 번들의 payload manifest와 설치 파일 수 불일치, `event-listener` RustSec 경고 의존성을
+  수정했습니다. AWS SDK 내부 S3 Express cache의 non-panicking String key에 한정된 `lru`
+  informational advisory는 근거를 기록해 임시 예외 처리했습니다.
+- setup smoke가 API의 선택형 공개 listener secret-file 환경을 worker와 같은 개수로 가정하던
+  회귀를 수정했습니다.
 
 ### Security
 
 - 공개 썸네일의 immutable preset HMAC 검증과 R2·AWS S3·Lightsail redirect authority 고정을 추가했습니다.
+- Cloudflare R2 실계정 검증 결과와 AWS S3·Lightsail 미검증 상태를 분리해 과도한 지원 표기를 막습니다.
+- G7 모듈 프런트엔드 lockfile의 Nano ID·PostCSS advisory를 제거했습니다.
 
 ## [0.1.1] - 2026-07-17
 

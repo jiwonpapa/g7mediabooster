@@ -1,17 +1,17 @@
 # 요구사항 1~17 현재 판정
 
-- 기준일: 2026-07-16
+- 기준일: 2026-08-18
 - 판정 원칙: `PASS`만 배포 기능으로 게시하고 `PARTIAL`·`PENDING`은 제한 또는 후속 게이트로 표시
-- 외부 환경값이 필요한 R2/Lightsail 실계정 검증은 2026-07-16 인계 항목
+- 기능 상태와 공개 가능 여부의 정본은 `deploy/official-features-v1.json`
 
 | 번호 | 판정 | 현재 증거와 공식 범위 | 남은 게이트 |
 |---:|---|---|---|
-| 1 이미지 업로드 | PASS | 최대 100개 batch, single/multipart 직접 업로드 | 실 R2/Lightsail profile 재검증 |
-| 2 S3 호환 | PARTIAL | MinIO object 작업·multipart client 재생성 재개 PASS, R2/Lightsail profile shape와 Lightsail 관리 API 경계 fail-closed, 실 browser CORS 하네스 | R2·Lightsail 각각 protocol·browser CORS 실계정 PASS 후 profile별 공식화 |
+| 1 이미지 업로드 | PASS | 최대 100개 batch, single/multipart 직접 업로드 | AWS S3·Lightsail profile 실검증 |
+| 2 S3 호환 | PARTIAL | MinIO protocol PASS, R2 실계정 object·multipart·CORS·미디어·삭제 PASS | AWS S3·Lightsail 실계정, R2 5GiB 전체 전송·중단 재개 |
 | 3 동영상 업로드 | PASS | MP4/MOV H.264 직접 multipart·실제 FFprobe/FFmpeg 검사·원 container master·JPEG poster·private delivery 종단 PASS | WebM은 release fixture 전 공식 게시 제외 |
 | 4 최신 포맷 | PASS | JPEG/PNG/GIF/WebP/AVIF/HEIC·HEIF runtime decode gate | JPEG XL, 영상 HEVC/AV1은 v1 제외 |
 | 5 진짜 파일·보안 | PASS | signature, 실제 decode/ffprobe, digest, hard limit, no-network sandbox | ClamAV·moderation은 선택 hook |
-| 6 G5/G7 연동 | PARTIAL | G5 5.6.24 core-free browser E2E PASS. G7 0.4.3 patch는 공개 main `fcaacad`에 clean apply·29/29+parser+실제 activation fail-closed, 기존 DB·browser·보존 gate PASS | G7 patch 정식 upstream commit과 실 provider 보존 만료 삭제 |
+| 6 G5/G7 연동 | PARTIAL | G5 5.6.24 core-free browser E2E PASS. G7 구현은 patched 개발 호스트에서 검증됐으나 공식 7.0.6 stock capability gate는 예상대로 차단 | G7 upstream capability와 stock 종단, 실 provider 보존 만료 삭제 |
 | 7 다중 업로드 | PASS | 1~100개 bounded 병렬 처리, 실제 G7 브라우저에서 single PUT와 2-part multipart 동시 첨부 PASS | 실 provider 부하 재측정 |
 | 8 대용량 streaming | PASS | 정확히 5GiB를 32MiB 160-part로 직접 전송, 80-part 뒤 API 재기동·재개, complete 2회 멱등, API RSS 증가 416KiB, Quarantined 진입 | 공급자별 처리량·재개 수치는 해당 실계정 profile 검증에서 기록 |
 | 9 EXIF 개인정보 | PASS | 이미지 orientation 적용 후 EXIF/GPS/XMP/IPTC 제거 | 영상 metadata 제거는 공식 범위 아님 |
@@ -33,6 +33,6 @@
 
 ## 배포 게시 금지 항목
 
-upstream patch 미적용 G7, 실 provider 보존 삭제, 멀티노드/PostgreSQL, 임의 동적 리사이즈, 영상 트랜스코딩·metadata 제거,
-WebM release 지원, S3 관리 기능 전체, 실계정 conformance 전 R2/Lightsail profile은 공식
+capability 미검증 G7, 실 provider 보존 삭제, 멀티노드/PostgreSQL, 임의 동적 리사이즈, 영상 트랜스코딩·metadata 제거,
+WebM release 지원, S3 관리 기능 전체, 실계정 conformance 전 AWS S3/Lightsail profile은 공식
 지원 기능으로 게시하지 않습니다.

@@ -1,8 +1,9 @@
 # 부트스트랩 완료 보고서
 
-- 기준일: 2026-07-16
+- 기준일: 2026-08-18
 - 범위: Git, Rust 워크스페이스, 기술 스펙, 개발 헌법, 필수 크레이트와 품질 하네스
-- 결론: 내부 v1, 로컬 정확한 5GiB 직접 multipart, G5/G7 격리 브라우저와 G7 정책 종단 완료. 외부 R2/Lightsail, G7 upstream과 실 provider 삭제 게이트만 남았습니다.
+- 결론: 서버·G5와 R2 실계정 data-plane은 검증됐습니다. 공식 G7 7.0.6 stock capability,
+  AWS S3·Lightsail, 실 provider 보존 삭제 게이트는 남아 있습니다.
 
 ## 완료 항목
 
@@ -45,7 +46,7 @@
 | AVIF decoder memory | PASS | 64MP AVIF peak RSS 1,221,776 KiB, 200MP AVIF full decode 전 정책 거부 |
 | tenant fair queue·backpressure | PASS | 영속 round-robin claim, global 1,000/tenant 200 활성 cap, presign 전 차단, 429 계약 |
 | Linux cgroup 부하 | PASS | CPU 2 core, memory 2GiB, PID 64, network none, API health 665/665, worker 100/100, peak 1,782,890,496 bytes |
-| G7 게시물 첨부 표시 | PARTIAL | 공개 G7 `fcaacad` 기준 patch 6개 clean apply·29/29+parser+activation, 기존 개발 checkout DB·browser·권한·asset picker·보존 gate PASS; upstream commit·실 provider 삭제 필요 |
+| G7 게시물 첨부 표시 | BLOCKED | patched 개발 호스트 증거는 있으나 공식 G7 7.0.6 stock `sirsoft-board` 1.0.3에 필수 capability가 없음 |
 | G5 게시물 첨부 표시 | PASS | G5 5.6.24 계약 21/21, PHP 17/31, TS 5, MySQL 8.4·MyISAM 11/11, 실제 browser single PUT+2-part multipart→첨부 2개·private thumbnail PASS |
 
 ## 준비된 하네스

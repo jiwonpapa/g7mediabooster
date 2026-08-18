@@ -1486,7 +1486,7 @@ fn required_header<'a>(headers: &'a HeaderMap, name: &'static str) -> Result<&'a
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use std::{
         collections::BTreeMap,
         sync::{
@@ -1526,12 +1526,12 @@ mod tests {
     use super::{ApiAuth, ApiRateLimitPolicy, ApiState, router};
 
     #[derive(Default)]
-    struct ApiFakeStore {
+    pub(crate) struct ApiFakeStore {
         head_length: AtomicU64,
         puts: AtomicU64,
     }
 
-    fn api_delivery_policy() -> DerivativeDeliveryPolicy {
+    pub(crate) fn api_delivery_policy() -> DerivativeDeliveryPolicy {
         DerivativeDeliveryPolicy {
             redirect_allowed_authorities: vec!["private-storage.invalid".to_owned()],
             ..DerivativeDeliveryPolicy::default()

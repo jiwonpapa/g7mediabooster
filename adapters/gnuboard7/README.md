@@ -12,8 +12,8 @@
 - 관리자 설정 화면과 bounded 동시성
 
 G7 코어에 필요한 owner-scoped attachment·URL filter·layout target 계약은
-[`upstream-contract`](upstream-contract)에 patch와 검증기로 분리했습니다.
+[`upstream-contract`](upstream-contract)에 역사적 제안과 검증기로 분리했습니다.
 
-PHP 요청에는 파일 바이트가 들어오지 않습니다. upstream patch `0001`~`0006` 적용 환경에서
-Ready 결과의 native `attachment_ids` 연결·표시와 private delivery를 지원합니다. patch가 없거나
-권한-aware 계약이 빠진 G7에서는 fail-closed 합니다. 상세 설치와 남은 경계는 모듈 README를 따릅니다.
+PHP 요청에는 파일 바이트가 들어오지 않습니다. versioned capability를 제공하는 G7에서만 Ready
+결과의 native `attachment_ids` 연결·표시와 private delivery를 지원합니다. 공식 G7 7.0.6 stock은
+현재 capability가 없어 fail-closed 합니다. 상세 설치와 남은 경계는 모듈 README를 따릅니다.

@@ -355,10 +355,25 @@ impl From<DerivativeDeliveryError> for PublicDeliveryFailure {
 
 #[cfg(test)]
 mod tests {
+    use std::{sync::Arc, time::Duration};
+
+    use axum::{
+        body::Body,
+        http::{Request, StatusCode},
+    };
+    use g7mb_application::delivery::{DerivativeDeliveryPolicy, DerivativeDeliveryService};
+    use g7mb_auth::{SignedMediaUrl, sign_media_url};
+    use g7mb_domain::UploadId;
+    use g7mb_persistence_sqlite::SqliteStore;
     use secrecy::{ExposeSecret as _, SecretString};
+    use time::OffsetDateTime;
+    use tower::ServiceExt as _;
 
-    use super::{PublicDeliveryPolicy, PublicToken, parse_token_query};
-
+    use super::{
+        PublicDeliveryPolicy, PublicDeliveryState, PublicToken, parse_token_query,
+        public_delivery_router,
+    };
+    use crate::tests::{ApiFakeStore, api_delivery_policy};
     #[test]
     fn token_query_is_exact_and_rejects_ambiguity() {
         let parsed = parse_token_query(Some(
@@ -396,5 +411,90 @@ mod tests {
                 .len(),
             34
         );
+    }
+
+    async fn service(
+        authorities: Vec<String>,
+    ) -> anyhow::Result<(DerivativeDeliveryService, UploadId)> {
+        let database = Arc::new(SqliteStore::connect("sqlite::memory:", 1).await?);
+        let upload_id = UploadId::new();
+        let now = OffsetDateTime::now_utc().unix_timestamp();
+        sqlx::query(
+            "INSERT INTO uploads
+                (id, tenant_id, object_key, declared_kind, state, expected_size_bytes,
+                 actual_size_bytes, content_type_hint, detected_content_type, source_sha256,
+                 created_at, updated_at)
+             VALUES (?, 'site-a', ?, 'image', 'ready', 4096, 4096, 'image/jpeg',
+                     'image/jpeg', ?, ?, ?)",
+        )
+        .bind(upload_id.to_string())
+        .bind(format!("raw/site-a/{upload_id}/source"))
+        .bind("a".repeat(64))
+        .bind(now)
+        .bind(now)
+        .execute(database.pool())
+        .await?;
+        for (variant, byte_len, digest) in [
+            ("master", 2048_i64, "b".repeat(64)),
+            ("thumbnail", 512_i64, "c".repeat(64)),
+        ] {
+            sqlx::query(
+                "INSERT INTO derivatives
+                    (upload_id, preset_id, variant, object_key, content_type, byte_len, sha256, created_at)
+                 VALUES (?, 'board-v1', ?, ?, 'image/jpeg', ?, ?, ?)",
+            )
+            .bind(upload_id.to_string())
+            .bind(variant)
+            .bind(format!("media/site-a/{upload_id}/{variant}.jpg"))
+            .bind(byte_len)
+            .bind(digest)
+            .bind(now)
+            .execute(database.pool())
+            .await?;
+        }
+        let policy = DerivativeDeliveryPolicy {
+            redirect_allowed_authorities: authorities,
+            ..api_delivery_policy()
+        };
+        let service =
+            DerivativeDeliveryService::new(database, Arc::new(ApiFakeStore::default()), policy)?;
+        Ok((service, upload_id))
+    }
+
+    fn signed_uri(path: &str, secret: &SecretString) -> anyhow::Result<String> {
+        let expires_at = OffsetDateTime::now_utc().unix_timestamp() + 120;
+        let signature = sign_media_url(
+            &SignedMediaUrl {
+                path,
+                expires_at,
+                signature: "",
+            },
+            secret,
+        )?;
+        Ok(format!("{path}?expires={expires_at}&signature={signature}"))
+    }
+
+    #[tokio::test]
+    async fn signed_thumbnail_redirects() -> anyhow::Result<()> {
+        let (service, upload_id) = service(vec!["private-storage.invalid".to_owned()]).await?;
+        let secret = SecretString::from("0123456789abcdef0123456789abcdef".to_owned());
+        let state = PublicDeliveryState::new(
+            "site-a".to_owned(),
+            service,
+            secret.clone(),
+            PublicDeliveryPolicy {
+                token_max_ttl: Duration::from_secs(300),
+                requests_per_second: 10,
+                burst: 20,
+                max_in_flight: 4,
+            },
+        )?;
+        let app = public_delivery_router(state);
+        let path = format!("/media/v1/site-a/{upload_id}/board-v1/thumbnail.jpg");
+        let response = app
+            .oneshot(Request::get(signed_uri(&path, &secret)?).body(Body::empty())?)
+            .await?;
+        assert_eq!(response.status(), StatusCode::FOUND);
+        Ok(())
     }
 }

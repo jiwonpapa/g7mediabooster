@@ -1,7 +1,7 @@
 # Gnuboard 7 연동 계약
 
-- 상태: form 자동 연결·Ready attachment bridge·private viewer·삭제 보존 대조·관리자 watermark asset picker 구현, 격리 browser 전송/create/update/private thumbnail·권한 매트릭스와 삭제/복원·보존 lease G7 DB gate PASS, upstream 정식 반영·실 provider 삭제는 보류
-- 기준: Gnuboard 7.0.4 / Laravel 12 / PHP 8.2+
+- 상태: 구현 완료, 공식 Gnuboard 7.0.6 stock 활성화 BLOCKED
+- 기준: 공식 Gnuboard 7.0.6 / 번들 `sirsoft-board` 1.0.3 / PHP 8.2+
 - 모듈: `adapters/gnuboard7/jiwonpapa-g7mediabooster`
 - 정식 설치: GitHub Release의 checksum 검증 ZIP을 G7 관리자 파일 설치로 적용
 
@@ -74,10 +74,18 @@ lease로 선점하고, native attachment disk·collection·upload ID를 다시 �
 `G7_MEDIA_RETENTION_ALREADY_STARTED`로 차단합니다. 이 DB 흐름은 G7 host gate를 통과했으며,
 보존 만료 command가 실 provider 객체를 삭제하는 종단 증거는 별도 운영 게이트입니다.
 
-## upstream 계약과 남은 운영 게이트
+## 공식 7.0.6 판정과 남은 운영 게이트
+
+공식 7.0.6의 `sirsoft-board` 1.0.3에는
+`sirsoft-board.secure-external-attachments` capability 문서가 없습니다. 모듈은 이 상태에서
+활성화를 fail-closed 하며 현재 정식 배포 대상이 아닙니다. 버전 번호만으로 capability를
+추정하지 않고 CI가 공식 tag를 직접 검사합니다.
+
+이하 `fcaacad`와 patch 6개 내용은 2026-07-16 개발 호스트에서 얻은 역사적 upstream 제안
+증거입니다. 공식 7.0.6에 적용하지 않으며 배포 산출물에도 넣지 않습니다.
 
 `sirsoft-board`는 현재 업로드 파일을 PHP `UploadedFile`로 받고 로컬 storage URL을 생성합니다.
-공개 Gnuboard7 main `fcaacad`와 `sirsoft-board` 1.0.2를 대조한 결과는 다음과 같습니다.
+당시 Gnuboard7 main `fcaacad`와 `sirsoft-board` 1.0.2를 대조한 결과는 다음과 같습니다.
 
 - 게시글 저장 API는 `attachment_ids`와 `temp_key`를 이미 지원합니다.
 - `templates/_bundled/sirsoft-basic/layouts/partials/board/form/_post_form.json`의

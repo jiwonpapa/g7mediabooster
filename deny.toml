@@ -6,7 +6,9 @@ targets = [
 ]
 
 [advisories]
-ignore = []
+# aws-sdk-s3 uses lru only for an internal S3 Express cache whose CacheKey wraps
+# String and cannot panic on Drop. Remove when AWS SDK accepts lru >=0.18.2.
+ignore = ["RUSTSEC-2026-0253"]
 
 [licenses]
 confidence-threshold = 0.93

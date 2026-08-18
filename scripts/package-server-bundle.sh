@@ -97,15 +97,6 @@ install -m 0644 \
     cd "$bundle/gnuboard7"
     sha256sum jiwonpapa-g7mediabooster.zip >jiwonpapa-g7mediabooster.zip.sha256
 )
-patch_index=1
-for patch in adapters/gnuboard7/upstream-contract/*.patch; do
-    install -m 0644 "$patch" "$bundle/gnuboard7/$(printf '%04d.patch' "$patch_index")"
-    (( patch_index += 1 ))
-done
-if [[ "$patch_index" -ne 7 ]]; then
-    echo "expected exactly six Gnuboard7 contract patches" >&2
-    exit 2
-fi
 printf '%s\n' "$version" >"$bundle/VERSION"
 (
     cd "$bundle"

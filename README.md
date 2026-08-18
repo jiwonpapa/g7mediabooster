@@ -3,15 +3,17 @@
 Gnuboard 5/7용 고성능 미디어 업로드·가공 서버입니다. Rust가 제어 계층을 맡고,
 이미지는 libvips, MP4/MOV 썸네일은 FFmpeg가 별도 샌드박스 프로세스에서 처리합니다. FFmpeg를
 시작할 수 없는 MP4/H.264만 Rust `mp4` + OpenH264 첫 프레임 폴백을 사용합니다.
-S3와 Cloudflare R2는 같은 S3 호환 포트로 구현하며, 공급자별 실계정 conformance를 통과한
-profile만 공식 지원으로 게시합니다.
+S3와 Cloudflare R2는 같은 S3 호환 포트로 구현합니다. R2의 object·multipart·CORS·미디어·
+삭제 경로는 실계정 검증을 통과했으며 AWS S3와 Lightsail은 실계정 검증 전입니다.
 
 현재 저장소는 **v0.1 구현 진행 단계**입니다. batch 생성, S3/R2 single·multipart 제어,
 HMAC 인증, SQLite lease queue, 검증된 master+thumbnail/poster 원자적 발행,
 4MiB/60초 bounded manifest cache·singleflight, digest-pinned 이미지 워터마크,
 sandbox runtime capability, 삭제·보존 cleanup과 G7 0.4.3
-form/Ready attachment bridge·보존 삭제 대조까지 연결됐습니다. G7 격리 설치·관리자 설정과 MinIO 기반 실제 browser single/multipart 전송·create/update·private thumbnail 전달, 비밀·블라인드·삭제글 첨부 권한 및 보존 lease 실제 DB 게이트도 통과했습니다. MP4/MOV H.264의 실제 worker master·poster, API 재기동을 포함한 로컬 5GiB 직접 multipart 재개와 G7 PHP 정책→Rust worker 워터마크→rollback 종단도 통과했습니다. 실제 R2/Lightsail profile과 G7 upstream 정식 반영 등 남은 게이트는 구현
-계획에 따라 진행합니다. 배포 시에는 [검증된 공식 기능 범위](deploy/README.md)만 게시합니다.
+form/Ready attachment bridge·보존 삭제 대조까지 연결됐습니다. 다만 공식 G7 7.0.6의
+`sirsoft-board` 1.0.3에는 필수 외부 첨부 capability가 없어 stock 설치에서 모듈은 현재
+fail-closed 합니다. MP4/MOV H.264, 로컬 5GiB 재개, R2 실계정 종단은 통과했습니다. 현재 공개
+판정은 [기능 상태 정본](deploy/official-features-v1.json)만 따릅니다.
 
 ## 확정 기술 스택
 
@@ -54,9 +56,9 @@ sudo g7mbctl doctor
 - multipart create, part PUT, complete, abort
 - HEAD, bounded worker GET, private derivative presigned GET, worker PutObject, idempotent DeleteObject
 
-MinIO는 로컬 protocol gate, R2와 Lightsail은 선언한 profile과 endpoint/region/bucket 형태를
-먼저 fail-closed로 대조한 뒤 실제 G7 origin의 browser OPTIONS/PUT CORS 응답까지 각각 별도
-실계정 profile로 판정합니다. Lightsail bucket 생성·CORS는 Lightsail API/콘솔 사전 설정만
+MinIO는 로컬 protocol gate, R2는 실계정 object·multipart·browser CORS·미디어·삭제 gate를
+통과했습니다. AWS S3와 Lightsail은 선언한 profile을 fail-closed로 대조하지만 실계정 검증 전
+공식 지원으로 게시하지 않습니다. Lightsail bucket 생성·CORS는 Lightsail API/콘솔 사전 설정만
 허용하고 S3 bootstrap 시도는 거부합니다. 검증하지 않은
 ACL, Object Lock, replication, inventory, IAM/STS, SSE-KMS는 공식 지원 기능으로 게시하지 않습니다.
 
@@ -79,7 +81,7 @@ cargo xtask full-stack-smoke
 cargo xtask g7-policy-smoke
 cargo xtask large-multipart-smoke
 cargo xtask heavy-avif
-# 실 R2/Lightsail 환경값 설정 후
+# 실 AWS S3/Lightsail 환경값 설정 후 (R2는 재검증 시 사용)
 cargo xtask live-storage-conformance
 cargo xtask coverage
 cargo xtask supply-chain

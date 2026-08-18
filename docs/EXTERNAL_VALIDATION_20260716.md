@@ -1,5 +1,9 @@
 # R2/Lightsail 외부 저장소 검증 인계서
 
+> 역사적 인계 snapshot입니다. R2는 2026-07-17 실계정 object·multipart·CORS·미디어·삭제
+> 검증을 통과했습니다. Lightsail과 AWS S3는 미검증이며 현재 판정은
+> `deploy/official-features-v1.json`을 따릅니다.
+
 - 예정일: 2026-07-16
 - 현재 상태: 구현·로컬 MinIO conformance와 API 재기동을 포함한 정확한 5GiB/API RSS gate 완료, `G7MB_LIVE_S3_*` 실계정 환경값 미설정
 - 원칙: secret과 bucket 값은 문서·Git·명령 이력에 저장하지 않습니다.

@@ -3,8 +3,10 @@
 ## 배포 설명에 게시할 공식 애플리케이션 기능
 
 배포 페이지와 릴리스 노트에는 아래 구현·자동 검증 범위만 기능으로 게시합니다. G7 기능은
-upstream patch `0001`~`0006`과 계약 29/29·activation 검사를 모두 충족한 설치에서만 공식 지원입니다.
-배포 자동화는 같은 경계의 기계 판독본인 `official-features-v1.json`만 사용합니다.
+기능 상태 정본에서 `publishable=true`인 항목만 공식 지원입니다. 공식 G7 7.0.6 stock은 필수
+capability가 없어 현재 `BLOCKED`이며 모듈 ZIP은 preview일 뿐 활성화 지원 대상이 아닙니다.
+Cloudflare R2는 실계정 종단을 통과했고 AWS S3·Lightsail은 미검증입니다. 배포 자동화는
+`official-features-v1.json`을 직접 검증합니다.
 
 - 이미지·동영상 최대 100개 다중 선택과 bounded 병렬 직접 업로드
 - 작은 파일 single PUT, 큰 파일·영상 S3 호환 multipart 업로드와 abort
@@ -24,40 +26,28 @@ upstream patch `0001`~`0006`과 계약 29/29·activation 검사를 모두 충족
 - queue depth·oldest age·dead-letter와 worker 단계별 Prometheus 메트릭
 - provider orphan bounded audit/prune, 검증된 SQLite backup·격리 restore rehearsal
 - upload·orphan tombstone 기본 365일 보존과 bounded purge
-- G7 관리자 설정·HMAC policy 동기화와 실제 브라우저 single/multipart 직접 업로드
-- Ready 결과의 G7 native attachment 연결·표시, 게시글 수정 후 첨부 유지
-- G7 권한 확인 뒤 private master/thumbnail 302 redirect와 저장소 200 전달
-- G7 비밀글·블라인드글·삭제글 첨부 직접 경로의 작성자·권한자 fail-closed 정책
-- G7 관리자 current-admin Ready 이미지 선택기와 워터마크 설정 저장·재로드·rollback
-- G7 soft-delete 보존 예약, lease 재검증, 복원 취소와 원격 삭제 시작 뒤 복원 차단
 - G5 5.6.24 core-free 플러그인과 게시판 쓰기·업로드 권한 및 회원/세션 소유권 확인
 - G5 실제 브라우저 single PUT·2-part multipart 동시 업로드와 native 첨부 2개 표시
 - G5 권한 확인 뒤 private master/thumbnail 전달과 MyISAM advisory-lock 첨부 연결
 
 다음 항목은 구현·실환경 검증 전 공식 지원 기능으로 게시하지 않습니다.
 
-- upstream patch `0001`~`0006`을 적용하지 않은 Gnuboard7 배포
+- 공식 G7 7.0.6 stock과 capability가 검증되지 않은 모든 Gnuboard7 배포
 - 보존 만료 command→실 provider 객체 삭제 종단 증거
 - 멀티노드, PostgreSQL queue, 임의 URL query 기반 동적 리사이즈
 - 기본 비활성 signed public thumbnail listener의 G7 URL producer·실 Nginx ingress 미검증 범위
 - WebM release fixture, 영상 트랜스코딩·metadata 제거, HEVC/AV1 Rust 폴백
 - S3의 ACL, Object Lock, replication, inventory, IAM/STS, SSE-KMS 관리 기능
-- 실계정 conformance를 아직 통과하지 않은 R2 또는 Lightsail profile
+- 실계정 conformance를 아직 통과하지 않은 AWS S3 또는 Lightsail profile
 
-설치·관리자 설정·user/admin form 주입·disabled fail-safe와 MinIO 기반 실제 single/multipart 전송,
-Ready→native attachment create/update 유지, private thumbnail 전달은 0.3.0 격리 browser E2E를
-통과했습니다. 0.3.1의 추가 변경인 비밀·블라인드·삭제글 권한 계약과 삭제/복원·보존 lease는
-standalone module gate와 실제 G7 DB 호스트 게이트를 통과했습니다. 이 범위는 upstream patch
-`0001`~`0006` 적용을 전제로 공식 게시합니다. 0.4.3의 공개 upstream activation capability gate와 관리자 워터마크 자산 선택·rollback을
-작성자·다른 회원·비회원·관리자 권한 매트릭스도 실제 G7 브라우저에서 통과했습니다. 실 provider
-보존 만료 삭제는 해당 종단 게이트 통과 전 게시하지 않습니다. G7 PHP HMAC 정책 게시,
-Rust worker의 digest 고정 워터마크 출력과 정책 해제 후 원본 출력 복원도 MinIO 종단에서
-통과했습니다. 정확한 5GiB direct multipart는 로컬 MinIO에서 통과했으며 이를 R2/Lightsail
-실계정 profile 검증으로 대체해 게시하지 않습니다.
+G7 모듈의 제어·업로드·첨부·권한·보존 기능은 patched 개발 호스트에서 검증된 구현 증거가
+있지만 공식 stock 7.0.6 호환 증거가 아닙니다. upstream에서 versioned capability가 제공되고
+stock 설치 종단이 통과할 때까지 G7 기능을 공식 게시하지 않습니다. 실 provider 보존 만료
+삭제도 별도 종단 게이트 전에는 게시하지 않습니다.
 
 G5는 5.6.24 코어 무수정 설치, MySQL 8.4·MyISAM host gate와 MinIO 기반 실제 브라우저
 single/multipart 전송, Rust 처리, 게시글 저장·첨부 표시, 비로그인 thumbnail `403`까지
-통과한 범위만 공식 게시합니다. 다른 G5 버전과 실 R2/Lightsail profile은 각 게이트 통과 전
+통과한 범위만 공식 게시합니다. 다른 G5 버전과 실 AWS S3/Lightsail profile은 각 게이트 통과 전
 지원으로 표시하지 않습니다.
 
 ## 공식 object storage 지원 범위
@@ -68,7 +58,8 @@ single/multipart 전송, Rust 처리, 게시글 저장·첨부 표시, 비로그
 - multipart create, part PUT, complete, abort
 - HEAD, bounded worker GET, private derivative presigned GET, worker PutObject, idempotent DeleteObject
 
-R2와 Lightsail은 각각 실계정 conformance를 통과한 profile만 지원으로 표시합니다. ACL,
+R2는 실계정 object data-plane을 검증했습니다. AWS S3와 Lightsail은 각각 실계정 conformance를
+통과한 뒤 지원으로 표시합니다. ACL,
 Object Lock, replication, inventory, IAM/STS, SSE-KMS는 검증 전 지원 기능으로 게시하지 않습니다.
 Lightsail 단일 bucket access key를 쓸 때는 같은 private bucket 안의 `raw/`, `media/` prefix로
 구성할 수 있지만, 이는 두 버킷 IAM 격리를 제공하지 않습니다.

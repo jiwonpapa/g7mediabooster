@@ -10,6 +10,13 @@ Gnuboard 7 모듈의 모든 주목할 만한 변경 사항을 이 파일에 기�
 ### Changed
 
 - 모듈 릴리스 이력을 Keep a Changelog 형식으로 정본화하고 GitHub Release 노트와 연결했습니다.
+- 공식 Gnuboard 7.0.6과 번들 `sirsoft-board` 1.0.3을 최소 설치 기준으로 정정했습니다.
+- 과거 7.0.5 patch를 배포 자산에서 제거하고 stock 7.0.6 capability가 없는 동안 모듈 릴리스를
+  fail-closed 합니다.
+
+### Security
+
+- 빌드 의존성 lockfile의 Nano ID와 PostCSS advisory를 패치 버전으로 갱신했습니다.
 
 ## [0.4.3] - 2026-07-16
 

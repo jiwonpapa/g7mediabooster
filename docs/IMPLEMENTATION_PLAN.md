@@ -1,13 +1,13 @@
 # 요구사항 1~17 구현 계획
 
-- 상태: Internal implementation complete; external validation pending
-- 기준일: 2026-07-16
+- 상태: Historical implementation plan; current states are canonical in `deploy/official-features-v1.json`
+- 기준일: 2026-08-18
 - 대상: G7MediaBooster v0.3 이후
 - 원칙: 이 문서는 구현 순서와 인수 조건이며 기능 완료를 뜻하지 않습니다.
 
 ## 1. 최종 권고
 
-1. **G7은 플러그인보다 전용 PHP 모듈이 맞습니다.** G7 7.0.4는 Laravel 12 기반이며
+1. **G7은 플러그인보다 전용 PHP 모듈이 맞습니다.** 공식 G7 7.0.6은 Laravel 기반이며
    모듈이 API, 서비스, 권한, DB, 관리자 메뉴와 레이아웃을 소유할 수 있습니다.
 2. 파일 바이트는 PHP와 Rust API를 거치지 않고 **브라우저에서 S3/R2로 presigned
    multipart 직접 업로드**합니다. Rust API는 의도, 서명, 상태, 검증과 큐만 담당합니다.
@@ -203,7 +203,7 @@ FFprobe 검사, FFmpeg fast seek와 실패 시 정확 seek·중앙 timestamp 1�
 
 ### 단계 C — G7 모듈·썸네일·워터마크
 
-실제 G7 7.0.4 코드 기준으로 모듈 API는 `/api/modules/{module-id}` 아래 등록할 수 있고,
+당시 G7 7.0.4 코드 기준으로 모듈 API는 `/api/modules/{module-id}` 아래 등록할 수 있고,
 모듈은 관리자 메뉴·권한·layout·settings를 소유할 수 있습니다. 현재 `sirsoft-board` 업로드는
 파일마다 PHP 요청을 받고 `file_get_contents()`로 전체 파일을 읽으므로 재사용하지 않습니다.
 
@@ -220,7 +220,7 @@ G7 모듈의 책임:
 `upload_id + user_id + board_slug` 소유권, direct single/multipart uploader, 전체 연결·파일·part
 bounded 동시성, 진행률·취소·재시도·ETag/abort, Ready polling·native attachment 생성,
 권한 기반 preview/download와 관리자 capability proxy가 구현됐습니다. PHP는 file body를
-받지 않습니다. upstream patch가 실제 G7에 반영되기 전에는 runtime 계약 검사로 fail-closed 합니다.
+받지 않습니다. 필요한 upstream capability가 실제 G7에 반영되기 전에는 runtime 계약 검사로 fail-closed 합니다.
 
 준비한 G7 공개 확장 계약은 일곱 개입니다.
 
@@ -232,7 +232,7 @@ bounded 동시성, 진행률·취소·재시도·ETag/abort, Ready polling·nati
 6. `attachment_ids` bulk link 직후 게시글 첨부 수를 동기화하는 계약
 7. 비밀·블라인드·삭제글 첨부 URL을 본문 권한과 동일하게 차단하는 계약
 
-이는 공개 G7 `fcaacad` 기준 `sirsoft-board` 1.0.2→1.1.0 patch 6개와 29항목·activation 검증기로 고정했습니다. 설치·설정,
+역사적으로 공개 G7 `fcaacad` 기준 patch 6개와 29항목·activation 검증기를 준비했습니다. 설치·설정,
 user/admin form과 MinIO 기반 실제 single/multipart 전송·create/update·private thumbnail 전달은
 통과했습니다. 권한·삭제/복원·보존 lease G7 DB gate도 통과했습니다. upstream 미반영 배포와
 실 provider 보존 삭제 종단은 공식 지원으로 게시하지 않습니다. 권한 차단 실브라우저 매트릭스는
@@ -348,7 +348,7 @@ sensitive 설정으로 보관하고 브라우저 schema에는 절대 노출하�
 
 ## 7. 검증 근거
 
-G7 연동 판단은 로컬 Gnuboard7 7.0.4의 다음 실제 계약을 기준으로 했습니다.
+당시 G7 연동 판단은 로컬 Gnuboard7 7.0.4의 다음 실제 계약을 기준으로 했습니다.
 
 - `composer.json`: PHP 8.2 / Laravel 12
 - `docs/extension/module-basics.md`: 모듈 API·DB·서비스·권한

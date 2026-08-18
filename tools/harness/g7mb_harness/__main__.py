@@ -8,6 +8,7 @@ from pathlib import Path
 
 from . import (
     coverage_ratchet,
+    feature_status,
     full_stack,
     g7_install_cli,
     g7_live,
@@ -32,6 +33,7 @@ def parser() -> argparse.ArgumentParser:
         "release-policy", help="validate changelog and Semantic Versioning contracts"
     )
     release_policy_parser.add_argument("--tag")
+    commands.add_parser("feature-status", help="validate canonical feature and evidence states")
     release_notes_parser = commands.add_parser(
         "release-notes", help="extract human-authored notes for one release tag"
     )
@@ -56,6 +58,9 @@ def main(argv: list[str] | None = None) -> int:
         return governance.main(["--require-tools"] if args.require_tools else [])
     if args.command == "release-policy":
         release_policy.validate_repository(Path.cwd(), args.tag)
+        return 0
+    if args.command == "feature-status":
+        print(feature_status.validate_repository(Path.cwd()))
         return 0
     if args.command == "release-notes":
         print(release_policy.release_notes(Path.cwd(), args.tag), end="")

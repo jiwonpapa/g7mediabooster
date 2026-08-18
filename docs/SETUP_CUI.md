@@ -153,7 +153,8 @@ credential을 교체할 때는 G7 관리자에서 먼저 MediaBooster를 비활�
 
 bootstrap은 MediaBooster에 필요한 bucket 존재성과 CORS만 관리합니다. ACL, 공개 bucket,
 Object Lock, replication, inventory, IAM/STS, SSE-KMS, website 설정은 변경하지 않습니다.
-실 R2/Lightsail 공식 지원 승격은 별도 provider conformance와 5GiB gate까지 통과한 뒤 결정합니다.
+R2의 현재 검증 범위는 기능 상태 정본을 따릅니다. AWS S3/Lightsail 공식 지원 승격과 R2 5GiB·
+중단 재개 확대는 각각 별도 provider conformance를 통과한 뒤 결정합니다.
 
 공급자 관리 경계는 [Cloudflare R2 S3 호환표](https://developers.cloudflare.com/r2/api/s3/api/),
 [Lightsail bucket access key](https://docs.aws.amazon.com/lightsail/latest/userguide/amazon-lightsail-creating-bucket-access-keys.html),

@@ -1,5 +1,9 @@
 # Gnuboard7 원격 미디어 첨부 계약
 
+> 역사적 7.0.5 개발 기준 upstream 제안입니다. 공식 Gnuboard 7.0.6에는 clean apply되지 않으며
+> 설치·서버·GitHub Release 산출물이 아닙니다. 7.0.6에 직접 적용하지 마십시오. 현재 방향은
+> 동일 capability를 공식 upstream 변경으로 제안하고 stock tag에서 검증하는 것입니다.
+
 이 디렉터리는 G7MediaBooster가 게시물 첨부까지 연결되기 전에 Gnuboard7 코어에 필요한
 최소 공개 계약을 보관합니다. patch `0001`~`0006`과 회귀·호스트 게이트를 통과한 배포에서만
 게시물 본문·미리보기·다운로드 연동을 공식 지원 기능으로 게시합니다.
