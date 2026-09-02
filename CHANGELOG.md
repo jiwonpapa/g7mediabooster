@@ -9,6 +9,7 @@
 
 ### Added
 
+- 새 미디어부스터 심볼과 JW SOFT 로고를 반영한 밝은 테마의 README 인트로 이미지를 추가했습니다.
 - Keep a Changelog와 Semantic Versioning 릴리스 정책 및 자동 검증 게이트를 도입했습니다.
 - 제어 API와 분리된 서명형 공개 썸네일 listener와 Nginx 경로 제한 설정을 추가했습니다.
 

@@ -1,3 +1,5 @@
+![G7MediaBooster — Rust-powered media server, by JW SOFT](docs/assets/readme-intro.png)
+
 # G7MediaBooster
 
 Gnuboard 5/7용 고성능 미디어 업로드·가공 서버입니다. Rust가 제어 계층을 맡고,
