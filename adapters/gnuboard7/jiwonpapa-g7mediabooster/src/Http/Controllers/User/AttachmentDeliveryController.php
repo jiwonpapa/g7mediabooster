@@ -4,16 +4,17 @@ declare(strict_types=1);
 
 namespace Modules\Jiwonpapa\G7mediabooster\Http\Controllers\User;
 
-use App\Extension\HookManager;
 use App\Http\Controllers\Api\Base\PublicBaseController;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use LogicException;
 use Modules\Jiwonpapa\G7mediabooster\Exceptions\MediaBoosterUpstreamException;
 use Modules\Jiwonpapa\G7mediabooster\Services\AttachmentBridgeService;
 use Modules\Jiwonpapa\G7mediabooster\Services\DerivativeDeliveryValidator;
 use Modules\Jiwonpapa\G7mediabooster\Services\MediaBoosterClient;
+use Modules\Jiwonpapa\G7mediabooster\Services\NativeAttachmentAuthorizer;
 use Modules\Jiwonpapa\G7mediabooster\Services\UploadSessionStore;
 use Modules\Sirsoft\Board\Exceptions\BoardNotFoundException;
 use Modules\Sirsoft\Board\Services\AttachmentService;
@@ -30,11 +31,12 @@ final class AttachmentDeliveryController extends PublicBaseController
         private readonly UploadSessionStore $sessions,
         private readonly MediaBoosterClient $client,
         private readonly DerivativeDeliveryValidator $deliveryValidator,
+        private readonly NativeAttachmentAuthorizer $authorizer,
     ) {
         parent::__construct();
     }
 
-    public function show(string $slug, string $hash, string $variant): RedirectResponse|JsonResponse
+    public function show(string $slug, string $hash, string $variant, ?Request $request = null, string $context = 'user'): RedirectResponse|JsonResponse
     {
         try {
             AttachmentBridgeService::assertSecureUpstreamContract();
@@ -55,11 +57,8 @@ final class AttachmentDeliveryController extends PublicBaseController
                 return $this->notFound('첨부파일을 찾을 수 없습니다.');
             }
 
-            $authorized = $this->attachments->authorizeDelivery($slug, (int) $attachment->id, context: 'user');
-            if ($authorized === null
-                || (int) $authorized->id !== (int) $attachment->id
-                || ! $this->sessions->isMaterializedAs($uploadId, (int) $attachment->id, $slug)
-            ) {
+            $this->authorizer->authorize($request ?? request(), $slug, $attachment, $variant, $context);
+            if (! $this->sessions->isMaterializedAs($uploadId, (int) $attachment->id, $slug)) {
                 return $this->notFound('첨부파일을 찾을 수 없습니다.');
             }
 
@@ -73,9 +72,6 @@ final class AttachmentDeliveryController extends PublicBaseController
                 $expectedContentType,
                 $expectedByteLen,
             );
-            if ($variant === 'master') {
-                HookManager::doAction('sirsoft-board.attachment.after_download', $authorized, 'user');
-            }
 
             return new RedirectResponse($url, 302, [
                 'Cache-Control' => 'private, no-store',

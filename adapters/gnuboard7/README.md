@@ -1,19 +1,14 @@
 # Gnuboard 7 adapter
 
-실제 G7 모듈은 [`jiwonpapa-g7mediabooster`](jiwonpapa-g7mediabooster)에 있습니다.
+실제 모듈은 [`jiwonpapa-g7mediabooster`](jiwonpapa-g7mediabooster)에 있습니다.
+0.5.0 기준은 공식 G7 7.1.0 / 번들 `sirsoft-board` 1.2.0입니다.
 
-- G7 세션·게시판 권한 검증
-- PHP→Rust HMAC 서명과 secret 비노출
-- 사용자·게시판별 upload ID 소유권 저장
-- 브라우저→S3/R2 direct PUT·multipart 멀티업로드
-- 사용자·게시판 소유권을 확인한 비동기 삭제 예약
-- 비밀·블라인드·삭제글 첨부 직접 경로의 권한 차단
-- soft-delete 보존 lease와 복원 경합 차단
-- 관리자 설정 화면과 bounded 동시성
+- 코어·게시판·기본 템플릿 원본 수정 없이 공개 layout filter와 선언형 middleware로 연결
+- 기존 저장 이벤트를 기다려 다중 직접 업로드 → Ready 검증 → native attachment 연결
+- 기존 다운로드·미리보기 URL을 유지하고 원본 게시판 권한 검사 후 원격 파일 전달
+- 업로드 비활성화 시 기존 업로더 복원, 이미 올린 원격 첨부 열람 유지
+- PHP에는 파일 바이트나 저장소 비밀값을 전달하지 않음
 
-G7 코어에 필요한 owner-scoped attachment·URL filter·layout target 계약은
-[`upstream-contract`](upstream-contract)에 역사적 제안과 검증기로 분리했습니다.
-
-PHP 요청에는 파일 바이트가 들어오지 않습니다. versioned capability를 제공하는 G7에서만 Ready
-결과의 native `attachment_ids` 연결·표시와 private delivery를 지원합니다. 공식 G7 7.0.6 stock은
-현재 capability가 없어 fail-closed 합니다. 상세 설치와 남은 경계는 모듈 README를 따릅니다.
+기존 [`upstream-contract`](upstream-contract) patch는 역사적 제안이며 현재 설치·검증·배포에 사용하지 않습니다.
+정식 배포는 새 어댑터의 브라우저·provider·설치 종단 전까지 차단합니다.
+[연동 설명](../../docs/GNUBOARD7_INTEGRATION.md)과 [검증 보고서](../../docs/evidence/G7_CORE_FREE_710_20261012.md)를 참고하십시오.

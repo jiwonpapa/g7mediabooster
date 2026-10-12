@@ -3,7 +3,7 @@ set -euo pipefail
 
 root="${1:-${GNUBOARD7_ROOT:-}}"
 if [[ -z "$root" || ! -f "$root/artisan" ]]; then
-  echo "usage: $0 /absolute/path/to/patched-gnuboard7" >&2
+  echo "usage: $0 /absolute/path/to/stock-gnuboard7-7.1" >&2
   exit 64
 fi
 root="$(cd "$root" && pwd -P)"
@@ -24,15 +24,9 @@ fi
 
 php_bin="${PHP_BIN:-php}"
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
-module_test="${module#"$root"/}/tests/Host/AttachmentRetentionHostTest.php"
-
 "$repo_root/scripts/verify-gnuboard7-media-contract.sh" "$root"
-(
-  cd "$root"
-  "$php_bin" artisan test \
-    modules/_bundled/sirsoft-board/tests/Unit/AttachmentServiceTest.php \
-    --filter='authorize_delivery|get_file_info_denies'
-  "$php_bin" artisan test "$module_test"
-)
+G7MB_TEST_HOST_ROOT="$root" "$php_bin" \
+  -d "auto_prepend_file=$module/tests/Host/autoload.php" \
+  "$root/vendor/bin/phpunit" -c "$root/phpunit.xml" "$module/tests/Host" --do-not-cache-result
 
 echo "Gnuboard7 host security gate: PASS"

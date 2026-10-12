@@ -1,108 +1,74 @@
-# Gnuboard7 모듈 배포와 설치
+# Gnuboard 7.1 모듈 배포와 설치
 
-> 현재 공식 Gnuboard 7.0.6 stock에는 필수 외부 첨부 capability가 없어 모듈 상태가
-> `BLOCKED`입니다. 서버 번들의 ZIP은 유지관리자 preview이며 사용자 설치·활성화를 권장하지
-> 않습니다. 아래 절차는 기능 상태 정본의 `gnuboard7_module.publishable=true` 전환 후에만
-> 정식 설치 절차가 됩니다.
+0.5.0 core-free 어댑터는 구현·원본 호스트 회귀 검증을 마쳤습니다.
+새 브라우저·provider·설치 종단 전까지 `gnuboard7_module.publishable=false`이며 ZIP은 preview입니다.
+코어·게시판·기본 템플릿 patch는 설치 산출물에 넣지 않습니다.
 
-## 사용자 설치 경로
+## 사용자 경로
 
-서버 통합 Release를 설치한 경우 모듈 ZIP은 이미 다음 경로에 있습니다.
-
-```text
-/usr/local/share/g7mediabooster/gnuboard7/jiwonpapa-g7mediabooster.zip
-```
-
-별도 모듈 Release를 쓰는 경우 `g7-module-v<version>`에서 다음 두 파일을 받습니다.
-
-1. 다음 두 파일을 같은 디렉터리에 둡니다.
-   - `jiwonpapa-g7mediabooster-<version>.zip`
-   - `jiwonpapa-g7mediabooster-<version>.zip.sha256`
-2. 같은 디렉터리에서 checksum을 검증합니다.
+1. Rust 서버 Release 번들을 `sudo ./bin/g7mbctl install`로 설치합니다.
+2. `g7mbctl setup`에서 R2/S3 자격증명과 서버 설정을 입력합니다. 운영 중 재실행할 수 있습니다.
+3. 전용 모듈 ZIP과 `.zip.sha256`을 받은 뒤 checksum을 확인합니다.
+4. 원본 G7 7.1.0과 게시판 1.2.0 공개 계약을 검증합니다.
+5. G7 관리자 **모듈 관리 → 파일에서 설치**로 ZIP 설치·활성화합니다.
+6. 관리자 **미디어 부스터**에서 endpoint·HMAC key ID/secret을 맞추고 업로드 사용을 켭니다.
 
 ```bash
-sha256sum -c jiwonpapa-g7mediabooster-<version>.zip.sha256
+sha256sum -c jiwonpapa-g7mediabooster-0.5.0.zip.sha256
+# macOS: shasum -a 256 -c jiwonpapa-g7mediabooster-0.5.0.zip.sha256
+scripts/verify-gnuboard7-media-contract.sh /path/to/gnuboard7
 ```
 
-macOS는 다음 명령을 사용합니다.
+통합 서버 번들의 모듈 ZIP은 `/usr/local/share/g7mediabooster/gnuboard7/jiwonpapa-g7mediabooster.zip`입니다.
+같은 서버 제어 endpoint는 `http://127.0.0.1:8088`, 별도 서버는 HTTPS origin입니다.
+PHP에는 R2/S3 자격증명을 입력하지 않습니다.
+모노레포 URL로 G7 **GitHub에서 설치**를 사용하지 마십시오. 전용 ZIP을 사용합니다.
 
-```bash
-shasum -a 256 -c jiwonpapa-g7mediabooster-<version>.zip.sha256
-```
+자동 설치 하네스는 모듈 디렉터리만 설치하고 코어·게시판·템플릿 원본을 해시로 대조합니다.
+원본 변경이 감지되면 실패하며 원본을 덮어써서 복원하지 않습니다.
+설치 실패 rollback도 자체 모듈만 제거합니다.
 
-3. 대상 G7이 versioned `secure-external-attachments` capability를 제공하는지
-   `verify-gnuboard7-media-contract.sh /path/to/gnuboard7`로 확인합니다.
-4. G7 관리자에서 **모듈 관리 → 파일에서 설치**를 열고 검증한 ZIP을 업로드합니다.
-5. 모듈을 활성화한 뒤 **미디어 부스터** 설정에서 HMAC key ID·secret을 Rust 서비스와 맞춥니다.
-6. 같은 서버의 기본 제어 endpoint는 `http://127.0.0.1:8088`입니다. 별도 서버는 HTTPS origin을
-   입력합니다.
+## 적용·해제
 
-서버의 API·worker·timer 등록은 G7 관리자가 수행하지 않습니다. 서버 관리자가 Release
-번들에서 `sudo ./bin/g7mbctl install`을 한 번 실행하고, G7 관리자는 출력된 ZIP 설치와 HMAC
-연결만 수행합니다.
-
-통합 서버 Release의 검증기는 dependency-free Python ZIP application을 함께 설치합니다.
-저장소 checkout 없이 source 계약과 실제 DB에서 해석된 사용자·관리자 uploader mount까지
-확인하려면 다음 명령을 사용합니다.
-
-```bash
-/usr/local/share/g7mediabooster/gnuboard7/verify-gnuboard7-media-contract.sh \
-  /path/to/gnuboard7 --runtime
-```
-
-## 운영 사이트 즉시 적용·해제
-
-저장소 설정과 G7 모듈 설치가 끝난 서버는 SSH 하네스로 Rust target과 G7 모듈을 함께
-켜고 끕니다. 기본 대상은 SSH 별칭 `g7devops`, G7 경로
-`/home/g7devops/public_html`, 실행 사용자는 `g7devops`입니다.
+기존 서버 하네스의 대상 확인을 반드시 명시합니다. 기본 SSH 별칭은 `g7devops`입니다.
 
 ```bash
 scripts/g7-live-control.sh preflight
 scripts/g7-live-control.sh status
 scripts/g7-live-control.sh apply --confirm g7devops
 scripts/g7-live-control.sh disable --confirm g7devops
-scripts/g7-live-control.sh rollback \
-  --deployment-id <deployment-id> \
-  --confirm g7devops
 ```
 
-`apply`는 설정·서비스·모듈이 모두 준비되지 않으면 변경 없이 실패합니다. 서비스 기동 후
-ready 또는 모듈 활성화가 실패하면 target을 다시 중지합니다. `disable`은 모듈을 먼저
-비활성화한 뒤 target 하나를 중지하며 설정, 비밀값, DB 행, 원본·파생 객체는 삭제하지 않아
-같은 `apply` 명령으로 즉시 재활성화할 수 있습니다. 다른 서버는
-`G7MB_SSH_HOST`, `G7MB_G7_ROOT`, `G7MB_G7_USER`를 명시합니다.
-`rollback`은 설치 receipt의 원본 G7 파일까지 복원하고 모듈을 제거하되, 사용자 데이터와
-미디어 객체 보호를 위해 모듈 데이터 테이블·설정은 삭제하지 않습니다.
+`apply`는 서버 ready 후 모듈 설정의 업로드 사용을 켜고 실제 partial의 mount를 확인합니다.
+`disable`은 `enabled=false`로 **신규 MediaBooster 업로드만 해제**합니다. 원본 uploader가
+복원되고 기존 원격 첨부를 전달하기 위해 모듈과 Rust API는 유지합니다. 자격증명·DB·객체는 삭제하지 않습니다.
 
-G7의 파일 설치 API는 ZIP만 허용합니다. `tar.gz`는 관리자 설치용이 아니라 서버 수동 배치용입니다.
-현재 저장소는 Rust와 PHP를 함께 보관하는 모노레포이므로 G7의 **GitHub에서 설치**에 이 저장소
-URL을 직접 넣으면 안 됩니다. 전용 모듈 저장소가 생기기 전에는 Release ZIP을 사용합니다.
+전체 모듈 제거·비활성화는 원격 첨부를 먼저 이관하거나 정상 삭제한 뒤 가능합니다.
+기존 첨부가 남아 있으면 차단합니다. 새 `receipt.json` 기반 rollback만 지원하며 과거
+core-patch 배포의 native 파일 복원은 이 하네스에서 수행하지 않습니다.
+다른 서버는 `G7MB_SSH_HOST`, `G7MB_G7_ROOT`, `G7MB_G7_USER`를 지정합니다.
 
-## 유지관리자 배포 경로
+## 유지관리자 게이트
 
-모듈·공식 기능 manifest 버전을 먼저 일치시키고 전체 게이트를 통과시킵니다.
+PHP/TypeScript 변경 검증은 Rust 전체 재빌드 없이 수행할 수 있습니다.
 
 ```bash
-cargo xtask g7-adapter
-cargo xtask g7-module-package
-cargo xtask ci
+cd adapters/gnuboard7/jiwonpapa-g7mediabooster
+npm ci
+npm run typecheck
+npm test
+npm run build
+G7MB_TEST_HOST_ROOT=/path/to/stock-g7 /path/to/stock-g7/vendor/bin/phpunit -c phpunit.xml --do-not-cache-result
 ```
 
-실제 G7 checkout의 관리자 ZIP helper까지 검증하려면 다음처럼 실행합니다. 대상 G7은 변경하지
-않고 임시 디렉터리에서 manifest를 읽습니다.
+저장소 루트에서 별도 `_testing` DB를 준비한 원본 호스트 게이트를 실행합니다.
 
 ```bash
-GNUBOARD7_ROOT=/path/to/gnuboard7 cargo xtask g7-module-package
+scripts/g7-host-security-gate.sh /path/to/stock-g7
+python3 -m tools.harness.g7mb_harness feature-status
+python3 -m tools.harness.g7mb_harness release-policy
 ```
 
-배포는 기능 상태가 publishable일 때만 명시적인 annotated tag로 허용합니다. 현재 workflow는
-`BLOCKED` 상태에서 의도적으로 실패합니다.
-
-```bash
-git tag -a g7-module-v0.4.3 -m "Gnuboard7 module 0.4.3"
-git push origin g7-module-v0.4.3
-```
-
-태그가 `module.json` 버전과 다르면 workflow가 실패합니다. `release_status=candidate`인 동안에는
-GitHub prerelease로만 게시하며, 외부 R2/Lightsail과 실 provider 보존 삭제 게이트가 남아 있는
-현재 상태에서 stable release로 승격하지 않습니다.
+GitHub CI는 공식 7.1.0 SHA를 고정해 위 테스트와 원본 source diff를 검사합니다.
+정식 module tag 및 사용자 배포는 남은 인수 게이트와 `publishable=true` 전환 뒤에만 허용합니다.
+이번 구현은 운영 사이트에 적용하지 않았습니다.

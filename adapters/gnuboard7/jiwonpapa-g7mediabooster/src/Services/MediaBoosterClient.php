@@ -96,6 +96,7 @@ final class MediaBoosterClient
         return $this->expectObject($this->request(
             'GET',
             "/v1/uploads/{$uploadId}/derivatives/{$variant}/delivery",
+            allowDisabled: true,
         ));
     }
 
@@ -136,10 +137,13 @@ final class MediaBoosterClient
      * @param array<string, mixed>|null $payload
      * @return array<string, mixed>|null
      */
-    private function request(string $method, string $path, ?array $payload = null): ?array
+    private function request(string $method, string $path, ?array $payload = null, bool $allowDisabled = false): ?array
     {
-        if (! $this->configuration->enabled) {
+        if (! $this->configuration->enabled && ! $allowDisabled) {
             throw new MediaBoosterUpstreamException(503, 'MODULE_DISABLED', '미디어 부스터가 비활성화되어 있습니다.');
+        }
+        if ($allowDisabled && strlen($this->configuration->hmacSecret) < 32) {
+            throw new MediaBoosterUpstreamException(503, 'CREDENTIALS_MISSING', '기존 미디어 전달에 필요한 연결 설정이 없습니다.');
         }
 
         try {

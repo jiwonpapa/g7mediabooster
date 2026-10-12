@@ -29,6 +29,9 @@ interface G7ActionDispatcher {
 interface G7Runtime {
     getActionDispatcher?: () => G7ActionDispatcher | undefined;
     state?: G7StateBridge;
+    componentEvent?: {
+        on: (name: string, handler: () => Promise<unknown>) => () => void;
+    };
 }
 
 interface CompletedUploadBatchEvent {
@@ -59,11 +62,28 @@ export function mountUploaderHandler(action: ActionDefinition): void {
         return;
     }
 
-    updateLocalState({ g7mbUploading: false });
+    const events = (window as unknown as G7Window).G7Core?.componentEvent;
+    updateLocalState({ g7mbUploading: false, g7mbRuntimeReady: typeof events?.on === 'function' });
     const uploader = document.createElement(ELEMENT_NAME);
     uploader.setAttribute('board-slug', boardSlug);
+    if (action.params?.disabled === true) uploader.setAttribute('disabled', '');
     uploader.addEventListener('g7mb:state', handleUploaderState);
     uploader.addEventListener('g7mb:complete', handleUploaderComplete);
+    if (events?.on) {
+        const unsubscribe = events.on('upload:board_attachments', async () => {
+            try {
+                await (uploader as HTMLElement & { uploadPending: () => Promise<void> }).uploadPending();
+                const local = currentLocalState();
+                const form = isRecord(local.form) ? local.form : {};
+                return { attachment_ids: form.attachment_ids ?? [] };
+            } catch (error) {
+                updateLocalState({ isSaving: false, g7mbUploading: false,
+                    uploadError: error instanceof Error ? error.message : '업로드를 완료하지 못했습니다.' });
+                throw error;
+            }
+        });
+        uploader.addEventListener('g7mb:disconnect', unsubscribe, { once: true });
+    }
     mount.replaceChildren(uploader);
     mount.dataset.g7mbMounted = 'true';
 }

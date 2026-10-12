@@ -7,16 +7,24 @@ Gnuboard 7 모듈의 모든 주목할 만한 변경 사항을 이 파일에 기�
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-12
+
+### Added
+
+- 공식 Gnuboard 7.1.0 공개 layout filter와 선언형 middleware만 사용하는 코어 무수정 어댑터를 추가했습니다.
+- 원본 게시판 서비스 기반 첨부 연결·소유권·권한·보존 회귀 테스트와 설치 전후 원본 해시 검사를 추가했습니다.
+
 ### Changed
 
+- 기존 외부 첨부 patch 계약 의존성과 URL filter를 제거하고 원본 URL을 그대로 사용합니다.
+- 업로드 해제는 설정 `enabled=false`로 수행하며 기존 원격 첨부의 전달 경로는 유지합니다.
 - 모듈 릴리스 이력을 Keep a Changelog 형식으로 정본화하고 GitHub Release 노트와 연결했습니다.
-- 공식 Gnuboard 7.0.6과 번들 `sirsoft-board` 1.0.3을 최소 설치 기준으로 정정했습니다.
-- 과거 7.0.5 patch를 배포 자산에서 제거하고 stock 7.0.6 capability가 없는 동안 모듈 릴리스를
-  fail-closed 합니다.
+- 검증 기준을 실제 공개된 7.1.0 / 번들 `sirsoft-board` 1.2.0으로 변경했습니다. 브라우저·실 저장소·설치 종단 전에는 정식 배포를 계속 차단합니다.
 
 ### Security
 
 - 빌드 의존성 lockfile의 Nano ID와 PostCSS advisory를 패치 버전으로 갱신했습니다.
+- 원격 첨부가 남아 있으면 모듈 전체 비활성화·삭제를 차단합니다.
 
 ## [0.4.3] - 2026-07-16
 
@@ -112,7 +120,8 @@ Gnuboard 7 모듈의 모든 주목할 만한 변경 사항을 이 파일에 기�
 
 - G7 관리자 설정, HMAC control client, upload ownership, 100개 direct single/multipart uploader를 추가했습니다.
 
-[Unreleased]: https://github.com/jiwonpapa/g7mediabooster/compare/7df24322045806f9b3d6eac002d74fe2b2006126...HEAD
+[Unreleased]: https://github.com/jiwonpapa/g7mediabooster/compare/g7-module-v0.5.0...HEAD
+[0.5.0]: https://github.com/jiwonpapa/g7mediabooster/compare/7df24322045806f9b3d6eac002d74fe2b2006126...g7-module-v0.5.0
 [0.4.3]: https://github.com/jiwonpapa/g7mediabooster/commit/7df24322045806f9b3d6eac002d74fe2b2006126
 [0.4.2]: https://github.com/jiwonpapa/g7mediabooster/commit/72e381796d9cebb6864673d71aa145767729a81d
 [0.4.1]: https://github.com/jiwonpapa/g7mediabooster/commit/f5ac953fe881f1f038094217280c3aaeb884612d

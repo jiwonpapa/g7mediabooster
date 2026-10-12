@@ -11,10 +11,11 @@ S3와 Cloudflare R2는 같은 S3 호환 포트로 구현합니다. R2의 object�
 현재 저장소는 **v0.1 구현 진행 단계**입니다. batch 생성, S3/R2 single·multipart 제어,
 HMAC 인증, SQLite lease queue, 검증된 master+thumbnail/poster 원자적 발행,
 4MiB/60초 bounded manifest cache·singleflight, digest-pinned 이미지 워터마크,
-sandbox runtime capability, 삭제·보존 cleanup과 G7 0.4.3
-form/Ready attachment bridge·보존 삭제 대조까지 연결됐습니다. 다만 공식 G7 7.0.6의
-`sirsoft-board` 1.0.3에는 필수 외부 첨부 capability가 없어 stock 설치에서 모듈은 현재
-fail-closed 합니다. MP4/MOV H.264, 로컬 5GiB 재개, R2 실계정 종단은 통과했습니다. 현재 공개
+sandbox runtime capability, 삭제·보존 cleanup과 G7 0.5.0
+core-free form/Ready attachment bridge까지 연결됐습니다. G7 어댑터는 공식 7.1.0 / 번들
+`sirsoft-board` 1.2.0의 공개 확장 경로를 사용하며 코어·게시판·기본 템플릿을 수정하지 않습니다.
+원본 호스트 회귀는 통과했지만 새 어댑터의 브라우저·실 저장소·설치 종단은 별도 검증 전입니다.
+MP4/MOV H.264, 로컬 5GiB 재개, 기존 R2 실계정 종단은 통과했습니다. 현재 공개
 판정은 [기능 상태 정본](deploy/official-features-v1.json)만 따릅니다.
 
 ## 확정 기술 스택
@@ -127,7 +128,8 @@ cargo xtask supply-chain
 - [멀티업로드와 lease queue 설명](docs/QUEUE_MODEL.md)
 - [Gnuboard 7 연동 계약](docs/GNUBOARD7_INTEGRATION.md)
 - [Gnuboard 7 모듈 배포·설치](docs/GNUBOARD7_RELEASE.md)
-- [Gnuboard 7 upstream 첨부 계약 patch](adapters/gnuboard7/upstream-contract/README.md)
+- [Gnuboard 7.1 core-free 구현·검증 경계](docs/evidence/G7_CORE_FREE_710_20261012.md)
+- [과거 upstream 첨부 계약 제안 (현재 불필요)](adapters/gnuboard7/upstream-contract/README.md)
 - [Gnuboard 7 실제 저장소 browser E2E](docs/evidence/G7_STORAGE_E2E_20260716.md)
 - [Python 하네스 전환과 G7 실제 레이아웃 복구](docs/evidence/PYTHON_HARNESS_AND_G7_LAYOUT_20260717.md)
 - [정확한 5GiB·G7 정책 종단 증거](docs/evidence/LARGE_MULTIPART_AND_G7_POLICY_20260716.md)

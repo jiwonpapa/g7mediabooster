@@ -76,10 +76,10 @@ final class AttachmentBridgeController extends AuthBaseController
     private function deliveryPath(string $slug, string $hash, string $variant): string
     {
         return sprintf(
-            '/api/modules/jiwonpapa-g7mediabooster/boards/%s/attachments/%s/%s',
+            '/api/modules/sirsoft-board/boards/%s/attachment/%s%s',
             $slug,
             $hash,
-            $variant,
+            $variant === 'thumbnail' ? '/preview' : '',
         );
     }
 }

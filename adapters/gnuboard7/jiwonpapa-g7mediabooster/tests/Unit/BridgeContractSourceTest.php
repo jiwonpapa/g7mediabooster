@@ -35,15 +35,14 @@ final class BridgeContractSourceTest extends TestCase
         self::assertStringContainsString('lockForUpdate()', $store);
         self::assertStringContainsString("->whereNull('attachment_id')", $store);
         self::assertStringContainsString('assertSecureUpstreamContract()', $bridge);
-        self::assertStringContainsString('findPostForAttachmentDelivery', $bridge);
-        self::assertStringContainsString('visibility-aware attachment delivery is unavailable', $bridge);
+        self::assertStringContainsString('Gnuboard7MediaContract::assertRuntimeSurface()', $bridge);
         self::assertStringContainsString("->where('board_id', 0)", $bridge);
         self::assertStringContainsString('isMaterializedAs(', $delivery);
-        self::assertStringContainsString('authorizeDelivery(', $delivery);
+        self::assertStringContainsString('$this->authorizer->authorize(', $delivery);
         self::assertStringContainsString("unset(\$file['original_filename'])", $upload);
         self::assertStringNotContainsString('video/webm', $batchRequest);
         self::assertStringContainsString('video/quicktime', $batchRequest);
-        self::assertStringContainsString('AttachmentUrlListener::class', $module);
+        self::assertStringContainsString('BoardUploaderLayoutListener::class', $module);
         self::assertStringContainsString('Gnuboard7MediaContract::assertCompatible()', $module);
         self::assertStringContainsString('nullOnDelete()', $migration);
         self::assertStringContainsString('retention_request_started_at', $retentionMigration);
@@ -55,7 +54,7 @@ final class BridgeContractSourceTest extends TestCase
         self::assertStringContainsString("Route::get('watermark-assets'", $routes);
         self::assertStringContainsString("->where('sessions.user_id', \$userId)", $catalog);
         self::assertStringContainsString("->where('sessions.state', 'ready')", $catalog);
-        self::assertStringContainsString("->where('attachments.collection', 'post_attachments')", $catalog);
+        self::assertStringContainsString("->whereIn('attachments.collection', ['attachments', 'post_attachments'])", $catalog);
         self::assertStringContainsString("->where('attachments.created_by', \$userId)", $catalog);
         self::assertStringContainsString('isSelectableForUser($adminId, $watermarkAssetId)', $settingsController);
         self::assertStringNotContainsString('Ready 상태 이미지 UUID', json_encode($settingsLayout, JSON_THROW_ON_ERROR));
@@ -64,18 +63,6 @@ final class BridgeContractSourceTest extends TestCase
             json_encode($settingsLayout, JSON_THROW_ON_ERROR),
         );
         self::assertTrue(is_subclass_of(ReconcileAttachmentRetentionCommand::class, Command::class));
-    }
-
-    public function testBoardFormExtensionsMountUploaderAndBlockSubmitWhileRunning(): void
-    {
-        $root = dirname(__DIR__, 2);
-        $user = $this->decodeExtension($root.'/resources/extensions/user-board-media-uploader.json');
-        $admin = $this->decodeExtension($root.'/resources/extensions/admin-board-media-uploader.json');
-
-        self::assertSame('board/form', $user['target_layout']);
-        self::assertSame('sirsoft-board.admin_board_post_form', $admin['target_layout']);
-        $this->assertUploaderInjection($user, 'board_native_file_uploader', 'board_post_submit');
-        $this->assertUploaderInjection($admin, 'admin_board_native_file_uploader', 'footer_save_button');
     }
 
     /** @return array<string, mixed> */
@@ -87,23 +74,4 @@ final class BridgeContractSourceTest extends TestCase
         return $decoded;
     }
 
-    /** @param array<string, mixed> $extension */
-    private function assertUploaderInjection(array $extension, string $uploaderTarget, string $submitTarget): void
-    {
-        self::assertIsArray($extension['injections'] ?? null);
-        self::assertCount(2, $extension['injections']);
-        $uploader = $extension['injections'][0];
-        $submit = $extension['injections'][1];
-        self::assertIsArray($uploader);
-        self::assertIsArray($submit);
-        self::assertSame($uploaderTarget, $uploader['target_id'] ?? null);
-        self::assertSame('replace', $uploader['position'] ?? null);
-        self::assertSame(
-            'jiwonpapa-g7mediabooster.mountUploader',
-            $uploader['components'][0]['lifecycle']['onMount'][0]['handler'] ?? null,
-        );
-        self::assertSame($submitTarget, $submit['target_id'] ?? null);
-        self::assertSame('inject_props', $submit['position'] ?? null);
-        self::assertStringContainsString('g7mbUploading', (string) ($submit['props']['disabled'] ?? ''));
-    }
 }

@@ -9,12 +9,14 @@ use UnexpectedValueException;
 final class AttachmentMaterializationValidator
 {
     private const IMAGE_MAX_BYTES = 128 * 1024 * 1024;
+
     private const VIDEO_MAX_BYTES = 5 * 1024 * 1024 * 1024;
+
     private const THUMBNAIL_MAX_BYTES = 32 * 1024 * 1024;
 
     /**
-     * @param array<string, mixed> $status
-     * @param array<string, mixed> $session
+     * @param  array<string, mixed>  $status
+     * @param  array<string, mixed>  $session
      * @return array<string, mixed>
      */
     public function validate(array $status, array $session): array
@@ -95,7 +97,7 @@ final class AttachmentMaterializationValidator
             'path' => $uploadId,
             'mime_type' => $master['content_type'],
             'size' => $master['byte_len'],
-            'collection' => 'post_attachments',
+            'collection' => 'attachments',
             'order' => $attachmentOrder,
             'meta' => [
                 'g7mb_upload_id' => $uploadId,
@@ -114,8 +116,7 @@ final class AttachmentMaterializationValidator
         string $kind,
         string $detectedType,
         int $expectedSize,
-    ): void
-    {
+    ): void {
         $presetId = $derivative['preset_id'] ?? null;
         $urlPath = $derivative['url_path'] ?? null;
         $contentType = $derivative['content_type'] ?? null;

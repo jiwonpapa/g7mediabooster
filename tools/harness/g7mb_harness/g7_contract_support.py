@@ -10,17 +10,6 @@ from .g7_install_support import safe_zip_extract
 from .process import run
 
 
-def patched_paths(patch_root: Path) -> list[str]:
-    """Return unique target paths from the canonical patch set."""
-
-    paths: set[str] = set()
-    for patch in sorted(patch_root.glob("*.patch")):
-        for line in patch.read_text(encoding="utf-8").splitlines():
-            if line.startswith("+++ b/"):
-                paths.add(line.removeprefix("+++ b/"))
-    return sorted(paths)
-
-
 def verify_module_host(root: Path, verifier: Path, module_root: Path) -> bool:
     """Run the canonical PHP host/module activation contract."""
 

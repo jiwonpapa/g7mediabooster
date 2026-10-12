@@ -104,10 +104,12 @@ class Controller:
 
         php = (
             "$service = app(\\App\\Services\\LayoutService::class); "
-            '$user = json_encode($service->getLayout("sirsoft-basic", "board/form", true), '
+            '$user = json_encode($service->getLayout("sirsoft-basic", '
+            '"partials/board/form/_post_form", true), '
             "JSON_UNESCAPED_SLASHES); "
             '$admin = json_encode($service->getLayout("sirsoft-admin_basic", '
-            '"sirsoft-board.admin_board_post_form", true), JSON_UNESCAPED_SLASHES); '
+            '"sirsoft-board.partials/admin_board_post_form/_attachments", true), '
+            'JSON_UNESCAPED_SLASHES); '
             'echo json_encode(["user_mount"=>substr_count($user, "g7mb-user-uploader-mount"),'
             '"user_handler"=>substr_count($user, "jiwonpapa-g7mediabooster.mountUploader"),'
             '"admin_mount"=>substr_count($admin, "g7mb-admin-uploader-mount"),'
@@ -125,12 +127,27 @@ class Controller:
         return result
 
     def refresh_layouts(self) -> None:
-        """Synchronize patched source layouts and active module overlays into the DB."""
-
-        self.artisan("module:refresh-layout", "sirsoft-board", "--no-ansi")
-        self.artisan("template:refresh-layout", "sirsoft-basic", "--no-ansi")
+        """Refresh only our module; native source layouts are never rewritten."""
         self.artisan("module:refresh-layout", self.module_id, "--no-ansi")
         self.artisan("optimize:clear", "--no-ansi")
+
+    def uploads_enabled(self) -> bool:
+        """Read only the non-secret upload switch from the official settings service."""
+        php = ("echo json_encode((bool) app(\\App\\Services\\ModuleSettingsService::class)"
+               f"->get('{self.module_id}', 'enabled', false));")
+        output = self.artisan("tinker", f"--execute={php}", capture=True).stdout
+        return json.loads(output.strip().splitlines()[-1]) is True
+
+    def set_uploads_enabled(self, enabled: bool) -> None:
+        """Change only the upload switch, preserving credentials and existing delivery."""
+        value = "true" if enabled else "false"
+        php = ("if (! app(\\App\\Services\\ModuleSettingsService::class)"
+               f"->save('{self.module_id}', ['enabled' => {value}])) "
+               "{ throw new \\RuntimeException('G7MB_SETTINGS_SAVE_FAILED'); }")
+        self.artisan("tinker", f"--execute={php}")
+        self.artisan("optimize:clear", "--no-ansi")
+        if self.uploads_enabled() != enabled:
+            raise RuntimeError("upload switch did not persist")
 
     def status(self, *, require_layout: bool) -> dict[str, Any]:
         """Return structured runtime status and optionally fail on a missing overlay."""
@@ -141,6 +158,7 @@ class Controller:
             "module": self.module_row() or "not-installed",
             "module_active": self.module_active() if self.module_row() else False,
         }
+        status["uploads_enabled"] = self.uploads_enabled() if status["module_active"] else False
         if status["module_active"]:
             try:
                 status["layout"] = self.layout_status()
@@ -148,7 +166,7 @@ class Controller:
             except RuntimeError as error:
                 status["layout_applied"] = False
                 status["layout_error"] = str(error)
-                if require_layout:
+                if require_layout and status["uploads_enabled"]:
                     print(json.dumps(status, ensure_ascii=False, sort_keys=True))
                     raise
         return status
@@ -174,88 +192,44 @@ class Controller:
                 break
             time.sleep(1)
         if not ready:
-            run(
-                ["sudo", "systemctl", "disable", "--now", "g7mediabooster.target"],
-                check=False,
-            )
-            raise RuntimeError("service readiness failed; product target was stopped")
+            raise RuntimeError("service readiness failed; uploads were not enabled")
         if not self.module_active():
             self.artisan("module:activate", self.module_id)
         try:
+            self.set_uploads_enabled(True)
             self.refresh_layouts()
             self.layout_status()
         except Exception:
-            if self.module_active():
-                self.artisan("module:deactivate", self.module_id, "--force")
-            run(
-                ["sudo", "systemctl", "disable", "--now", "g7mediabooster.target"],
-                check=False,
-            )
+            self.set_uploads_enabled(False)
             raise
         return self.status(require_layout=True)
 
     def disable(self) -> dict[str, Any]:
-        """Disable code paths while retaining configuration and data."""
+        """Restore native uploads while retaining the bridge/API for existing remote media."""
 
         if self.module_active():
-            self.artisan("module:deactivate", self.module_id)
-        run(
-            ["sudo", "systemctl", "disable", "--now", "g7mediabooster.target"],
-            check=False,
-        )
-        if self.service_state() == "active":
-            raise RuntimeError("product target remains active")
+            self.set_uploads_enabled(False)
         return self.status(require_layout=False)
 
     def rollback(self, deployment_id: str) -> dict[str, Any]:
-        """Restore a recorded deployment without deleting media or credentials."""
+        """Remove our core-free module only after its remote-media guard permits removal."""
 
         backup_root = Path("/var/backups/g7mediabooster") / deployment_id
-        for required in ("receipt.txt", "files", "created-paths.txt", "before.sha256"):
-            run(["sudo", "test", "-e", str(backup_root / required)])
-        receipt = run(["sudo", "cat", str(backup_root / "receipt.txt")], capture=True).stdout
-        if f"deployment_id={deployment_id}\n" not in receipt:
-            raise RuntimeError("rollback receipt id mismatch")
-        if f"app_root={self.app_root}\n" not in receipt:
-            raise RuntimeError("rollback app root mismatch")
-        self._verify_backup_manifest(backup_root)
+        receipt = json.loads(run(
+            ["sudo", "cat", str(backup_root / "receipt.json")], capture=True).stdout)
+        expected = {"status": "PASS", "module": self.module_id, "native_changes": 0,
+                    "deployment_id": deployment_id, "app_root": str(self.app_root)}
+        if receipt != expected:
+            raise RuntimeError("core-free rollback receipt mismatch; "
+                               "legacy native-file restore is unsupported")
         if self.module_active():
             self.artisan("module:deactivate", self.module_id, "--force")
         if self.module_row():
             self.artisan("module:uninstall", self.module_id, "--force")
         run(["sudo", "rm", "-rf", str(self.app_root / "modules/_pending" / self.module_id)])
         run(["sudo", "rm", "-rf", str(self.app_root / "modules" / self.module_id)])
-        created = run(
-            ["sudo", "cat", str(backup_root / "created-paths.txt")], capture=True
-        ).stdout.splitlines()
-        for relative in created:
-            if relative:
-                validate_relative_path(relative)
-                run(["sudo", "rm", "-f", str(self.app_root / relative)])
-        run(["sudo", "rsync", "-a", f"{backup_root / 'files'}/", f"{self.app_root}/"])
         self.artisan("optimize:clear", "--no-ansi")
-        run(["sudo", "systemctl", "reload", "php8.5-fpm.service"])
-        run(
-            ["sudo", "systemctl", "disable", "--now", "g7mediabooster.target"],
-            check=False,
-        )
         return self.status(require_layout=False)
-
-    @staticmethod
-    def _verify_backup_manifest(backup_root: Path) -> None:
-        manifest = run(
-            ["sudo", "cat", str(backup_root / "before.sha256")], capture=True
-        ).stdout.splitlines()
-        for line in manifest:
-            digest, separator, relative = line.partition("  ")
-            if not separator or not re.fullmatch(r"[a-f0-9]{64}", digest):
-                raise RuntimeError("rollback checksum manifest is invalid")
-            validate_relative_path(relative)
-            actual = run(
-                ["sudo", "sha256sum", str(backup_root / "files" / relative)], capture=True
-            ).stdout.split()[0]
-            if actual != digest:
-                raise RuntimeError(f"rollback checksum mismatch: {relative}")
 
 
 def validate_relative_path(value: str) -> None:

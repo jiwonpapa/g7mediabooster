@@ -22,6 +22,7 @@ if (document.readyState === 'loading') {
 }
 
 const api = {
+    initModule(): void { registerFormBridge(true); },
     elementName: ELEMENT_NAME,
     watermarkElementName: WATERMARK_ELEMENT_NAME,
     createUploader(boardSlug: string): MultiUploader {

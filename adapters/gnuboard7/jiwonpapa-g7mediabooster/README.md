@@ -1,128 +1,57 @@
 # G7 Media Booster for Gnuboard 7
 
-Gnuboard 7.0.6+와 versioned 보안 첨부 capability용 전용 모듈입니다. PHP는 로그인·게시판 권한·HMAC 제어 요청만 담당하고,
-파일 바이트는 브라우저에서 S3/R2 quarantine bucket으로 직접 전송합니다.
+0.5.0은 공식 G7 7.1.0 / 번들 `sirsoft-board` 1.2.0 공개 확장 계약을 사용하는 core-free 모듈입니다.
+코어·게시판·기본 템플릿을 수정하지 않습니다. 새 어댑터의 브라우저·실 저장소·설치 종단 전에는 preview입니다.
 
-> 공식 Gnuboard 7.0.6의 `sirsoft-board` 1.0.3에는 필수 capability가 없어 현재 stock 설치는
-> `BLOCKED`입니다. ZIP은 개발 preview이며 정식 사용자 설치·활성화 대상이 아닙니다.
+## 구현 기능
 
-## 제공 기능
+- 이미지·MP4/MOV H.264 최대 100개 직접 single/multipart 업로드
+- 기본 파일 8개, 파일별 part 4개 동시성 제한, 진행률·취소·재시도·abort
+- Ready master·thumbnail/poster 검증 후 native attachment 원자적·멱등 생성
+- 사용자·관리자 폼 응답의 업로더 교체와 기존 저장 이벤트/첨부 ID 연결
+- 원본 게시판 권한 검사를 재사용한 기존 URL의 private no-store 302 전달
+- 로그인 사용자·게시판별 upload 소유권, 처리 상태·개수·삭제 경합 검증
+- 보존 lease·삭제/복원 경합 보호, 워터마크 정책 revision 동기화
+- 관리자 `미디어 부스터` 설정, HMAC secret 암호화 및 브라우저 비노출
+- 업로드 사용 해제 시 기존 업로더 복원, 기존 원격 첨부 열람 유지
 
-- 최대 100개 batch intent와 게시판별 파일 수·크기 제한
-- single PUT 및 multipart, 파일 8개·파일별 part 4개 기본 병렬 제한
-- MP4/MOV H.264 업로드, 원 container master와 JPEG poster private delivery
-- 진행률, 전체 취소, transient part 재시도, multipart abort
-- multipart `ETag` 검증과 완료 순서 고정
-- HMAC secret을 Laravel Crypt로 암호화하고 브라우저 응답에서 제거
-- upload ID를 로그인 사용자와 게시판에 묶어 수평 권한 상승 차단
-- 소유 upload의 HMAC 삭제 예약과 `deletion_pending` 상태 프록시
-- 소유 Ready master/thumbnail의 5분 private GET no-store redirect
-- Ready 상태를 검증한 뒤 G7 native attachment를 원자적·멱등 생성
-- 사용자·관리자 게시글 폼 자동 주입과 `attachment_ids` 중복 없는 연결
-- 게시글 권한·삭제 상태를 재사용하는 master/thumbnail·영상 poster private redirect
-- soft delete 보존기간과 lease 기반 원격 삭제 대조, 삭제 시작 뒤 복원 fail-closed
-- Ready 이미지 upload ID 기반 워터마크 정책과 HMAC 서명 revision 동기화
-- G7 관리자 설정 레이아웃과 PHP/TypeScript 테스트 하네스
+서버의 이미지·영상 처리 지원과 새 G7 어댑터의 종단 검증은 구분합니다.
+특히 영상 poster의 기본 게시판 표시와 임의 커스텀 템플릿은 아직 인수 검증 전입니다.
 
-## 설치
+## 설치와 설정
 
-PHP 8.2 이상과 `mbstring` 확장이 필요합니다.
+PHP 8.2+, `mbstring`, 정상 설치된 G7 7.1.0 및 게시판 모듈이 필요합니다.
+checksum을 확인한 전용 모듈 ZIP을 G7 관리자 **모듈 관리 → 파일에서 설치**에 넣습니다.
+모노레포 URL을 **GitHub에서 설치**에 직접 입력하지 않습니다.
 
-기능 상태 정본에서 `gnuboard7_module.publishable=true`가 된 뒤 GitHub Release의
-`jiwonpapa-g7mediabooster-<version>.zip`과 `.zip.sha256`을 받고 checksum을 검증해 G7 관리자
-**모듈 관리 → 파일에서 설치**에 ZIP을 업로드하는 방식이 정식 경로입니다.
-G7의 파일 설치 API는 ZIP만 받으므로 `tar.gz`는 서버 수동 배치용입니다. 설치 전 아래 upstream
-계약 검증을 통과해야 합니다.
+모듈 설치·활성화 후 관리자 **미디어 부스터**에서 제어 endpoint, HMAC key ID·secret을 설정합니다.
+같은 서버 endpoint는 `http://127.0.0.1:8088`이며 별도 서버는 HTTPS origin을 사용합니다.
+R2/S3 비밀값은 Rust 서버의 `g7mbctl setup`으로 설정합니다. PHP·브라우저에는 넣지 않습니다.
 
-서버에 수동 배치할 때는 압축 내부 디렉터리를 G7의 다음 위치에 둡니다.
+버전과 실제 공개 메서드 계약이 불일치하면 활성화를 차단합니다.
+원격 첨부가 남아 있으면 전체 모듈 제거·비활성화를 차단합니다. 단순 사용 해제는 관리자에서
+업로드 사용을 끄십시오. Rust API를 중지하면 기존 원격 첨부도 열람할 수 없습니다.
 
-```text
-modules/jiwonpapa-g7mediabooster
-```
+## 저장소 CORS
 
-먼저 대상 G7이 versioned capability·PHP 시그니처·layout target을 제공하는지 검증한 뒤 G7의
-표준 모듈 설치·활성화 절차를 사용합니다. 0.4.3은 하나라도 없으면 활성화 자체를
-거부합니다. 설치 시
-`g7mb_upload_sessions`, attachment bridge, retention queue migration이 실행되고 관리자 메뉴에 `미디어 부스터`가 추가됩니다.
-Rust API의 `key_id`, HMAC secret, tenant 설정은 G7 관리자 값과 정확히 맞아야 합니다.
-같은 서버의 표준 설치 기본 endpoint는 Rust API/CUI와 동일한 `http://127.0.0.1:8088`입니다.
-리버스 프록시나 별도 서버를 쓰는 경우에만 관리자 화면에서 HTTPS origin으로 변경합니다.
-
-현재 소스는 Rust와 PHP가 함께 있는 모노레포이므로 G7의 “GitHub에서 설치”에는 저장소 URL을
-입력하지 않습니다. 해당 기능은 저장소 루트에 `module.json`이 있는 전용 모듈 저장소만
-지원합니다. 전용 저장소가 준비되기 전 업데이트도 새 Release ZIP을 관리자 파일 업데이트
-경로로 적용합니다.
-
-## Object storage CORS
-
-브라우저 origin만 허용하고 최소한 다음 계약을 만족해야 합니다.
+실제 게시판 origin만 허용합니다. direct-upload URL은 HTTPS이며 multipart는 `ETag` 노출이 필수입니다.
 
 ```json
-[
-  {
-    "AllowedOrigins": ["https://board.example.com"],
-    "AllowedMethods": ["PUT"],
-    "AllowedHeaders": ["content-type", "x-amz-*"],
-    "ExposeHeaders": ["ETag"],
-    "MaxAgeSeconds": 3600
-  }
-]
+[{"AllowedOrigins":["https://board.example.com"],"AllowedMethods":["PUT"],
+  "AllowedHeaders":["content-type","x-amz-*"],"ExposeHeaders":["ETag"],"MaxAgeSeconds":3600}]
 ```
 
-`ETag`를 expose하지 않으면 multipart 완료를 거부하고 abort합니다. Presign에 포함된
-`Content-Length`는 브라우저가 실제 Blob 크기로 자동 전송하므로 JavaScript가 금지 헤더를
-직접 설정하지 않습니다. 운영 direct-upload URL은 HTTPS만 허용합니다.
-
-## 사용
-
-upstream 첨부 계약이 반영되면 사용자·관리자 게시글 폼에 custom element가 자동 주입됩니다.
-독립 레이아웃에서 직접 배치할 때는 다음 element를 사용합니다.
-
-```html
-<g7-media-uploader board-slug="free"></g7-media-uploader>
-```
-
-전체 직접 전송 후 Ready 확인과 native attachment 생성까지 끝나면 `g7mb:complete` 이벤트가
-발생합니다. `detail.files[*].attachment.id`를 게시글 `attachment_ids`에 넣을 수 있습니다.
-JavaScript에서 직접 사용하려면 전역 factory를 사용할 수 있습니다.
-
-```js
-const uploader = window.__G7MediaBooster.createUploader('free');
-const result = await uploader.upload(files, { signal: abortController.signal });
-```
-
-## 검증
+## 개발 검증
 
 ```bash
 npm ci
 npm run typecheck
 npm test
 npm run build
-
-# G7 vendor의 PHPUnit 사용
-/path/to/gnuboard7/vendor/bin/phpunit -c phpunit.xml
-
-# G7에 설치한 뒤 비밀글·삭제/복원·보존 lease 실제 DB 게이트
-/path/to/G7MediaBooster/scripts/g7-host-security-gate.sh /path/to/gnuboard7
+G7MB_TEST_HOST_ROOT=/path/to/stock-g7 /path/to/stock-g7/vendor/bin/phpunit -c phpunit.xml --do-not-cache-result
+/path/to/G7MediaBooster/scripts/g7-host-security-gate.sh /path/to/stock-g7
 ```
 
-현재 검증 범위는 PHP HMAC/config/client·삭제·Ready materialization·URL resolver 계약,
-TypeScript 100개 bounded scheduling·multipart·ETag·Ready polling·native attachment 생성,
-MP4/MOV intent·materialization·private delivery, site policy PUT/GET, Vite production build와
-G7 upstream 계약 검사입니다.
-워터마크 자산은 관리자 화면에서 본인이 최근 7일 안에 올린 Ready PNG·WebP·JPEG 중 16MiB
-이하만 선택합니다. 수동 UUID 입력은 노출하지 않습니다. 설치·설정·user/admin form 주입·disabled
-fail-safe와 MinIO single/multipart→create/update→private thumbnail, 자산 선택·저장·재로드·rollback은
-격리 브라우저 smoke를 통과했습니다. 비밀·블라인드·삭제글 전달과 삭제/복원·보존 lease는 실제
-G7 DB host gate를 통과했고 사용자별 403 매트릭스도 실제 브라우저에서 확인했습니다. 이는
-patched 개발 호스트의 역사적 증거이며 공식 stock 7.0.6 호환 증거는 아닙니다. 실제
-PHP HMAC policy→Rust worker 워터마크 출력→rollback, 실제 MOV/H.264 worker 발행과
-API 재기동을 포함한 로컬 정확한 5GiB 직접 multipart 재개도
-통과했습니다. R2 data-plane은 실계정에서 검증됐고 AWS S3·Lightsail과 실 provider 만료
-삭제는 별도 운영 게이트입니다.
-
-## 아직 공식 지원으로 게시하지 않는 연동
-
-R2 5GiB·중단/재개, AWS S3·Lightsail profile과 보존 만료 command→실 provider 삭제는 각 종단
-게이트 전 공식 지원으로 게시하지 않습니다. versioned capability가 없는 `sirsoft-board`에서는
-module activation 계약 검사가 실행을 fail-closed 합니다.
+호스트 테스트는 이름에 `_testing`이 포함된 별도 DB에서만 실행해야 합니다.
+설치·연동·남은 게이트는 저장소의 `docs/GNUBOARD7_INTEGRATION.md`, `docs/GNUBOARD7_RELEASE.md`,
+`docs/evidence/G7_CORE_FREE_710_20261012.md`에 기록합니다. 과거 patch는 현재 설치에 사용하지 않습니다.

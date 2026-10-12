@@ -20,7 +20,7 @@ ALLOWED_STATUSES = {
 PUBLISHABLE_STATUSES = {"VERIFIED_LOCAL", "VERIFIED_PROVIDER", "RELEASED"}
 REQUIRED_STATES = {
     "cloudflare_r2_profile": ("VERIFIED_PROVIDER", True),
-    "gnuboard7_module": ("BLOCKED", False),
+    "gnuboard7_module": ("IMPLEMENTED", False),
     "lightsail_object_storage_profile": ("IMPLEMENTED", False),
     "multi_node_postgresql": ("EXCLUDED", False),
 }
@@ -75,11 +75,11 @@ def validate_repository(root: Path) -> dict[str, object]:
         "version": module.get("version"),
         "gnuboard7": module.get("g7_version"),
         "sirsoft_board": module.get("dependencies", {}).get("modules", {}).get("sirsoft-board"),
-        "capability": "sirsoft-board.secure-external-attachments "
+        "capability": "g7mb.gnuboard7-core-free "
         + str(
             module.get("compatibility", {})
             .get("contracts", {})
-            .get("sirsoft-board.secure-external-attachments", "")
+            .get("g7mb.gnuboard7-core-free", "")
         ),
     }
     if module_status != expected_module:

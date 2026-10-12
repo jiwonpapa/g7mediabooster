@@ -149,29 +149,51 @@ jobs:
   gnuboard7-stock-compatibility:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: g7mb-ci-only
+          MYSQL_DATABASE: g7mb_corefree_testing
+        ports: [3306:3306]
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -pg7mb-ci-only"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+    env:
+      DB_WRITE_HOST: 127.0.0.1
+      DB_WRITE_DATABASE: g7mb_corefree_testing
+      DB_WRITE_USERNAME: root
+      DB_WRITE_PASSWORD: g7mb-ci-only
+      DB_READ_HOST: 127.0.0.1
+      DB_READ_DATABASE: g7mb_corefree_testing
+      DB_READ_USERNAME: root
+      DB_READ_PASSWORD: g7mb-ci-only
     steps:
       - name: Checkout G7MediaBooster
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - name: Checkout official Gnuboard7 7.0.6
+      - name: Checkout official Gnuboard7 7.1.0 (unchanged source)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: gnuboard/g7
-          ref: 71ff784b9018f359b4ee764a532b9e83a72c2eff
+          ref: dbe88420c3219f42db1ac16a7e6bb17a438e144d
           path: upstream-gnuboard7
-      - name: Verify official versions and fail-closed capability gate
+      - name: Install official locked PHP dependencies
         run: |
-          test "$(jq -r '.version' upstream-gnuboard7/modules/_bundled/sirsoft-board/module.json)" = "1.0.3"
-          test "$(jq -r '.g7_version' upstream-gnuboard7/modules/_bundled/sirsoft-board/module.json)" = ">=7.0.6"
-          test "$(jq -r '.g7_version' adapters/gnuboard7/jiwonpapa-g7mediabooster/module.json)" = ">=7.0.6"
-          test "$(jq -r '.dependencies.modules["sirsoft-board"]' adapters/gnuboard7/jiwonpapa-g7mediabooster/module.json)" = ">=1.0.3"
-          if php scripts/verify-gnuboard7-module-host.php \
-              upstream-gnuboard7 \
-              adapters/gnuboard7/jiwonpapa-g7mediabooster \
-              >host-contract.log 2>&1; then
-            echo "stock G7 unexpectedly exposed the external-media capability" >&2
-            exit 1
-          fi
-          grep -F "G7MB_G7_CONTRACT_FILE_MISSING" host-contract.log
+          composer install --working-dir=upstream-gnuboard7 --no-interaction --prefer-dist --no-progress
+          cp upstream-gnuboard7/.env.testing.example upstream-gnuboard7/.env.testing
+          php upstream-gnuboard7/artisan key:generate --env=testing --force
+          rsync -a --exclude node_modules --exclude vendor adapters/gnuboard7/jiwonpapa-g7mediabooster/ \
+            upstream-gnuboard7/modules/_bundled/jiwonpapa-g7mediabooster/
+      - name: Verify stock activation, native layout and security regressions
+        run: |
+          test "$(jq -r '.version' upstream-gnuboard7/modules/_bundled/sirsoft-board/module.json)" = "1.2.0"
+          test "$(jq -r '.g7_version' adapters/gnuboard7/jiwonpapa-g7mediabooster/module.json)" = ">=7.1.0"
+          test "$(jq -r '.dependencies.modules["sirsoft-board"]' adapters/gnuboard7/jiwonpapa-g7mediabooster/module.json)" = ">=1.2.0"
+          php scripts/verify-gnuboard7-module-host.php upstream-gnuboard7 adapters/gnuboard7/jiwonpapa-g7mediabooster
+          G7MB_TEST_HOST_ROOT="$PWD/upstream-gnuboard7" upstream-gnuboard7/vendor/bin/phpunit \
+            -c adapters/gnuboard7/jiwonpapa-g7mediabooster/phpunit.xml --do-not-cache-result
+          bash scripts/g7-host-security-gate.sh "$PWD/upstream-gnuboard7"
+          git -C upstream-gnuboard7 diff --exit-code -- app resources/js/core modules templates
 
   server-bundle:
     runs-on: ubuntu-24.04

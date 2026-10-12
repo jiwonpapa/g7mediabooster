@@ -3,8 +3,8 @@
 ## 배포 설명에 게시할 공식 애플리케이션 기능
 
 배포 페이지와 릴리스 노트에는 아래 구현·자동 검증 범위만 기능으로 게시합니다. G7 기능은
-기능 상태 정본에서 `publishable=true`인 항목만 공식 지원입니다. 공식 G7 7.0.6 stock은 필수
-capability가 없어 현재 `BLOCKED`이며 모듈 ZIP은 preview일 뿐 활성화 지원 대상이 아닙니다.
+기능 상태 정본에서 `publishable=true`인 항목만 공식 지원입니다. G7 0.5.0은 공식 7.1.0의
+코어 무수정 어댑터로 구현됐으나 새 브라우저·설치·provider 종단 전이라 ZIP은 preview입니다.
 Cloudflare R2는 실계정 종단을 통과했고 AWS S3·Lightsail은 미검증입니다. 배포 자동화는
 `official-features-v1.json`을 직접 검증합니다.
 
@@ -32,7 +32,7 @@ Cloudflare R2는 실계정 종단을 통과했고 AWS S3·Lightsail은 미검증
 
 다음 항목은 구현·실환경 검증 전 공식 지원 기능으로 게시하지 않습니다.
 
-- 공식 G7 7.0.6 stock과 capability가 검증되지 않은 모든 Gnuboard7 배포
+- 새 G7 어댑터의 배포 종단 미검증 범위, 7.0.x와 검증되지 않은 커스텀 템플릿
 - 보존 만료 command→실 provider 객체 삭제 종단 증거
 - 멀티노드, PostgreSQL queue, 임의 URL query 기반 동적 리사이즈
 - 기본 비활성 signed public thumbnail listener의 G7 URL producer·실 Nginx ingress 미검증 범위
@@ -40,9 +40,9 @@ Cloudflare R2는 실계정 종단을 통과했고 AWS S3·Lightsail은 미검증
 - S3의 ACL, Object Lock, replication, inventory, IAM/STS, SSE-KMS 관리 기능
 - 실계정 conformance를 아직 통과하지 않은 AWS S3 또는 Lightsail profile
 
-G7 모듈의 제어·업로드·첨부·권한·보존 기능은 patched 개발 호스트에서 검증된 구현 증거가
-있지만 공식 stock 7.0.6 호환 증거가 아닙니다. upstream에서 versioned capability가 제공되고
-stock 설치 종단이 통과할 때까지 G7 기능을 공식 게시하지 않습니다. 실 provider 보존 만료
+G7 모듈은 공식 stock 7.1.0의 공개 filter·middleware 경로로 재설계했습니다. 원본 호스트의
+첨부·권한·보존 회귀 증거는 있지만 새 ZIP 설치·브라우저·provider 종단 전에는 공식 게시하지 않습니다.
+과거 patched 개발 호스트 증거를 새 어댑터의 종단 통과로 재사용하지 않습니다. 실 provider 보존 만료
 삭제도 별도 종단 게이트 전에는 게시하지 않습니다.
 
 G5는 5.6.24 코어 무수정 설치, MySQL 8.4·MyISAM host gate와 MinIO 기반 실제 브라우저
@@ -127,7 +127,7 @@ FFprobe child에도 상속됩니다. 환경 비우기·local protocol allowlist�
 cargo xtask g7-module-package
 ```
 
-`output/releases/jiwonpapa-g7mediabooster-0.4.3.zip`과 서버 수동 배치용 `.tar.gz`, 각각의
+`output/releases/jiwonpapa-g7mediabooster-0.5.0.zip`과 서버 수동 배치용 `.tar.gz`, 각각의
 `.sha256`을 생성합니다. G7 관리자 **모듈 관리 → 파일에서 설치**에는 ZIP을 사용합니다.
 두 압축본은 Git commit의 module subtree에서 각각 두 번 생성해 byte-for-byte 일치를 확인하며
 `vendor`, `node_modules`, tests, PHPUnit cache를 포함하지 않습니다. 압축 내부 `module.json`

@@ -11,7 +11,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 from tools.harness.g7mb_harness import full_stack, g7_live, package_zipapp
-from tools.harness.g7mb_harness.g7_install import Installer
 from tools.harness.g7mb_harness.g7_install_support import safe_zip_extract
 from tools.harness.g7mb_harness.g7_remote import validate_relative_path
 
@@ -65,31 +64,6 @@ class G7SafetyTest(unittest.TestCase):
                 destination.writestr("../escape", "bad")
             with self.assertRaisesRegex(RuntimeError, "unsafe"):
                 safe_zip_extract(archive, root / "out")
-
-    def test_installer_rejects_diverged_active_host_file(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            app = root / "app"
-            shadow = root / "shadow"
-            patch_root = root / "patches"
-            relative = "modules/_bundled/sirsoft-board/example.php"
-            active = "modules/sirsoft-board/example.php"
-            for base, path, content in (
-                (app, relative, "old bundled"),
-                (app, active, "different active"),
-                (shadow, relative, "patched"),
-            ):
-                target = base / path
-                target.parent.mkdir(parents=True, exist_ok=True)
-                target.write_text(content)
-            patch_root.mkdir()
-            (patch_root / "0001.patch").write_text(f"+++ b/{relative}\n")
-            installer = Installer.__new__(Installer)
-            installer.app_root = app
-            installer.patch_root = patch_root
-            with self.assertRaisesRegex(RuntimeError, "active and bundled"):
-                installer._changed_targets(shadow)
-
 
 class PackageTest(unittest.TestCase):
     """Keep the installed Python harness reproducible and minimal."""

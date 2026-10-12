@@ -11,8 +11,11 @@ use stdClass;
 final class WatermarkAssetCatalog
 {
     private const MAX_SOURCE_BYTES = 16 * 1024 * 1024;
+
     private const MAX_THUMBNAIL_BYTES = 32 * 1024 * 1024;
+
     private const MAX_ASSETS = 50;
+
     private const SOURCE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
     /**
@@ -38,7 +41,7 @@ final class WatermarkAssetCatalog
             ->where('sessions.ownership_expires_at', '>', now())
             ->whereNull('attachments.deleted_at')
             ->where('attachments.disk', 'g7mediabooster')
-            ->where('attachments.collection', 'post_attachments')
+            ->whereIn('attachments.collection', ['attachments', 'post_attachments'])
             ->where('attachments.created_by', $userId)
             ->where('attachments.mime_type', 'image/jpeg')
             ->orderByDesc('sessions.created_at')

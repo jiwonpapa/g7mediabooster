@@ -37,7 +37,7 @@ export class G7MediaUploaderElement extends HTMLElement {
         const dropZone = requiredElement(this.root, '[data-role=dropzone]', HTMLElement);
         dropZone.addEventListener('dragover', this.handleDragOver);
         dropZone.addEventListener('drop', this.handleDrop);
-        void this.loadConfiguration();
+        void this.loadConfiguration().catch(() => undefined);
     }
 
     public disconnectedCallback(): void {
@@ -45,12 +45,23 @@ export class G7MediaUploaderElement extends HTMLElement {
         this.input.removeEventListener('change', this.handleSelection);
         this.startButton.removeEventListener('click', this.handleStart);
         this.cancelButton.removeEventListener('click', this.handleCancel);
+        this.dispatchEvent(new CustomEvent('g7mb:disconnect'));
+    }
+
+    /** Native G7 save awaits this method before it sends the post request. */
+    public async uploadPending(): Promise<void> {
+        if (this.selectedFiles.length === 0) return;
+        if (this.activeController) throw new Error('진행 중인 업로드가 끝난 뒤 저장하세요.');
+        const result = await this.start(this.selectedFiles);
+        if (result.files.some((file) => file.state !== 'accepted')) {
+            throw new Error('실패한 파일 업로드를 완료하거나 취소한 뒤 저장하세요.');
+        }
     }
 
     public async start(files: Iterable<File>): Promise<UploadBatchResult> {
         const boardSlug = this.boardSlug();
         const configuration = this.configuration ?? await this.loadConfiguration();
-        if (!configuration.enabled) {
+        if (!configuration.enabled || this.hasAttribute('disabled')) {
             throw new Error('미디어 부스터가 비활성화되어 있습니다.');
         }
         const selected = Array.from(files);
@@ -83,6 +94,8 @@ export class G7MediaUploaderElement extends HTMLElement {
                 bubbles: true,
                 composed: true,
             }));
+            this.selectedFiles = result.files.filter((file) => file.state !== 'accepted').map((file) => file.file);
+            if (this.selectedFiles.length === 0) this.input.value = '';
             return result;
         } finally {
             this.activeController = null;
@@ -118,6 +131,9 @@ export class G7MediaUploaderElement extends HTMLElement {
 
     private selectFiles(files: File[]): void {
         try {
+            if (this.hasAttribute('disabled') || this.configuration?.enabled === false || this.activeController) {
+                throw new Error('현재 파일을 선택할 수 없습니다.');
+            }
             if (this.configuration) validateSelection(files, this.configuration);
             this.selectedFiles = files;
             this.renderFiles(files);
@@ -135,8 +151,8 @@ export class G7MediaUploaderElement extends HTMLElement {
         try {
             const configuration = await new G7MediaControlClient(this.boardSlug()).configuration();
             this.configuration = configuration;
-            this.input.disabled = !configuration.enabled;
-            this.startButton.disabled = !configuration.enabled || this.selectedFiles.length === 0;
+            this.input.disabled = !configuration.enabled || this.hasAttribute('disabled');
+            this.startButton.disabled = !configuration.enabled || this.hasAttribute('disabled') || this.selectedFiles.length === 0;
             this.setStatus(configuration.enabled
                 ? `최대 ${configuration.max_files}개, 파일당 ${formatBytes(configuration.max_file_size_bytes)}까지 업로드할 수 있습니다.`
                 : '관리자가 미디어 부스터를 활성화해야 합니다.');
@@ -184,8 +200,8 @@ export class G7MediaUploaderElement extends HTMLElement {
     }
 
     private setRunning(running: boolean): void {
-        this.input.disabled = running || this.configuration?.enabled === false;
-        this.startButton.disabled = running || this.selectedFiles.length === 0;
+        this.input.disabled = running || this.hasAttribute('disabled') || this.configuration?.enabled === false;
+        this.startButton.disabled = running || this.hasAttribute('disabled') || this.configuration?.enabled === false || this.selectedFiles.length === 0;
         this.cancelButton.hidden = !running;
         this.dispatchEvent(new CustomEvent('g7mb:state', {
             detail: { running },

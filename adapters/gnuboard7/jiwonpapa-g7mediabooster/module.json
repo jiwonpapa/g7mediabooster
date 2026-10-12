@@ -5,22 +5,22 @@
         "ko": "G7 미디어 부스터",
         "en": "G7 Media Booster"
     },
-    "version": "0.4.3",
+    "version": "0.5.0",
     "license": "Apache-2.0",
     "description": {
         "ko": "S3/R2 직접 멀티업로드와 격리된 미디어 가공을 연결합니다.",
         "en": "Connects direct S3/R2 multi-upload with isolated media processing."
     },
-    "g7_version": ">=7.0.6",
+    "g7_version": ">=7.1.0",
     "dependencies": {
         "modules": {
-            "sirsoft-board": ">=1.0.3"
+            "sirsoft-board": ">=1.2.0"
         },
         "plugins": {}
     },
     "compatibility": {
         "contracts": {
-            "sirsoft-board.secure-external-attachments": ">=1.0.0 <2.0.0"
+            "g7mb.gnuboard7-core-free": "1.0.0"
         }
     },
     "assets": {

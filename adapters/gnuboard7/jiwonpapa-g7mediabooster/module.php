@@ -6,8 +6,12 @@ namespace Modules\Jiwonpapa\G7mediabooster;
 
 use App\Extension\AbstractModule;
 use Modules\Jiwonpapa\G7mediabooster\Compatibility\Gnuboard7MediaContract;
+use Modules\Jiwonpapa\G7mediabooster\Http\Middleware\AttachmentLinkMiddleware;
+use Modules\Jiwonpapa\G7mediabooster\Http\Middleware\NativeDeliveryMiddleware;
 use Modules\Jiwonpapa\G7mediabooster\Listeners\AttachmentLifecycleListener;
-use Modules\Jiwonpapa\G7mediabooster\Listeners\AttachmentUrlListener;
+use Modules\Jiwonpapa\G7mediabooster\Listeners\BoardUploaderLayoutListener;
+use Modules\Jiwonpapa\G7mediabooster\Listeners\BridgeRemovalListener;
+use Modules\Jiwonpapa\G7mediabooster\Services\BridgeRemovalGuard;
 
 final class Module extends AbstractModule
 {
@@ -25,7 +29,37 @@ final class Module extends AbstractModule
     /** @return array<class-string> */
     public function getHookListeners(): array
     {
-        return [AttachmentUrlListener::class, AttachmentLifecycleListener::class];
+        return [BoardUploaderLayoutListener::class, AttachmentLifecycleListener::class, BridgeRemovalListener::class];
+    }
+
+    /** Uploads-off is reversible; removing the delivery bridge while media remains is not. */
+    public function deactivate(): bool
+    {
+        app(BridgeRemovalGuard::class)->assertSafe();
+
+        return true;
+    }
+
+    public function uninstall(): bool
+    {
+        app(BridgeRemovalGuard::class)->assertSafe();
+
+        return true;
+    }
+
+    /** Official self-gated registration; no native route or Kernel mutation. */
+    public function getMiddleware(): array
+    {
+        return [
+            ['class' => NativeDeliveryMiddleware::class, 'groups' => ['api'], 'targets' => [
+                'api.modules.sirsoft-board.boards.attachment.*',
+                'api.modules.sirsoft-board.admin.board.attachments.download',
+            ]],
+            ['class' => AttachmentLinkMiddleware::class, 'groups' => ['api'], 'targets' => [
+                'api.modules.sirsoft-board.boards.posts.store', 'api.modules.sirsoft-board.boards.posts.update',
+                'api.modules.sirsoft-board.admin.board.posts.store', 'api.modules.sirsoft-board.admin.board.posts.update',
+            ]],
+        ];
     }
 
     /**

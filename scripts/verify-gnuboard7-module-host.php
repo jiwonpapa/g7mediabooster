@@ -18,9 +18,13 @@ if ($g7Root === false || $moduleRoot === false) {
 
 $prefixes = [
     'App\\' => $g7Root.'/app/',
-    'Modules\\Sirsoft\\Board\\' => $g7Root.'/modules/_bundled/sirsoft-board/src/',
+    'Modules\\Sirsoft\\Board\\' => $g7Root.(is_file($g7Root.'/modules/sirsoft-board/module.json')
+        ? '/modules/sirsoft-board/src/' : '/modules/_bundled/sirsoft-board/src/'),
     'Modules\\Jiwonpapa\\G7mediabooster\\' => $moduleRoot.'/src/',
 ];
+if (is_file($g7Root.'/vendor/autoload.php')) {
+    require_once $g7Root.'/vendor/autoload.php';
+}
 spl_autoload_register(static function (string $class) use ($prefixes): void {
     foreach ($prefixes as $prefix => $root) {
         if (! str_starts_with($class, $prefix)) {

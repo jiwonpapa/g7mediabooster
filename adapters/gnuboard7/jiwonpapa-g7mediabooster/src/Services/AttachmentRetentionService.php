@@ -11,7 +11,9 @@ use stdClass;
 final class AttachmentRetentionService
 {
     private const SESSION_TABLE = 'g7mb_upload_sessions';
+
     private const ATTACHMENT_TABLE = 'board_attachments';
+
     private const MAX_ATTEMPTS = 10;
 
     public function __construct(private readonly AttachmentRetentionDecision $decision) {}
@@ -24,7 +26,7 @@ final class AttachmentRetentionService
         $attachmentIds = DB::table(self::ATTACHMENT_TABLE)
             ->where('post_id', $postId)
             ->where('disk', 'g7mediabooster')
-            ->where('collection', 'post_attachments')
+            ->whereIn('collection', ['attachments', 'post_attachments'])
             ->whereNotNull('deleted_at')
             ->pluck('id')
             ->all();
@@ -40,7 +42,7 @@ final class AttachmentRetentionService
         $eligible = DB::table(self::ATTACHMENT_TABLE)
             ->where('id', $attachmentId)
             ->where('disk', 'g7mediabooster')
-            ->where('collection', 'post_attachments')
+            ->whereIn('collection', ['attachments', 'post_attachments'])
             ->whereNotNull('deleted_at')
             ->exists();
 
@@ -55,7 +57,7 @@ final class AttachmentRetentionService
         $attachmentIds = DB::table(self::ATTACHMENT_TABLE)
             ->where('post_id', $postId)
             ->where('disk', 'g7mediabooster')
-            ->where('collection', 'post_attachments')
+            ->whereIn('collection', ['attachments', 'post_attachments'])
             ->where('trigger_type', 'cascade')
             ->whereNull('deleted_at')
             ->pluck('id')
@@ -80,7 +82,7 @@ final class AttachmentRetentionService
         $attachmentIds = DB::table(self::ATTACHMENT_TABLE)
             ->where('post_id', $postId)
             ->where('disk', 'g7mediabooster')
-            ->where('collection', 'post_attachments')
+            ->whereIn('collection', ['attachments', 'post_attachments'])
             ->where('trigger_type', 'cascade')
             ->pluck('id')
             ->all();
@@ -230,8 +232,7 @@ final class AttachmentRetentionService
         string $errorCode,
         bool $permanent = false,
         bool $keepInFlight = false,
-    ): void
-    {
+    ): void {
         $safeCode = preg_match('/^[A-Z0-9_]{1,80}$/', $errorCode) === 1 ? $errorCode : 'RETENTION_REQUEST_FAILED';
         $row = DB::table(self::SESSION_TABLE)->where('upload_id', strtolower($uploadId))->first();
         $attempts = $row instanceof stdClass ? max(1, (int) ($row->retention_attempts ?? 1)) : 1;

@@ -29,7 +29,7 @@ SHELL_EXCEPTIONS = {
 }
 PYTHON_EXCEPTIONS = {
     # Streamed as a self-contained program to the remote host.
-    "tools/harness/g7mb_harness/g7_remote.py": 343,
+    "tools/harness/g7mb_harness/g7_remote.py": 317,
 }
 SOURCE_EXCEPTIONS = {
     "crates/g7mb-persistence-sqlite/src/lib.rs": 3_525,

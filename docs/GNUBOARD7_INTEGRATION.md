@@ -1,127 +1,51 @@
-# Gnuboard 7 연동 계약
+# Gnuboard 7.1 core-free 연동
 
-- 상태: 구현 완료, 공식 Gnuboard 7.0.6 stock 활성화 BLOCKED
-- 기준: 공식 Gnuboard 7.0.6 / 번들 `sirsoft-board` 1.0.3 / PHP 8.2+
-- 모듈: `adapters/gnuboard7/jiwonpapa-g7mediabooster`
-- 정식 설치: GitHub Release의 checksum 검증 ZIP을 G7 관리자 파일 설치로 적용
+- 모듈: 0.5.0, `g7mb.gnuboard7-core-free` adapter contract 1.0.0
+- 검증 기준: 공식 G7 7.1.0 `dbe88420c3219f42db1ac16a7e6bb17a438e144d`, 번들 `sirsoft-board` 1.2.0
+- 코어·게시판·기본 템플릿 원본 수정: 금지
+- 현재 상태: 구현 및 원본 호스트 회귀 검증 완료, 정식 배포 종단 검증 대기
 
-## 책임 경계
+## 연결 방법
 
-| G7 PHP 모듈 | Rust 서비스 | 브라우저 |
-|---|---|---|
-| 로그인·게시판 권한 | object key·hard cap | 파일 선택·진행률 |
-| upload ID 사용자 소유권 | presign·HEAD·queue | S3/R2 직접 PUT |
-| HMAC secret 암호화 | nonce replay 차단 | bounded 병렬·취소 |
-| 관리자 soft setting | 진짜 포맷·가공 상태 | multipart ETag 수집 |
+1. 공개 `core.layout_extension.after_apply` filter에서 응답의 원본 FileUploader만 교체합니다.
+   별도 요청되는 사용자·관리자 partial도 처리하고 기존 조건·disabled 상태를 보존합니다.
+2. 기존 `upload:board_attachments` 이벤트를 async listener로 기다립니다. Ready 첨부 ID를
+   원본 `setState` 동작으로 저장 흐름에 전달하며 실패 시 게시글 저장을 중단합니다.
+3. 공식 `getMiddleware()`로 게시글 저장 요청을 감쌉니다. 최대 100개 ID의 소유자·게시판·Ready·
+   유효기간·삭제 경합·개수를 lock으로 확인합니다. 원본 인증·권한·FormRequest·PostService를
+   그대로 실행하고 같은 DB transaction에서 attachment 연결과 개수를 완성합니다.
+4. 기존 `/api/modules/sirsoft-board/boards/{slug}/attachment/{hash}` 및 `/preview`를 유지합니다.
+   매핑된 원격 첨부에만 요청의 마지막 실행 함수를 바꾸고, 모든 원본·타 모듈 middleware를
+   실행합니다. 응답·예외 후 route action을 복원하며 원본 route 파일은 수정하지 않습니다.
+5. 원본 AttachmentService에 I/O 차단 storage를 주입해 게시판 scope·비밀·블라인드·삭제 정책을
+   재사용합니다. 통과한 파일만 Rust에서 5분 presigned URL을 받아 no-store 302로 전달합니다.
 
-HMAC secret과 S3/R2 credential은 브라우저에 전달하지 않습니다. PHP는 JSON 제어 요청만
-보내며 file body, presigned URL, 인증 헤더를 로그에 남기지 않습니다.
+파일 바이트는 브라우저 → S3/R2로 직접 전송되고 PHP는 제어 요청만 처리합니다.
+PHP의 업로드 크기 제한은 우회하지만 저장소·서비스 정책 상한과 CORS 설정은 필요합니다.
 
-## 구현된 경로
+## 적용 해제와 제거
 
-```text
-G7 user -> /api/modules/jiwonpapa-g7mediabooster/boards/{slug}/uploads/*
-        -> HMAC -> G7MediaBooster /v1/*
-Browser -> presigned HTTPS PUT -> private S3/R2 quarantine
-G7 owner -> HMAC delivery request -> 5분 private S3/R2 GET redirect
-G7 form bridge -> uploader 자동 주입 -> Ready native attachment ID -> 게시글 attachment_ids
-G7 viewer -> 공개/비밀/블라인드/삭제글 검사 -> 5분 private master/poster redirect
-G7 retention -> soft delete 보존 -> native row 대조 -> Rust 멱등 삭제 예약
-```
+관리자 `미디어 부스터`의 업로드 사용을 끄면 `enabled=false`가 됩니다.
+원본 uploader가 복원되고 신규 MediaBooster 업로드는 거부되지만 기존 원격 미디어 열람은 유지됩니다.
+Rust API와 모듈을 함께 끄면 기존 첨부가 깨지므로 해제 하네스는 둘을 중지하지 않습니다.
+원격 첨부가 남아 있는 동안 전체 모듈 비활성화·제거를 차단합니다. 먼저 미디어를 이관하거나
+정상 삭제 절차를 완료해야 합니다. 자동 로컬 이관은 이번 구현 범위가 아닙니다.
 
-G7 module DB의 `g7mb_upload_sessions`가 `upload_id + user_id + board_slug`를 보관합니다.
-Rust의 tenant scope만으로 같은 사이트 사용자 간 권한을 구분하지 않고, PHP 소유권 확인을
-통과한 upload ID만 part presign·complete·abort·status 요청에 사용할 수 있습니다.
+## 버전 판정
 
-Ready 상태 응답은 각 `master`·`thumbnail`에 stable G7 `delivery_url`을 추가합니다. 해당 URL은
-세션 소유권을 다시 확인한 뒤 Rust HMAC endpoint에서 5분짜리 provider GET URL을 받아
-`Cache-Control: private, no-store`, `Referrer-Policy: no-referrer` redirect를 반환합니다.
-PHP는 파생물 bytes와 provider credential을 읽지 않습니다.
+7.1.0과 번들 1.2.0은 실제 공개 코드에서 확인한 기준이며 가상의 미래 버전이 아닙니다.
+버전만 믿지 않고 필수 공개 PHP 메서드 시그니처도 확인합니다. 과거 7.0.x용 외부 첨부
+patch·`external-media-v1.json`·URL filter·고정 layout ID는 필요하지 않습니다.
+7.0.x와 임의 커스텀 템플릿을 검증 없이 지원한다고 표시하지 않습니다.
 
-## 관리자 설정
+## 남은 인수 게이트
 
-G7 관리자는 endpoint, key ID, HMAC secret, timeout, 파일/part 병렬도, retry와 첨부 삭제 보존일을 설정합니다.
-secret은 G7 settings schema의 `sensitive: true`로 Laravel Crypt 암호화되며 조회 API는 값 대신
-설정 여부만 반환합니다. S3/R2 credential, bucket, SQLite, cgroup hard cap은 Rust 운영 설정에만
-둡니다.
+- 공식 stock 사이트의 ZIP 설치·활성화·설정 저장·적용/해제 전 과정
+- 사용자/관리자 브라우저의 single/multipart → 게시글 작성·수정 → 기존 첨부 표시
+- 비로그인/타인/관리자의 실제 HTTP 권한 매트릭스 및 캐시·언어 전환
+- 새 어댑터의 R2 실제 전달, 보존 만료 삭제 종단
+- 영상 poster의 게시판 목록/본문 표시 및 커스텀 템플릿별 동작
 
-관리자 전용 `GET /api/modules/jiwonpapa-g7mediabooster/admin/capabilities`는 HMAC으로
-`GET /v1/capabilities`를 호출합니다. 응답의 포맷명·boolean·native version 길이와 형태를
-다시 제한한 뒤 반환하며, Rust API는 sandbox의 내장 fixture가 실패하면 시작 자체를
-거부합니다. capability API는 브라우저에서 Rust로 직접 호출하지 않습니다.
-
-관리자 워터마크 선택기는 현재 관리자의 session·native attachment 소유권이 모두 일치하고,
-최근 7일 안에 materialize된 Ready PNG·WebP·JPEG이며 source가 16MiB 이하인 자산만 최대 50개
-표시합니다. 수동 UUID 입력과 인증 없는 파생물 `<img>` 요청은 사용하지 않습니다.
-
-## 구현된 attachment bridge
-
-모듈 0.4.3은 원본 파일명을 G7 내부에만 저장하고 Rust에는 기존 좁은 upload intent만 보냅니다.
-Rust status가 같은 upload ID, `ready`, `deletion_pending=false`, 동일 preset의 master·thumbnail
-각 1개임을 증명할 때만 `board_attachments`의 byte-free 레코드를 만듭니다. DB row lock과
-nullable unique `attachment_id`로 중복·동시 호출은 같은 ID에 수렴합니다.
-
-viewer 경로는 native attachment ID와 `g7mb_upload_sessions` 연결을 다시 확인하고
-`AttachmentService::authorizeDelivery()`로 공개/비밀/블라인드/삭제글 scope를 검사한 뒤에만 Rust의
-5분 presigned GET으로 redirect합니다. provider URL은 응답 본문·로그·DB에 저장하지 않습니다.
-사용자·관리자 form extension은 native PHP uploader를 MediaBooster로 교체하고 전송 중 submit을
-막습니다. 완료 이벤트의 native attachment ID를 기존 `attachment_ids`에 최대 100개까지 중복 없이
-병합합니다. G7 state/action bridge가 없거나 target ID가 다르면 fail-closed 합니다.
-
-G7 soft delete는 Rust object를 즉시 지우지 않습니다. 설정된 보존기간이 끝난 row만 15분 schedule이
-lease로 선점하고, native attachment disk·collection·upload ID를 다시 대조한 뒤 Rust의 멱등 삭제를
-요청합니다. 원격 요청 시작 전 복원은 예약을 취소하고, 시작 뒤 복원은 데이터 유실 방지를 위해
-`G7_MEDIA_RETENTION_ALREADY_STARTED`로 차단합니다. 이 DB 흐름은 G7 host gate를 통과했으며,
-보존 만료 command가 실 provider 객체를 삭제하는 종단 증거는 별도 운영 게이트입니다.
-
-## 공식 7.0.6 판정과 남은 운영 게이트
-
-공식 7.0.6의 `sirsoft-board` 1.0.3에는
-`sirsoft-board.secure-external-attachments` capability 문서가 없습니다. 모듈은 이 상태에서
-활성화를 fail-closed 하며 현재 정식 배포 대상이 아닙니다. 버전 번호만으로 capability를
-추정하지 않고 CI가 공식 tag를 직접 검사합니다.
-
-이하 `fcaacad`와 patch 6개 내용은 2026-07-16 개발 호스트에서 얻은 역사적 upstream 제안
-증거입니다. 공식 7.0.6에 적용하지 않으며 배포 산출물에도 넣지 않습니다.
-
-`sirsoft-board`는 현재 업로드 파일을 PHP `UploadedFile`로 받고 로컬 storage URL을 생성합니다.
-당시 Gnuboard7 main `fcaacad`와 `sirsoft-board` 1.0.2를 대조한 결과는 다음과 같습니다.
-
-- 게시글 저장 API는 `attachment_ids`와 `temp_key`를 이미 지원합니다.
-- `templates/_bundled/sirsoft-basic/layouts/partials/board/form/_post_form.json`의
-  `FileUploader`와 그 부모에는 extension overlay가 겨냥할 `id`가 없습니다.
-- layout extension은 존재하지만 이 상태에서는 첨부 UI 하나만 안전하게 `replace`할 수
-  없고, 게시글 form 전체 교체는 템플릿 계약을 복제하는 취약한 우회입니다.
-- `sirsoft-board`의 `Attachment::download_url`, `preview_url`과
-  `AttachmentResource`는 보드 모듈의 download/preview 경로를 직접 사용하며 원격 CDN URL
-  resolver/filter가 없습니다.
-- 기존 `AttachmentService::upload()`는 PHP `file_get_contents()` 경로이므로 대용량 직접
-  업로드 목표에 재사용하지 않습니다.
-- `linkAttachmentsByIds()`는 현재 임시 attachment의 `created_by`를 확인하지 않아 순차 ID를
-  아는 다른 사용자가 첨부를 가로채 연결할 수 있습니다. G7MediaBooster는 이 계약이 보완되기
-  전 원격 attachment ID materialize를 활성화하지 않습니다.
-
-별도 upstream patch에는 다음 공개 계약이 구현돼 있습니다.
-
-1. 게시글 폼의 uploader와 submit을 overlay할 안정적인 layout extension ID
-2. 원격 immutable URL을 반환하는 download/preview filter와 byte-free 권한 검사
-3. `attachment_ids` 연결 시 현재 사용자 owner와 전건 일치를 원자적으로 확인하는 계약
-4. module-prefixed 레이아웃 요청명까지 overlay 후보에 포함하는 core 계약
-5. 조건부 form의 모든 동일 target에 overlay를 적용하는 core 계약
-6. `attachment_ids` bulk link 뒤 `attachments_count`를 같은 transaction에서 동기화하는 계약
-7. 비밀·블라인드·삭제글 첨부 직접 URL을 본문 열람 정책과 동일하게 제한하는 계약
-
-모듈은 이 일곱 계약이 없으면 manifest와 runtime reflection 검사에서 fail-closed 합니다.
-실제 브라우저 single PUT·2-part multipart, Ready attachment 2개 생성·표시, 게시글 수정 후 유지와
-private thumbnail 302→MinIO 200은 통과했습니다. 타 사용자·비밀글·블라인드·삭제글 권한과
-삭제/복원·보존 lease는 G7 host gate에서 통과했습니다. 작성자·다른 회원·비회원·관리자의
-실브라우저 거부 매트릭스도 통과했으며 실 provider 보존 만료 삭제만 운영 게이트로 유지합니다.
-
-Gnuboard7 본체 저장소는 사용자 변경이 많은 별도 작업영역이므로 여기서 코어를 수정하지
-않습니다. 공개 기준 commit `fcaacad8d16d47a8b5bcee65990869992de0a0d8`에 적용 가능한
-[upstream 계약 patch](../adapters/gnuboard7/upstream-contract/README.md)와 읽기 전용 검증기를
-준비했습니다. 별도 깨끗한 worktree에서 patch 6개 clean apply, 계약 검사 29/29와 activation gate, 첨부 전체 PHP
-39/39와 권한·보존 host 15/15를 확인했으며 기존 patch 기준 board suite 회귀도 유지했습니다.
-module 설치·설정·user/admin form과 실제 저장소 E2E도 통과했고 실제
-G7 사용자 작업 트리는 수정하지 않았습니다. patch 적용 배포에는 통과 범위만 공식 게시하며,
-upstream 미반영 배포와 실 provider 삭제 종단은 해당 게이트 전 지원으로 게시하지 않습니다.
+과거 patched-host 브라우저 증거를 새 어댑터 검증으로 재사용하지 않습니다.
+정본 구현은 모듈 코드, 공개 판정은 `deploy/official-features-v1.json`입니다.
+상세 [검증 보고서](evidence/G7_CORE_FREE_710_20261012.md), [설치 절차](GNUBOARD7_RELEASE.md)를 참고하십시오.

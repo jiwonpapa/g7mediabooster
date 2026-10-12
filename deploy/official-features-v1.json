@@ -2,14 +2,14 @@
   "schema_version": 2,
   "spec_version": "1.1.0",
   "product_version": "0.1.1",
-  "last_reviewed": "2026-08-18",
+  "last_reviewed": "2026-10-12",
   "release_status": "candidate",
   "module": {
     "identifier": "jiwonpapa-g7mediabooster",
-    "version": "0.4.3",
-    "gnuboard7": ">=7.0.6",
-    "sirsoft_board": ">=1.0.3",
-    "capability": "sirsoft-board.secure-external-attachments >=1.0.0 <2.0.0"
+    "version": "0.5.0",
+    "gnuboard7": ">=7.1.0",
+    "sirsoft_board": ">=1.2.0",
+    "capability": "g7mb.gnuboard7-core-free 1.0.0"
   },
   "features": [
     {
@@ -92,10 +92,10 @@
     {
       "id": "gnuboard7_module",
       "title": "Gnuboard7 관리자 설정, 직접 업로드와 native attachment 연동",
-      "status": "BLOCKED",
+      "status": "IMPLEMENTED",
       "publishable": false,
       "evidence": [".github/workflows/ci.yml", "docs/GNUBOARD7_INTEGRATION.md"],
-      "reason": "공식 Gnuboard 7.0.6의 sirsoft-board 1.0.3에는 secure-external-attachments capability가 없어 stock core-free 활성화가 불가능합니다."
+      "reason": "공식 7.1.0/게시판 1.2.0 원본 무수정 어댑터를 구현했습니다. 새 어댑터의 브라우저·실제 저장소 종단 및 설치 수명주기 검증 전에는 공식 배포하지 않습니다."
     },
     {
       "id": "gnuboard5_plugin",

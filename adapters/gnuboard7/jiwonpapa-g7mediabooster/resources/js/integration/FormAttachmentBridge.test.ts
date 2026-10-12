@@ -12,6 +12,28 @@ afterEach(() => {
 });
 
 describe('G7 form attachment bridge', () => {
+    it('awaits native save uploads, returns attachment ids and releases the event listener', async () => {
+        document.body.innerHTML = '<div id="save-mount"></div>';
+        let listener: (() => Promise<unknown>) | undefined;
+        const unsubscribe = vi.fn();
+        const setLocal = vi.fn();
+        (window as unknown as { G7Core?: unknown }).G7Core = {
+            state: { getLocal: () => ({ form: { attachment_ids: [7] } }), setLocal },
+            componentEvent: { on: vi.fn((_name, callback) => { listener = callback; return unsubscribe; }) },
+        };
+        mountUploaderHandler({ params: { mountId: 'save-mount', boardSlug: 'gallery' } });
+        const uploader = document.querySelector('g7-media-uploader') as HTMLElement & { uploadPending: () => Promise<void> };
+        uploader.uploadPending = vi.fn().mockResolvedValue(undefined);
+        expect(await listener?.()).toEqual({ attachment_ids: [7] });
+        expect(uploader.uploadPending).toHaveBeenCalledTimes(1);
+        uploader.uploadPending = vi.fn().mockRejectedValue(new Error('rejected upload'));
+        await expect(listener?.()).rejects.toThrow('rejected upload');
+        expect(setLocal).toHaveBeenLastCalledWith({ isSaving: false, g7mbUploading: false,
+            uploadError: 'rejected upload' }, { merge: 'deep', render: true });
+        uploader.dispatchEvent(new CustomEvent('g7mb:disconnect'));
+        expect(unsubscribe).toHaveBeenCalledTimes(1);
+    });
+
     it('mounts once and appends accepted native attachment ids to G7 form state', () => {
         document.body.innerHTML = '<div id="g7mb-user-uploader-mount"></div>';
         const setLocal = vi.fn();

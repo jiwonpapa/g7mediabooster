@@ -28,7 +28,7 @@ final class AttachmentMaterializationValidatorTest extends TestCase
         self::assertSame(self::UPLOAD_ID, $descriptor['path']);
         self::assertSame('image/jpeg', $descriptor['mime_type']);
         self::assertSame(500_000, $descriptor['size']);
-        self::assertSame('post_attachments', $descriptor['collection']);
+        self::assertSame('attachments', $descriptor['collection']);
         self::assertSame(1, $descriptor['order']);
         self::assertSame(self::UPLOAD_ID, $descriptor['meta']['g7mb_upload_id']);
     }

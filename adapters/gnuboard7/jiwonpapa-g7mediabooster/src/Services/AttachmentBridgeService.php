@@ -4,11 +4,9 @@ declare(strict_types=1);
 
 namespace Modules\Jiwonpapa\G7mediabooster\Services;
 
-use LogicException;
+use Modules\Jiwonpapa\G7mediabooster\Compatibility\Gnuboard7MediaContract;
 use Modules\Sirsoft\Board\Models\Attachment;
 use Modules\Sirsoft\Board\Repositories\Contracts\AttachmentRepositoryInterface;
-use Modules\Sirsoft\Board\Services\AttachmentService as BoardAttachmentService;
-use ReflectionMethod;
 use UnexpectedValueException;
 
 final class AttachmentBridgeService
@@ -65,22 +63,6 @@ final class AttachmentBridgeService
 
     public static function assertSecureUpstreamContract(): void
     {
-        if (! method_exists(BoardAttachmentService::class, 'authorizeDelivery')) {
-            throw new LogicException('sirsoft-board secure external attachment contract is unavailable');
-        }
-
-        if (! method_exists(AttachmentRepositoryInterface::class, 'findPostForAttachmentDelivery')) {
-            throw new LogicException('sirsoft-board visibility-aware attachment delivery is unavailable');
-        }
-
-        $visibilityMethod = new ReflectionMethod(AttachmentRepositoryInterface::class, 'findPostForAttachmentDelivery');
-        if ($visibilityMethod->getNumberOfParameters() !== 2) {
-            throw new LogicException('sirsoft-board visibility-aware attachment delivery is incompatible');
-        }
-
-        $linkMethod = new ReflectionMethod(AttachmentRepositoryInterface::class, 'linkAttachmentsByIds');
-        if ($linkMethod->getNumberOfParameters() !== 4) {
-            throw new LogicException('sirsoft-board owner-bound attachment linking is unavailable');
-        }
+        Gnuboard7MediaContract::assertRuntimeSurface();
     }
 }
