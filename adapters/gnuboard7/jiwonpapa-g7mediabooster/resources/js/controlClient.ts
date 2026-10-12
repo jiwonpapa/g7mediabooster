@@ -27,12 +27,14 @@ interface MaterializedAttachmentEnvelope {
 
 export class G7MediaControlClient implements MediaControlClient {
     private readonly basePath: string;
+    private readonly attachmentBasePath: string;
 
     public constructor(boardSlug: string, private readonly api: G7Api = requiredG7Api()) {
         if (!/^[A-Za-z0-9_-]+$/.test(boardSlug)) {
             throw new TypeError('invalid board slug');
         }
         this.basePath = `/api/modules/jiwonpapa-g7mediabooster/boards/${encodeURIComponent(boardSlug)}/uploads`;
+        this.attachmentBasePath = `/api/modules/sirsoft-board/boards/${encodeURIComponent(boardSlug)}/attachment/`;
     }
 
     public async configuration(): Promise<PublicUploaderConfiguration> {
@@ -75,7 +77,7 @@ export class G7MediaControlClient implements MediaControlClient {
             `${this.basePath}/${assertUploadId(uploadId)}/attachment`,
         ));
 
-        return validateNativeAttachment(response.data);
+        return validateNativeAttachment(response.data, this.attachmentBasePath);
     }
 }
 
@@ -108,7 +110,7 @@ function assertPartNumber(partNumber: number): number {
     return partNumber;
 }
 
-function validateNativeAttachment(value: NativeAttachment): NativeAttachment {
+function validateNativeAttachment(value: NativeAttachment, basePath: string): NativeAttachment {
     if (!value
         || !Number.isSafeInteger(value.id)
         || value.id < 1
@@ -121,10 +123,10 @@ function validateNativeAttachment(value: NativeAttachment): NativeAttachment {
         || !Number.isSafeInteger(value.size)
         || value.size < 1
         || typeof value.url !== 'string'
-        || !value.url.startsWith('/api/modules/jiwonpapa-g7mediabooster/')
+        || value.url !== `${basePath}${value.hash}`
         || (value.preview_url !== null
             && (typeof value.preview_url !== 'string'
-                || !value.preview_url.startsWith('/api/modules/jiwonpapa-g7mediabooster/')))
+                || value.preview_url !== `${basePath}${value.hash}/preview`))
         || !Number.isSafeInteger(value.order)
     ) {
         throw new Error('G7 attachment bridge returned an invalid response');

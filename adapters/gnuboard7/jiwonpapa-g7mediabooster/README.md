@@ -1,6 +1,6 @@
 # G7 Media Booster for Gnuboard 7
 
-0.5.0은 공식 G7 7.1.0 / 번들 `sirsoft-board` 1.2.0 공개 확장 계약을 사용하는 core-free 모듈입니다.
+0.5.1은 공식 G7 7.1.0 / 번들 `sirsoft-board` 1.2.0 공개 확장 계약을 사용하는 core-free 모듈입니다.
 코어·게시판·기본 템플릿을 수정하지 않습니다. 새 어댑터의 브라우저·실 저장소·설치 종단 전에는 preview입니다.
 
 ## 구현 기능

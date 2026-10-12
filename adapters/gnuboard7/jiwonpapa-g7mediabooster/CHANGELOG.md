@@ -7,6 +7,18 @@ Gnuboard 7 모듈의 모든 주목할 만한 변경 사항을 이 파일에 기�
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-10-12
+
+### Fixed
+
+- 브라우저가 원본 게시판 전달 URL을 잘못 거부하던 Ready 첨부 응답 검증을 수정하고 정확한 게시판·hash 범위를 검증합니다.
+- 업로드 이벤트 실패 시 게시글 저장 API를 실행하지 않도록 응답 레이아웃에 성공 조건을 추가했습니다.
+- 첨부 개수 응답을 원본 `attachment_count`/`has_attachment` 계약과 일치시켰습니다.
+
+### Security
+
+- Vitest mocker와 source-map-js 개발 의존성 advisory를 호환 패치로 제거했습니다.
+
 ## [0.5.0] - 2026-10-12
 
 ### Added
@@ -120,7 +132,8 @@ Gnuboard 7 모듈의 모든 주목할 만한 변경 사항을 이 파일에 기�
 
 - G7 관리자 설정, HMAC control client, upload ownership, 100개 direct single/multipart uploader를 추가했습니다.
 
-[Unreleased]: https://github.com/jiwonpapa/g7mediabooster/compare/g7-module-v0.5.0...HEAD
+[Unreleased]: https://github.com/jiwonpapa/g7mediabooster/compare/g7-module-v0.5.1...HEAD
+[0.5.1]: https://github.com/jiwonpapa/g7mediabooster/compare/g7-module-v0.5.0...g7-module-v0.5.1
 [0.5.0]: https://github.com/jiwonpapa/g7mediabooster/compare/7df24322045806f9b3d6eac002d74fe2b2006126...g7-module-v0.5.0
 [0.4.3]: https://github.com/jiwonpapa/g7mediabooster/commit/7df24322045806f9b3d6eac002d74fe2b2006126
 [0.4.2]: https://github.com/jiwonpapa/g7mediabooster/commit/72e381796d9cebb6864673d71aa145767729a81d

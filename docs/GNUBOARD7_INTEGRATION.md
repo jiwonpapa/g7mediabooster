@@ -1,6 +1,6 @@
 # Gnuboard 7.1 core-free 연동
 
-- 모듈: 0.5.0, `g7mb.gnuboard7-core-free` adapter contract 1.0.0
+- 모듈: 0.5.1, `g7mb.gnuboard7-core-free` adapter contract 1.0.0
 - 검증 기준: 공식 G7 7.1.0 `dbe88420c3219f42db1ac16a7e6bb17a438e144d`, 번들 `sirsoft-board` 1.2.0
 - 코어·게시판·기본 템플릿 원본 수정: 금지
 - 현재 상태: 구현 및 원본 호스트 회귀 검증 완료, 정식 배포 종단 검증 대기

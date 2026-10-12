@@ -56,15 +56,29 @@ final class BoardUploaderLayout
 
         if (($node['handler'] ?? null) === 'sequence' && is_array($node['actions'] ?? null)) {
             $actions = [];
+            $uploadSeen = false;
             foreach ($node['actions'] as $index => $action) {
+                if ($uploadSeen && ($action['handler'] ?? null) === 'apiCall'
+                    && str_contains((string) ($action['target'] ?? ''), '/api/modules/sirsoft-board/')
+                    && str_contains((string) ($action['target'] ?? ''), '/posts')) {
+                    $condition = $action['if'] ?? true;
+                    if (! str_contains((string) $condition, '_eventResult?.success')) {
+                        $expression = is_string($condition) && str_starts_with($condition, '{{')
+                            ? substr($condition, 2, -2) : ($condition === false ? 'false' : 'true');
+                        $action['if'] = '{{('.$expression.') && _local._eventResult?.success === true}}';
+                    }
+                    $uploadSeen = false;
+                }
                 $actions[] = $action;
                 if (($action['handler'] ?? null) === 'emitEvent'
-                    && ($action['params']['event'] ?? null) === 'upload:board_attachments'
-                    && ! isset($node['actions'][$index + 1]['params']['form.attachment_ids'])) {
-                    $actions[] = ['handler' => 'setState', 'params' => [
-                        'target' => 'local',
-                        'form.attachment_ids' => '{{_local._eventResult?.data?.attachment_ids ?? _local.form?.attachment_ids ?? []}}',
-                    ]];
+                    && ($action['params']['event'] ?? null) === 'upload:board_attachments') {
+                    $uploadSeen = true;
+                    if (! isset($node['actions'][$index + 1]['params']['form.attachment_ids'])) {
+                        $actions[] = ['handler' => 'setState', 'params' => [
+                            'target' => 'local',
+                            'form.attachment_ids' => '{{_local._eventResult?.data?.attachment_ids ?? _local.form?.attachment_ids ?? []}}',
+                        ]];
+                    }
                 }
             }
             $node['actions'] = $actions;

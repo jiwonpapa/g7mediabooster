@@ -104,10 +104,18 @@ class Controller:
 
         php = (
             "$service = app(\\App\\Services\\LayoutService::class); "
-            '$user = json_encode($service->getLayout("sirsoft-basic", '
+            "$templates = app(\\App\\Contracts\\Repositories\\TemplateRepositoryInterface::class); "
+            '$userTemplate = $templates->findActiveByType("user")?->identifier; '
+            '$adminTemplate = $templates->findActiveByType("admin")?->identifier; '
+            '$user = json_encode($service->getLayout($userTemplate, "board/form", true)); '
+            'if (!str_contains($user, "g7mb-user-uploader-mount")) '
+            '$user = json_encode($service->getLayout($userTemplate, '
             '"partials/board/form/_post_form", true), '
             "JSON_UNESCAPED_SLASHES); "
-            '$admin = json_encode($service->getLayout("sirsoft-admin_basic", '
+            '$admin = json_encode($service->getLayout($adminTemplate, '
+            '"sirsoft-board.admin_board_post_form", true)); '
+            'if (!str_contains($admin, "g7mb-admin-uploader-mount")) '
+            '$admin = json_encode($service->getLayout($adminTemplate, '
             '"sirsoft-board.partials/admin_board_post_form/_attachments", true), '
             'JSON_UNESCAPED_SLASHES); '
             'echo json_encode(["user_mount"=>substr_count($user, "g7mb-user-uploader-mount"),'
@@ -293,23 +301,12 @@ def main(argv: list[str] | None = None) -> int:
             result = controller.rollback(deployment_id)
         else:
             raise RuntimeError(f"unknown action: {action}")
-        print(
-            json.dumps(
-                {"status": "PASS", "action": action, **result},
-                ensure_ascii=False,
-                sort_keys=True,
-            )
-        )
+        print(json.dumps({"status": "PASS", "action": action, **result},
+                         ensure_ascii=False, sort_keys=True))
         return 0
     except Exception as error:
-        print(
-            json.dumps(
-                {"status": "FAIL", "action": action, "error": str(error)},
-                ensure_ascii=False,
-                sort_keys=True,
-            ),
-            file=sys.stderr,
-        )
+        print(json.dumps({"status": "FAIL", "action": action, "error": str(error)},
+                         ensure_ascii=False, sort_keys=True), file=sys.stderr)
         return 1
 
 

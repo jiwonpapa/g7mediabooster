@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -51,6 +52,18 @@ class CoreFreeDisableTest(unittest.TestCase):
             settings.assert_called_once_with(False)
             artisan.assert_not_called()
             system.assert_not_called()
+
+    def test_layout_gate_uses_active_templates_not_bundled_identifiers(self) -> None:
+        controller = g7_remote.Controller(Path("/test/g7"), "g7", "jiwonpapa-g7mediabooster")
+        response = subprocess.CompletedProcess([], 0,
+            '{"user_mount":1,"user_handler":1,"admin_mount":1,"admin_handler":1}')
+        with patch.object(controller, "artisan", return_value=response) as artisan:
+            self.assertEqual(controller.layout_status()["user_mount"], 1)
+            script = artisan.call_args.args[1]
+            self.assertIn('findActiveByType("user")', script)
+            self.assertIn('findActiveByType("admin")', script)
+            self.assertIn('getLayout($userTemplate, "board/form", true)', script)
+            self.assertNotIn('"sirsoft-basic"', script)
 
     def test_only_our_extension_is_excluded(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

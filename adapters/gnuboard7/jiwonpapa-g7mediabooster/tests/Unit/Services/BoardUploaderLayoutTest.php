@@ -31,6 +31,21 @@ final class BoardUploaderLayoutTest extends TestCase
         self::assertSame($source, (new BoardUploaderLayout)->apply($source));
     }
 
+    public function test_save_is_guarded_by_upload_success_and_copies_ids_before_native_api(): void
+    {
+        $source = ['handler' => 'sequence', 'actions' => [
+            ['handler' => 'emitEvent', 'params' => ['event' => 'upload:board_attachments']],
+            ['handler' => 'apiCall', 'target' => '/api/modules/sirsoft-board/boards/gallery/posts',
+                'if' => '{{_local.isValid}}'],
+        ]];
+        $actual = (new BoardUploaderLayout)->apply($source);
+        self::assertSame('setState', $actual['actions'][1]['handler']);
+        self::assertArrayHasKey('form.attachment_ids', $actual['actions'][1]['params']);
+        self::assertStringContainsString('_eventResult?.success === true', $actual['actions'][2]['if']);
+        self::assertStringContainsString('_local.isValid', $actual['actions'][2]['if']);
+        self::assertSame($actual, (new BoardUploaderLayout)->apply($actual));
+    }
+
     public function test_stock_user_and_admin_partials_are_supported_without_patches(): void
     {
         $root = getenv('G7MB_TEST_HOST_ROOT');

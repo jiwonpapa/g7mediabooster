@@ -80,7 +80,7 @@ final class CoreFreeBridgeHostTest extends BoardTestCase
             return new JsonResponse(['success' => true, 'data' => ['id' => $post->id]], 201);
         });
         self::assertSame(201, $response->getStatusCode());
-        self::assertSame(1, $response->getData(true)['data']['attachments_count']);
+        self::assertSame(1, $response->getData(true)['data']['attachment_count']);
         $attachment->refresh();
         self::assertSame((int) $this->board->id, (int) $attachment->board_id);
         self::assertNotNull($attachment->post_id);

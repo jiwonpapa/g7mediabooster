@@ -98,7 +98,8 @@ final class AttachmentLinkMiddleware
             }
             $count = $this->posts->recalculateAttachmentsCount($postId);
             if ($response instanceof JsonResponse && isset($body['data']['id'])) {
-                $body['data']['attachments_count'] = $count;
+                $body['data']['attachment_count'] = $count;
+                $body['data']['has_attachment'] = $count > 0;
                 $response->setData($body);
             }
             DB::commit();
