@@ -3,8 +3,9 @@
 ## 배포 설명에 게시할 공식 애플리케이션 기능
 
 배포 페이지와 릴리스 노트에는 아래 구현·자동 검증 범위만 기능으로 게시합니다. G7 기능은
-기능 상태 정본에서 `publishable=true`인 항목만 공식 지원입니다. G7 0.5.0은 공식 7.1.0의
-코어 무수정 어댑터로 구현됐으나 새 브라우저·설치·provider 종단 전이라 ZIP은 preview입니다.
+기능 상태 정본에서 `publishable=true`인 항목만 공식 지원입니다. G7 0.5.1은 공식 7.1.0의
+코어 무수정 어댑터로 g7devops.com ZIP 업데이트·브라우저·R2 canary를 통과했으나,
+새 stock 첫 설치와 전체 인수 게이트가 남아 ZIP은 preview입니다.
 Cloudflare R2는 실계정 종단을 통과했고 AWS S3·Lightsail은 미검증입니다. 배포 자동화는
 `official-features-v1.json`을 직접 검증합니다.
 
@@ -41,7 +42,7 @@ Cloudflare R2는 실계정 종단을 통과했고 AWS S3·Lightsail은 미검증
 - 실계정 conformance를 아직 통과하지 않은 AWS S3 또는 Lightsail profile
 
 G7 모듈은 공식 stock 7.1.0의 공개 filter·middleware 경로로 재설계했습니다. 원본 호스트의
-첨부·권한·보존 회귀 증거는 있지만 새 ZIP 설치·브라우저·provider 종단 전에는 공식 게시하지 않습니다.
+첨부·권한·보존 회귀와 승인된 실서버 canary 증거는 있지만 새 stock 첫 설치·전체 인수 게이트 전에는 공식 게시하지 않습니다.
 과거 patched 개발 호스트 증거를 새 어댑터의 종단 통과로 재사용하지 않습니다. 실 provider 보존 만료
 삭제도 별도 종단 게이트 전에는 게시하지 않습니다.
 
@@ -127,7 +128,7 @@ FFprobe child에도 상속됩니다. 환경 비우기·local protocol allowlist�
 cargo xtask g7-module-package
 ```
 
-`output/releases/jiwonpapa-g7mediabooster-0.5.0.zip`과 서버 수동 배치용 `.tar.gz`, 각각의
+`output/releases/jiwonpapa-g7mediabooster-0.5.1.zip`과 서버 수동 배치용 `.tar.gz`, 각각의
 `.sha256`을 생성합니다. G7 관리자 **모듈 관리 → 파일에서 설치**에는 ZIP을 사용합니다.
 두 압축본은 Git commit의 module subtree에서 각각 두 번 생성해 byte-for-byte 일치를 확인하며
 `vendor`, `node_modules`, tests, PHPUnit cache를 포함하지 않습니다. 압축 내부 `module.json`

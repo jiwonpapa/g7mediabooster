@@ -159,7 +159,6 @@ class Controller:
 
     def status(self, *, require_layout: bool) -> dict[str, Any]:
         """Return structured runtime status and optionally fail on a missing overlay."""
-
         status: dict[str, Any] = {
             "service": self.service_state(),
             "api": "ready" if self.api_ready() else "unavailable",
@@ -167,7 +166,8 @@ class Controller:
             "module_active": self.module_active() if self.module_row() else False,
         }
         status["uploads_enabled"] = self.uploads_enabled() if status["module_active"] else False
-        if status["module_active"]:
+        status["layout_applied"] = False
+        if status["module_active"] and status["uploads_enabled"]:
             try:
                 status["layout"] = self.layout_status()
                 status["layout_applied"] = True

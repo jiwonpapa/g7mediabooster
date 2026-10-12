@@ -94,8 +94,8 @@
       "title": "Gnuboard7 관리자 설정, 직접 업로드와 native attachment 연동",
       "status": "IMPLEMENTED",
       "publishable": false,
-      "evidence": [".github/workflows/ci.yml", "docs/GNUBOARD7_INTEGRATION.md"],
-      "reason": "공식 7.1.0/게시판 1.2.0 원본 무수정 어댑터를 구현했습니다. 새 어댑터의 브라우저·실제 저장소 종단 및 설치 수명주기 검증 전에는 공식 배포하지 않습니다."
+      "evidence": [".github/workflows/ci.yml", "docs/GNUBOARD7_INTEGRATION.md", "docs/evidence/G7DEVOPS_CORE_FREE_R2_E2E_20261012.md"],
+      "reason": "공식 7.1.0/게시판 1.2.0 원본 무수정 어댑터와 g7devops.com ZIP 업데이트·브라우저·실 R2 canary를 검증했습니다. 새 stock 첫 설치·전체 HTTP 권한·관리자 작성/수정·보존 만료 삭제 게이트 전에는 정식 배포하지 않습니다."
     },
     {
       "id": "gnuboard5_plugin",

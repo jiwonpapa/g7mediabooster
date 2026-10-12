@@ -3,7 +3,7 @@
 - 모듈: 0.5.1, `g7mb.gnuboard7-core-free` adapter contract 1.0.0
 - 검증 기준: 공식 G7 7.1.0 `dbe88420c3219f42db1ac16a7e6bb17a438e144d`, 번들 `sirsoft-board` 1.2.0
 - 코어·게시판·기본 템플릿 원본 수정: 금지
-- 현재 상태: 구현 및 원본 호스트 회귀 검증 완료, 정식 배포 종단 검증 대기
+- 현재 상태: 원본 호스트 회귀 및 g7devops.com ZIP 업데이트·브라우저·실 R2 canary 완료, 정식 인수 게이트 대기
 
 ## 연결 방법
 
@@ -41,11 +41,12 @@ patch·`external-media-v1.json`·URL filter·고정 layout ID는 필요하지 �
 ## 남은 인수 게이트
 
 - 공식 stock 사이트의 ZIP 설치·활성화·설정 저장·적용/해제 전 과정
-- 사용자/관리자 브라우저의 single/multipart → 게시글 작성·수정 → 기존 첨부 표시
+- 사용자/관리자 브라우저의 전체 작성·수정 경로 (g7devops.com 사용자 작성 single/multipart·표시는 통과)
 - 비로그인/타인/관리자의 실제 HTTP 권한 매트릭스 및 캐시·언어 전환
-- 새 어댑터의 R2 실제 전달, 보존 만료 삭제 종단
+- 실 provider 보존 만료 삭제 종단 (새 어댑터의 R2 업로드·전달·명시적 테스트 삭제는 통과)
 - 영상 poster의 게시판 목록/본문 표시 및 커스텀 템플릿별 동작
 
 과거 patched-host 브라우저 증거를 새 어댑터 검증으로 재사용하지 않습니다.
 정본 구현은 모듈 코드, 공개 판정은 `deploy/official-features-v1.json`입니다.
-상세 [검증 보고서](evidence/G7_CORE_FREE_710_20261012.md), [설치 절차](GNUBOARD7_RELEASE.md)를 참고하십시오.
+상세 [초기 stock 검증](evidence/G7_CORE_FREE_710_20261012.md),
+[실서버 배포·R2 검증](evidence/G7DEVOPS_CORE_FREE_R2_E2E_20261012.md), [설치 절차](GNUBOARD7_RELEASE.md)를 참고하십시오.

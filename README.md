@@ -11,10 +11,11 @@ S3와 Cloudflare R2는 같은 S3 호환 포트로 구현합니다. R2의 object�
 현재 저장소는 **v0.1 구현 진행 단계**입니다. batch 생성, S3/R2 single·multipart 제어,
 HMAC 인증, SQLite lease queue, 검증된 master+thumbnail/poster 원자적 발행,
 4MiB/60초 bounded manifest cache·singleflight, digest-pinned 이미지 워터마크,
-sandbox runtime capability, 삭제·보존 cleanup과 G7 0.5.0
+sandbox runtime capability, 삭제·보존 cleanup과 G7 0.5.1
 core-free form/Ready attachment bridge까지 연결됐습니다. G7 어댑터는 공식 7.1.0 / 번들
 `sirsoft-board` 1.2.0의 공개 확장 경로를 사용하며 코어·게시판·기본 템플릿을 수정하지 않습니다.
-원본 호스트 회귀는 통과했지만 새 어댑터의 브라우저·실 저장소·설치 종단은 별도 검증 전입니다.
+원본 호스트 회귀와 [g7devops.com의 ZIP 업데이트·브라우저·실 R2 검증](docs/evidence/G7DEVOPS_CORE_FREE_R2_E2E_20261012.md)은
+통과했습니다. 새 stock 사이트 첫 설치와 전체 인수 게이트는 남아 있어 정식 모듈 배포는 preview입니다.
 MP4/MOV H.264, 로컬 5GiB 재개, 기존 R2 실계정 종단은 통과했습니다. 현재 공개
 판정은 [기능 상태 정본](deploy/official-features-v1.json)만 따릅니다.
 

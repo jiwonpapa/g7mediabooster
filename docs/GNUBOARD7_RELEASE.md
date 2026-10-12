@@ -1,7 +1,7 @@
 # Gnuboard 7.1 모듈 배포와 설치
 
-0.5.0 core-free 어댑터는 구현·원본 호스트 회귀 검증을 마쳤습니다.
-새 브라우저·provider·설치 종단 전까지 `gnuboard7_module.publishable=false`이며 ZIP은 preview입니다.
+0.5.1 core-free 어댑터는 원본 호스트 회귀와 g7devops.com ZIP 업데이트·브라우저·실 R2 검증을 마쳤습니다.
+새 stock 사이트 첫 설치와 전체 인수 게이트 전까지 `gnuboard7_module.publishable=false`이며 ZIP은 preview입니다.
 코어·게시판·기본 템플릿 patch는 설치 산출물에 넣지 않습니다.
 
 ## 사용자 경로
@@ -14,8 +14,8 @@
 6. 관리자 **미디어 부스터**에서 endpoint·HMAC key ID/secret을 맞추고 업로드 사용을 켭니다.
 
 ```bash
-sha256sum -c jiwonpapa-g7mediabooster-0.5.0.zip.sha256
-# macOS: shasum -a 256 -c jiwonpapa-g7mediabooster-0.5.0.zip.sha256
+sha256sum -c jiwonpapa-g7mediabooster-0.5.1.zip.sha256
+# macOS: shasum -a 256 -c jiwonpapa-g7mediabooster-0.5.1.zip.sha256
 scripts/verify-gnuboard7-media-contract.sh /path/to/gnuboard7
 ```
 
@@ -39,7 +39,7 @@ scripts/g7-live-control.sh apply --confirm g7devops
 scripts/g7-live-control.sh disable --confirm g7devops
 ```
 
-`apply`는 서버 ready 후 모듈 설정의 업로드 사용을 켜고 실제 partial의 mount를 확인합니다.
+`apply`는 서버 ready 후 모듈 설정의 업로드 사용을 켜고 실제 활성 템플릿의 form/partial mount를 확인합니다.
 `disable`은 `enabled=false`로 **신규 MediaBooster 업로드만 해제**합니다. 원본 uploader가
 복원되고 기존 원격 첨부를 전달하기 위해 모듈과 Rust API는 유지합니다. 자격증명·DB·객체는 삭제하지 않습니다.
 
@@ -71,4 +71,5 @@ python3 -m tools.harness.g7mb_harness release-policy
 
 GitHub CI는 공식 7.1.0 SHA를 고정해 위 테스트와 원본 source diff를 검사합니다.
 정식 module tag 및 사용자 배포는 남은 인수 게이트와 `publishable=true` 전환 뒤에만 허용합니다.
-이번 구현은 운영 사이트에 적용하지 않았습니다.
+g7devops.com 승인 canary 적용·해제와 기존 R2 재사용 검증은 완료했습니다.
+[배포·검증 보고서](evidence/G7DEVOPS_CORE_FREE_R2_E2E_20261012.md)의 남은 게이트를 따릅니다.

@@ -1,6 +1,6 @@
 # 요구사항 1~17 현재 판정
 
-- 기준일: 2026-08-18
+- 기준일: 2026-10-12 (G7 연동 판정 갱신; 다른 항목의 기존 증거 범위는 유지)
 - 판정 원칙: `PASS`만 배포 기능으로 게시하고 `PARTIAL`·`PENDING`은 제한 또는 후속 게이트로 표시
 - 기능 상태와 공개 가능 여부의 정본은 `deploy/official-features-v1.json`
 
@@ -11,7 +11,7 @@
 | 3 동영상 업로드 | PASS | MP4/MOV H.264 직접 multipart·실제 FFprobe/FFmpeg 검사·원 container master·JPEG poster·private delivery 종단 PASS | WebM은 release fixture 전 공식 게시 제외 |
 | 4 최신 포맷 | PASS | JPEG/PNG/GIF/WebP/AVIF/HEIC·HEIF runtime decode gate | JPEG XL, 영상 HEVC/AV1은 v1 제외 |
 | 5 진짜 파일·보안 | PASS | signature, 실제 decode/ffprobe, digest, hard limit, no-network sandbox | ClamAV·moderation은 선택 hook |
-| 6 G5/G7 연동 | PARTIAL | G5 5.6.24 core-free browser E2E PASS. G7 0.5.0은 공식 7.1.0 공개 확장 경로의 코어 무수정 구현 및 원본 호스트 회귀 PASS | 새 G7 브라우저·ZIP 설치·실 provider 종단, 보존 만료 삭제 |
+| 6 G5/G7 연동 | PARTIAL | G5 5.6.24 core-free browser E2E PASS. G7 0.5.1 원본 무수정 회귀와 g7devops.com ZIP 업데이트·사용자 작성·R2 전달·적용/해제 PASS ([증거](evidence/G7DEVOPS_CORE_FREE_R2_E2E_20261012.md)) | 새 stock 첫 설치·전체 HTTP 권한·관리자 작성/수정·보존 만료 삭제 |
 | 7 다중 업로드 | PASS | 1~100개 bounded 병렬 처리, 실제 G7 브라우저에서 single PUT와 2-part multipart 동시 첨부 PASS | 실 provider 부하 재측정 |
 | 8 대용량 streaming | PASS | 정확히 5GiB를 32MiB 160-part로 직접 전송, 80-part 뒤 API 재기동·재개, complete 2회 멱등, API RSS 증가 416KiB, Quarantined 진입 | 공급자별 처리량·재개 수치는 해당 실계정 profile 검증에서 기록 |
 | 9 EXIF 개인정보 | PASS | 이미지 orientation 적용 후 EXIF/GPS/XMP/IPTC 제거 | 영상 metadata 제거는 공식 범위 아님 |

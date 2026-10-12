@@ -65,6 +65,19 @@ class CoreFreeDisableTest(unittest.TestCase):
             self.assertIn('getLayout($userTemplate, "board/form", true)', script)
             self.assertNotIn('"sirsoft-basic"', script)
 
+    def test_uploads_off_does_not_report_intentionally_absent_mount_as_an_error(self) -> None:
+        controller = g7_remote.Controller(Path("/test/g7"), "g7", "jiwonpapa-g7mediabooster")
+        with (patch.object(controller, "module_row", return_value="our-module active"),
+              patch.object(controller, "module_active", return_value=True),
+              patch.object(controller, "uploads_enabled", return_value=False),
+              patch.object(controller, "service_state", return_value="active"),
+              patch.object(controller, "api_ready", return_value=True),
+              patch.object(controller, "layout_status") as layout):
+            result = controller.status(require_layout=True)
+            self.assertFalse(result["layout_applied"])
+            self.assertNotIn("layout_error", result)
+            layout.assert_not_called()
+
     def test_only_our_extension_is_excluded(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

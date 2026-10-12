@@ -31,12 +31,15 @@
   회귀를 수정했습니다.
 - GitHub Actions checkout 런타임을 Node 24 기반 버전으로 올리고 일시적인 Composer 5xx 응답을
   제한적으로 재시도해 CI 공급망 검증의 안정성을 높였습니다.
+- G7 어댑터 0.5.1의 native 첨부 URL 검증·업로드 실패 시 저장 차단·원본 응답 필드를 수정했습니다.
+- 적용/해제 하네스가 실제 활성 템플릿을 검사하고, 해제된 uploader 부재를 오류로 보고하지 않도록 했습니다.
 
 ### Security
 
 - 공개 썸네일의 immutable preset HMAC 검증과 R2·AWS S3·Lightsail redirect authority 고정을 추가했습니다.
 - Cloudflare R2 실계정 검증 결과와 AWS S3·Lightsail 미검증 상태를 분리해 과도한 지원 표기를 막습니다.
 - G7 모듈 프런트엔드 lockfile의 Nano ID·PostCSS advisory를 제거했습니다.
+- G7 모듈의 Vitest mocker·source-map-js 개발 의존성 advisory를 제거했습니다.
 
 ## [0.1.1] - 2026-07-17
 
