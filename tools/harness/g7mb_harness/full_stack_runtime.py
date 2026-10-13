@@ -14,9 +14,7 @@ from urllib.request import urlopen
 
 from .process import merged_env, output, require_programs, run
 
-MINIO_IMAGE = (
-    "quay.io/minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e"
-)
+MINIO_IMAGE = "g7mb-minio-test:7aac2a2c5b7c"
 ACCESS_KEY = "g7mbtestaccess"
 SECRET_KEY = "g7mbtestsecret0123456789"  # noqa: S105 - isolated MinIO fixture
 RAW_BUCKET = "g7mb-full-stack-raw"
@@ -65,7 +63,19 @@ class FullStackRuntime:
 
     def start_minio(self) -> None:
         """Start pinned MinIO and execute the Rust protocol conformance suite."""
-
+        run(
+            [
+                "docker",
+                "build",
+                "--quiet",
+                "--file",
+                str(self.root / "tests/docker/minio.Dockerfile"),
+                "--tag",
+                MINIO_IMAGE,
+                str(self.root / "tests/docker"),
+            ],
+            capture=True,
+        )
         run(
             [
                 "docker",

@@ -1,0 +1,78 @@
+{
+  "date": "2026-10-13",
+  "baseline_sha": "65c752db0519fa5692865d5348729e0b4cbe493c",
+  "status": "SOURCE_FIXES_VERIFIED_NOT_DEPLOYED",
+  "source_workspace": "/Users/neojins/Documents/G7MediaBooster",
+  "verification_workspace": "/Volumes/DevDrive/dev-artifacts/G7MediaBooster-e2e-20261013",
+  "source_sync": {
+    "files": 19,
+    "checksum_match": true,
+    "preservation_check": "Git baseline blob IDs and indexed inode, nanosecond timestamps and sizes; full content hash for metadata mismatch",
+    "existing_e2e_evidence_preserved": true
+  },
+  "fixes": [
+    {
+      "id": "RETENTION_COLLECTION_MISMATCH",
+      "status": "FIXED_VERIFIED_UNIT_AND_STOCK_HOST",
+      "detail": "attachments and legacy post_attachments are accepted; wrong disk, collection and upload mapping remain fail-closed"
+    },
+    {
+      "id": "EXISTING_ATTACHMENT_EDIT_UI",
+      "status": "FIXED_VERIFIED_UNIT_AND_ISOLATED_BROWSER",
+      "detail": "Preserve native initial files and user/admin delete and reorder endpoints; update form IDs only after successful mutation; keep read-only and busy guards"
+    },
+    {
+      "id": "SUPPLY_CHAIN_BLOCKERS",
+      "status": "FIXED_LOCKFILE_VERIFIED",
+      "versions": {"h2": "0.4.16", "rustls": "0.23.45", "chacha20": "0.10.2"},
+      "remaining_accepted_warning": "lru 0.16.4 / RUSTSEC-2026-0253, existing exception; not zero-warning audit"
+    },
+    {
+      "id": "MINIO_REGISTRY_UNAVAILABLE",
+      "status": "FIXED_VERIFIED_LINUX_STORAGE_CONFORMANCE",
+      "detail": "All three existing harness paths use the same source-pinned Dockerfile; tiny build context; no mutable registry mirror or gate removal",
+      "upstream_sha": "7aac2a2c5b7c882e68c1ce017d8256be2feea27f",
+      "source_archive_sha256": "71794c2df26aad0cc99e8421c58b7aa2dd55969f979b0e7d1e931042e9fabcd6"
+    }
+  ],
+  "verification": {
+    "typescript_typecheck": "PASS",
+    "typescript_tests": {"passed": 34, "failed": 0},
+    "php_unit_with_stock_source": {"passed": 68, "assertions": 168, "skipped": 0},
+    "stock_g7_host": {"sha": "dbe88420c3219f42db1ac16a7e6bb17a438e144d", "passed": 17, "assertions": 59},
+    "stock_core_changes": 0,
+    "python_governance_tests": {"passed": 38, "failed": 0},
+    "governance": "PASS",
+    "ruff": "PASS",
+    "shellcheck": "PASS",
+    "cargo_audit": "PASS_WITH_EXISTING_ALLOWED_WARNING",
+    "cargo_deny": "PASS",
+    "linux_storage_conformance": {"rust": "1.96.0", "arch": "aarch64", "passed": 2, "failed": 0},
+    "browser_ui_fixture": {"initial_ids": [3, 7], "reordered_ids": [7, 3], "after_delete_ids": [7], "native_api": "mocked; not production E2E"},
+    "production_retest": "NOT_RUN",
+    "full_stack_and_server_install_rerun": "NOT_RUN"
+  },
+  "lightsail": {
+    "bucket": "g7devops",
+    "region": "ap-northeast-2",
+    "new_key_created_after_user_confirmation": true,
+    "credentials_directory": "/etc/g7mediabooster/profiles/lightsail-g7devops/credentials",
+    "credentials_owner_mode": "root:root 0600; directory 0700",
+    "config": "/etc/g7mediabooster/profiles/lightsail-g7devops/g7mb.toml",
+    "single_put_head_get_list_delete": "PASS_ON_INSTALLED_RUST_CLI",
+    "multipart_complete_and_abort": "PASS_ON_INSTALLED_RUST_CLI",
+    "active_r2_config_and_credentials_unchanged": true,
+    "active_storage_provider": "r2",
+    "browser_cors": "PENDING_LIGHTSAIL_UPDATEBUCKET_MANAGEMENT_CONFIGURATION",
+    "full_media_app_e2e": "NOT_RUN",
+    "temporary_credential_copies_removed": true
+  },
+  "remaining": [
+    "Deploy a new module/server release before production re-E2E; deployed 0.5.1 module and 0.1.1 server were not hot-patched",
+    "Lightsail CORS requires management API permissions, not bucket S3 credentials",
+    "Full-stack smoke and isolated server install smoke must be re-run; restored MinIO plus storage conformance is not their success",
+    "macOS Rust 1.96 sqlx proc-macro LINKEDIT loader issue remains environment-specific; Linux exact-toolchain test passed"
+  ],
+  "commit_push": "NOT_DONE_AT_REPORT_CREATION",
+  "secrets_in_report": false
+}

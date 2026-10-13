@@ -1,3 +1,5 @@
+import { ExistingAttachments } from './ExistingAttachments';
+
 const MODULE_IDENTIFIER = 'jiwonpapa-g7mediabooster';
 const HANDLER_NAME = `${MODULE_IDENTIFIER}.mountUploader`;
 const WATERMARK_HANDLER_NAME = `${MODULE_IDENTIFIER}.mountWatermarkPicker`;
@@ -65,10 +67,45 @@ export function mountUploaderHandler(action: ActionDefinition): void {
     const events = (window as unknown as G7Window).G7Core?.componentEvent;
     updateLocalState({ g7mbUploading: false, g7mbRuntimeReady: typeof events?.on === 'function' });
     const uploader = document.createElement(ELEMENT_NAME);
+    const deleteEndpoint = action.params?.deleteEndpoint;
+    const reorderEndpoint = action.params?.reorderEndpoint;
+    const existing = typeof deleteEndpoint === 'string' && typeof reorderEndpoint === 'string'
+        ? new ExistingAttachments(boardSlug, action.params?.initialFiles ?? [],
+            { deleteEndpoint, reorderEndpoint }, action.params?.disabled === true,
+            ids => updateLocalState({ 'form.attachment_ids': ids, hasChanges: true }),
+            busy => {
+                updateLocalState({ g7mbUploading: busy });
+                uploader.toggleAttribute('disabled', busy || action.params?.disabled === true);
+            }) : null;
+    if (Array.isArray(action.params?.initialFiles) && action.params.initialFiles.length > 0 && !existing) {
+        throw new Error('existing attachment management endpoints are missing');
+    }
+    if (existing) {
+        const local = currentLocalState();
+        const form = isRecord(local.form) ? local.form : {};
+        const retained = Array.isArray(form.attachment_ids)
+            ? form.attachment_ids.filter((id): id is number => Number.isSafeInteger(id) && id > 0) : [];
+        const ids = [...new Set([...existing.ids(), ...retained])];
+        if (ids.length > MAX_ATTACHMENT_IDS) throw new RangeError('G7 attachment count exceeds the supported maximum');
+        updateLocalState({ 'form.attachment_ids': ids });
+    }
     uploader.setAttribute('board-slug', boardSlug);
     if (action.params?.disabled === true) uploader.setAttribute('disabled', '');
     uploader.addEventListener('g7mb:state', handleUploaderState);
     uploader.addEventListener('g7mb:complete', handleUploaderComplete);
+    if (existing) {
+        uploader.addEventListener('g7mb:state', event => {
+            if (event instanceof CustomEvent && typeof event.detail?.running === 'boolean') {
+                existing.setUploading(event.detail.running);
+            }
+        });
+        uploader.addEventListener('g7mb:complete', event => {
+            if (event instanceof CustomEvent && isUploadBatchResult(event.detail)) {
+                existing.add(event.detail.files.filter(file => file.state === 'accepted')
+                    .map(file => file.attachment).filter(file => file !== null));
+            }
+        });
+    }
     if (events?.on) {
         const unsubscribe = events.on('upload:board_attachments', async () => {
             try {
@@ -84,7 +121,7 @@ export function mountUploaderHandler(action: ActionDefinition): void {
         });
         uploader.addEventListener('g7mb:disconnect', unsubscribe, { once: true });
     }
-    mount.replaceChildren(uploader);
+    mount.replaceChildren(...(existing ? [existing.element, uploader] : [uploader]));
     mount.dataset.g7mbMounted = 'true';
 }
 

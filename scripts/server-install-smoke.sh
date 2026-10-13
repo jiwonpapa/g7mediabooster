@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-IMAGE="quay.io/minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e"
+IMAGE="g7mb-minio-test:7aac2a2c5b7c"
 CONTAINER="g7mb-server-install-$$"
 ACCESS_KEY="g7mbinstallaccess"
 SECRET_KEY="g7mbinstallsecret0123456789"
@@ -54,7 +54,7 @@ if [[ -z "$bundle" ]]; then
     echo "extracted server bundle root was not found" >&2
     exit 2
 fi
-
+docker build --quiet --file "$ROOT/tests/docker/minio.Dockerfile" --tag "$IMAGE" "$ROOT/tests/docker" >/dev/null
 docker run --detach --rm \
     --name "$CONTAINER" \
     --env "MINIO_ROOT_USER=$ACCESS_KEY" \

@@ -17,7 +17,7 @@ final class AttachmentRetentionDecision
             return self::DELETE;
         }
         if (($attachment['disk'] ?? null) !== 'g7mediabooster'
-            || ($attachment['collection'] ?? null) !== 'post_attachments'
+            || ! in_array($attachment['collection'] ?? null, ['attachments', 'post_attachments'], true)
             || ! is_string($attachment['path'] ?? null)
             || strtolower($attachment['path']) !== strtolower($uploadId)
         ) {

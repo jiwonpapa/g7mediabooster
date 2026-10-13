@@ -15,12 +15,15 @@
 
 ### Changed
 
+- 서버 관리자의 libvips·FFmpeg 사전 설치를 권장하는 안내와 G7 모듈의 별도 설치·연결·해제 절차를 정리했습니다. Rust 이미지 폴백은 미구현으로 명시했습니다.
 - 인프라 하네스의 주 구현을 Python으로 옮기고 빌드·coverage 산출물 정리를 자동화했습니다.
 - 기능별 구현·검증·공개 상태를 단일 manifest로 정본화하고 릴리스에서 동일하게 검증합니다.
 - G7 어댑터 0.5.0을 공식 7.1.0 공개 확장 계약으로 재설계해 코어·게시판·기본 템플릿 패치 의존성을 제거했습니다. 정식 배포 판정은 별도 종단 게이트로 유지합니다.
 
 ### Fixed
 
+- 공개 registry 접근이 막힌 MinIO 검증 fixture를 공식 소스 commit·체크섬·Go image digest 기반 빌드로 교체했습니다.
+- 서버 설치 안내에 남아 있던 과거 G7 core patch 필수 지시를 제거했습니다.
 - coverage가 측정하지 않던 공개 썸네일 router·서명·redirect 분기를 lib 단위 회귀로 추가했습니다.
 - Miri·fuzz가 구체적인 Cargo 실행 경로에 `+nightly`를 잘못 전달하던 문제와 Miri isolation에서
   proptest failure persistence가 현재 디렉터리를 읽어 실패하던 문제를 수정했습니다.
@@ -36,6 +39,7 @@
 
 ### Security
 
+- `h2` 0.4.16, `rustls` 0.23.45 및 `chacha20` 0.10.2로 lockfile을 갱신하여 E2E 후 검출된 advisory와 yanked 경고를 해소했습니다.
 - 공개 썸네일의 immutable preset HMAC 검증과 R2·AWS S3·Lightsail redirect authority 고정을 추가했습니다.
 - Cloudflare R2 실계정 검증 결과와 AWS S3·Lightsail 미검증 상태를 분리해 과도한 지원 표기를 막습니다.
 - G7 모듈 프런트엔드 lockfile의 Nano ID·PostCSS advisory를 제거했습니다.

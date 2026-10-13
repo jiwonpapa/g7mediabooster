@@ -31,6 +31,23 @@ final class BoardUploaderLayoutTest extends TestCase
         self::assertSame($source, (new BoardUploaderLayout)->apply($source));
     }
 
+    public function test_existing_files_and_native_management_endpoints_are_preserved(): void
+    {
+        foreach (['boards', 'admin/board'] as $scope) {
+            $base = '/api/modules/sirsoft-board/'.$scope.'/{{route.slug}}/attachments';
+            $actual = (new BoardUploaderLayout)->apply(['name' => 'FileUploader', 'props' => [
+                'initialFiles' => '{{form_meta?.data?.attachments ?? []}}',
+                'disabled' => '{{_computed.isReadOnly}}',
+                'apiEndpoints' => ['upload' => $base, 'delete' => $base.'/:id', 'reorder' => $base.'/reorder'],
+            ]]);
+            $params = $actual['lifecycle']['onMount'][0]['params'];
+            self::assertSame('{{form_meta?.data?.attachments ?? []}}', $params['initialFiles']);
+            self::assertSame($base.'/:id', $params['deleteEndpoint']);
+            self::assertSame($base.'/reorder', $params['reorderEndpoint']);
+            self::assertSame('{{_computed.isReadOnly}}', $params['disabled']);
+        }
+    }
+
     public function test_save_is_guarded_by_upload_success_and_copies_ids_before_native_api(): void
     {
         $source = ['handler' => 'sequence', 'actions' => [

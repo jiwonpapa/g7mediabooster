@@ -87,6 +87,29 @@ describe('G7 form attachment bridge', () => {
         })).toThrow('state bridge');
     });
 
+    it('preserves existing attachment state and management on stock user and admin mounts', async () => {
+        for (const scope of ['boards', 'admin/board']) {
+            document.body.innerHTML = '<div id="existing-mount"></div>';
+            const base = `/api/modules/sirsoft-board/${scope}/gallery/attachments`;
+            const setLocal = vi.fn();
+            (window as unknown as { G7Core?: unknown }).G7Core = {
+                state: { getLocal: () => ({ form: { attachment_ids: [3, 7] } }), setLocal },
+                api: { patch: vi.fn().mockResolvedValue({ success: true }), delete: vi.fn() },
+            };
+            mountUploaderHandler({ params: {
+                mountId: 'existing-mount', boardSlug: 'gallery',
+                initialFiles: [{ id: 3, original_filename: 'first.jpg' }, { id: 7, original_filename: 'second.mp4' }],
+                deleteEndpoint: base+'/:id', reorderEndpoint: base+'/reorder',
+            } });
+            expect(document.querySelectorAll('[data-attachment-id]')).toHaveLength(2);
+            expect(setLocal).toHaveBeenCalledWith({ 'form.attachment_ids': [3, 7] }, { merge: 'deep', render: true });
+            (document.querySelector('[data-attachment-id="7"] button') as HTMLButtonElement).click();
+            await vi.waitFor(() => expect(setLocal).toHaveBeenCalledWith({
+                'form.attachment_ids': [7, 3], hasChanges: true,
+            }, { merge: 'deep', render: true }));
+        }
+    });
+
     it('registers the namespaced module handler', () => {
         const registerHandler = vi.fn();
         (window as unknown as { G7Core?: unknown }).G7Core = {

@@ -4,12 +4,28 @@
 새 stock 사이트 첫 설치와 전체 인수 게이트 전까지 `gnuboard7_module.publishable=false`이며 ZIP은 preview입니다.
 코어·게시판·기본 템플릿 patch는 설치 산출물에 넣지 않습니다.
 
+2026-10-13 첨부 UI·보존 정책·보안 의존성 개선은 소스 검증 단계이며 운영 배포·재 E2E 전입니다.
+[최신 검증 보고서](evidence/G7_E2E_FIXES_20261013.json)를 별도로 확인하십시오.
+
+## 두 구성의 설치 경계
+
+| 구성 | 설치 담당·방법 | 설치하지 않는 것 |
+|---|---|---|
+| Rust 백엔드 | 서버 관리자, Linux 서버 Release 번들 | G7 모듈 자동 등록·활성화 |
+| G7 연동 모듈 | G7 관리자, 전용 모듈 ZIP | Rust 데몬·libvips·FFmpeg·systemd |
+
+현재 이미지 처리에는 libvips가 필수이며 Rust 이미지 폴백은 미구현입니다.
+서버 관리자가 런타임을 먼저 설치하는 경로를 권장하며, 선택적 설치 위임과 정확한 패키지 목록은
+[Linux 서버 설치 안내](SERVER_INSTALL.md)를 따릅니다. PHP에 root/sudo 권한을 주지 않습니다.
+
 ## 사용자 경로
 
-1. Rust 서버 Release 번들을 `sudo ./bin/g7mbctl install`로 설치합니다.
+1. 서버 관리자가 libvips·FFmpeg를 설치하고 Rust 서버 Release 번들을
+   `sudo ./bin/g7mbctl install --skip-dependency-install`로 설치합니다.
 2. `g7mbctl setup`에서 R2/S3 자격증명과 서버 설정을 입력합니다. 운영 중 재실행할 수 있습니다.
 3. 전용 모듈 ZIP과 `.zip.sha256`을 받은 뒤 checksum을 확인합니다.
-4. 원본 G7 7.1.0과 게시판 1.2.0 공개 계약을 검증합니다.
+4. 설치된 G7와 게시판의 공개 계약을 검증합니다. 현재 검증 기준은 G7 7.1.0과 게시판 1.2.0이며,
+   후속 버전은 버전 문자열만으로 지원을 보장하지 않습니다.
 5. G7 관리자 **모듈 관리 → 파일에서 설치**로 ZIP 설치·활성화합니다.
 6. 관리자 **미디어 부스터**에서 endpoint·HMAC key ID/secret을 맞추고 업로드 사용을 켭니다.
 
@@ -20,6 +36,7 @@ scripts/verify-gnuboard7-media-contract.sh /path/to/gnuboard7
 ```
 
 통합 서버 번들의 모듈 ZIP은 `/usr/local/share/g7mediabooster/gnuboard7/jiwonpapa-g7mediabooster.zip`입니다.
+같은 위치의 `jiwonpapa-g7mediabooster.zip.sha256`도 함께 복사하여 파일명에 맞는 checksum을 검사합니다.
 같은 서버 제어 endpoint는 `http://127.0.0.1:8088`, 별도 서버는 HTTPS origin입니다.
 PHP에는 R2/S3 자격증명을 입력하지 않습니다.
 모노레포 URL로 G7 **GitHub에서 설치**를 사용하지 마십시오. 전용 ZIP을 사용합니다.

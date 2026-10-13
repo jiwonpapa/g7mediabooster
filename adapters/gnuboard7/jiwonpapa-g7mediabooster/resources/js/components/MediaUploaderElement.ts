@@ -6,6 +6,7 @@ import { XhrUploadTransport } from '../upload/XhrUploadTransport';
 const ACCEPTED_TYPES = '.jpg,.jpeg,.png,.gif,.webp,.avif,.heic,.heif,.mp4,.mov';
 
 export class G7MediaUploaderElement extends HTMLElement {
+    public static readonly observedAttributes = ['disabled'];
     private readonly root: ShadowRoot;
     private readonly input: HTMLInputElement;
     private readonly list: HTMLUListElement;
@@ -46,6 +47,11 @@ export class G7MediaUploaderElement extends HTMLElement {
         this.startButton.removeEventListener('click', this.handleStart);
         this.cancelButton.removeEventListener('click', this.handleCancel);
         this.dispatchEvent(new CustomEvent('g7mb:disconnect'));
+    }
+
+    /** Existing-attachment mutations must also lock the direct uploader controls. */
+    public attributeChangedCallback(): void {
+        this.updateAvailability(Boolean(this.activeController));
     }
 
     /** Native G7 save awaits this method before it sends the post request. */
@@ -200,14 +206,18 @@ export class G7MediaUploaderElement extends HTMLElement {
     }
 
     private setRunning(running: boolean): void {
-        this.input.disabled = running || this.hasAttribute('disabled') || this.configuration?.enabled === false;
-        this.startButton.disabled = running || this.hasAttribute('disabled') || this.configuration?.enabled === false || this.selectedFiles.length === 0;
+        this.updateAvailability(running);
         this.cancelButton.hidden = !running;
         this.dispatchEvent(new CustomEvent('g7mb:state', {
             detail: { running },
             bubbles: true,
             composed: true,
         }));
+    }
+
+    private updateAvailability(running: boolean): void {
+        this.input.disabled = running || this.hasAttribute('disabled') || this.configuration?.enabled === false;
+        this.startButton.disabled = running || this.hasAttribute('disabled') || this.configuration?.enabled === false || this.selectedFiles.length === 0;
     }
 
     private setStatus(message: string, error = false): void {
@@ -270,7 +280,7 @@ function template(): string {
             .header { padding: 18px 20px 14px; border-bottom: 1px solid var(--g7-border, #d8dee9); }
             h2 { margin: 0 0 4px; font-size: 17px; }
             p { margin: 0; color: var(--g7-muted, #64748b); }
-            .dropzone { margin: 16px 20px; padding: 24px; border: 1px dashed #8a98ad; text-align: center; background: #f8fafc; }
+            .dropzone { display: block; margin: 16px 20px; padding: 24px; border: 1px dashed #8a98ad; text-align: center; background: #f8fafc; }
             input { max-width: 100%; }
             ul { margin: 0; padding: 0 20px; list-style: none; max-height: 320px; overflow: auto; }
             .file-row { padding: 11px 0; border-top: 1px solid #edf0f4; }

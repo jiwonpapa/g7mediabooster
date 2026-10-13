@@ -21,6 +21,9 @@
 ## 설치와 설정
 
 PHP 8.2+, `mbstring`, 정상 설치된 G7 7.1.0 및 게시판 모듈이 필요합니다.
+Rust 백엔드와 libvips·FFmpeg는 서버 관리자가 별도로 설치해야 합니다. 이 ZIP은 G7 **연동
+모듈**만 설치하며 OS package·Rust 데몬을 자동 설치하지 않습니다. 현재 libvips 미설치 시
+Rust 이미지 폴백은 제공하지 않습니다. 서버의 패키지 설치는 사용자가 관리하는 경로를 권장합니다.
 checksum을 확인한 전용 모듈 ZIP을 G7 관리자 **모듈 관리 → 파일에서 설치**에 넣습니다.
 모노레포 URL을 **GitHub에서 설치**에 직접 입력하지 않습니다.
 
@@ -53,5 +56,6 @@ G7MB_TEST_HOST_ROOT=/path/to/stock-g7 /path/to/stock-g7/vendor/bin/phpunit -c ph
 ```
 
 호스트 테스트는 이름에 `_testing`이 포함된 별도 DB에서만 실행해야 합니다.
+서버 설치는 저장소의 `docs/SERVER_INSTALL.md`를 따릅니다.
 설치·연동·남은 게이트는 저장소의 `docs/GNUBOARD7_INTEGRATION.md`, `docs/GNUBOARD7_RELEASE.md`,
 `docs/evidence/G7_CORE_FREE_710_20261012.md`에 기록합니다. 과거 patch는 현재 설치에 사용하지 않습니다.

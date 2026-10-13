@@ -267,7 +267,7 @@ final class AttachmentRetentionHostTest extends BoardTestCase
             'path' => self::UPLOAD_ID,
             'mime_type' => 'image/jpeg',
             'size' => 1024,
-            'collection' => 'post_attachments',
+            'collection' => 'attachments',
             'order' => 1,
             'trigger_type' => 'cascade',
             'created_at' => now(),

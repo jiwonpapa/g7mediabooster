@@ -7,6 +7,16 @@ Gnuboard 7 모듈의 모든 주목할 만한 변경 사항을 이 파일에 기�
 
 ## [Unreleased]
 
+### Changed
+
+- G7 모듈 ZIP과 Rust 서버·libvips·FFmpeg의 별도 설치 경계를 안내하고 현재 Rust 이미지 폴백 미구현 상태를 명시했습니다.
+
+### Fixed
+
+- 현재 native `attachments`와 기존 `post_attachments` collection의 보존 만료 삭제·복원 판정을 함께 지원합니다.
+- 사용자·관리자 수정 화면의 기존 첨부 목록·삭제·순서 변경을 native 권한 API에 연결하고 실패 시 기존 목록과 form IDs를 유지합니다.
+- 읽기 전용 및 업로드 중 첨부 변경을 차단하고 파일명 escape와 동일 게시판 preview/management URL 범위를 검증합니다.
+
 ## [0.5.1] - 2026-10-12
 
 ### Fixed

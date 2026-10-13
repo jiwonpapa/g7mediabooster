@@ -36,7 +36,11 @@ final class BoardUploaderLayout
                 'lifecycle' => ['onMount' => [[
                     'handler' => 'jiwonpapa-g7mediabooster.mountUploader',
                     'params' => ['mountId' => $mount, 'boardSlug' => '{{route.slug}}',
-                        'disabled' => $node['props']['disabled'] ?? false],
+                        'disabled' => $node['props']['disabled'] ?? false,
+                        'initialFiles' => $node['props']['initialFiles'] ?? [],
+                        'deleteEndpoint' => $node['props']['apiEndpoints']['delete'] ?? null,
+                        'reorderEndpoint' => $node['props']['apiEndpoints']['reorder'] ?? null,
+                    ],
                 ]]],
             ];
         }

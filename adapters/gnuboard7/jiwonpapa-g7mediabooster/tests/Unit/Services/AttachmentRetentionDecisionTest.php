@@ -14,6 +14,24 @@ final class AttachmentRetentionDecisionTest extends TestCase
     public static function cases(): iterable
     {
         yield 'hard deleted native row' => [null, AttachmentRetentionDecision::DELETE];
+        foreach (['attachments', 'post_attachments'] as $collection) {
+            foreach (['' => AttachmentRetentionDecision::CANCEL, '2026-10-12 12:00:00' => AttachmentRetentionDecision::DELETE] as $deletedAt => $expected) {
+                yield $collection.' '.($deletedAt === '' ? 'restored' : 'deleted') => [[
+                    'disk' => 'g7mediabooster',
+                    'collection' => $collection,
+                    'path' => '018f47f0-3333-7333-8333-333333333333',
+                    'deleted_at' => $deletedAt === '' ? null : $deletedAt,
+                ], $expected];
+            }
+        }
+        yield 'untrusted collection is blocked' => [[
+            'disk' => 'g7mediabooster', 'collection' => 'untrusted',
+            'path' => '018f47f0-3333-7333-8333-333333333333', 'deleted_at' => '2026-10-12',
+        ], AttachmentRetentionDecision::BLOCK];
+        yield 'different upload mapping is blocked' => [[
+            'disk' => 'g7mediabooster', 'collection' => 'attachments',
+            'path' => '018f47f0-4444-7444-8444-444444444444', 'deleted_at' => '2026-10-12',
+        ], AttachmentRetentionDecision::BLOCK];
         yield 'restored native row' => [[
             'disk' => 'g7mediabooster',
             'collection' => 'post_attachments',

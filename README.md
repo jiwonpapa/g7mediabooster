@@ -6,7 +6,8 @@ Gnuboard 5/7용 고성능 미디어 업로드·가공 서버입니다. Rust가 �
 이미지는 libvips, MP4/MOV 썸네일은 FFmpeg가 별도 샌드박스 프로세스에서 처리합니다. FFmpeg를
 시작할 수 없는 MP4/H.264만 Rust `mp4` + OpenH264 첫 프레임 폴백을 사용합니다.
 S3와 Cloudflare R2는 같은 S3 호환 포트로 구현합니다. R2의 object·multipart·CORS·미디어·
-삭제 경로는 실계정 검증을 통과했으며 AWS S3와 Lightsail은 실계정 검증 전입니다.
+삭제 경로는 실계정 검증을 통과했습니다. Lightsail은 object·multipart CLI 검증까지
+통과했지만 브라우저 CORS·전체 미디어 E2E는 남아 있으며, AWS S3는 실계정 검증 전입니다.
 
 현재 저장소는 **v0.1 구현 진행 단계**입니다. batch 생성, S3/R2 single·multipart 제어,
 HMAC 인증, SQLite lease queue, 검증된 master+thumbnail/poster 원자적 발행,
@@ -32,17 +33,26 @@ MP4/MOV H.264, 로컬 5GiB 재개, 기존 R2 실계정 종단은 통과했습니
 ## Linux 서버 설치
 
 사용자가 API·worker·cleanup·inventory·backup unit을 각각 등록하지 않습니다. 서버 Release
-번들을 풀고 다음 한 명령만 실행합니다.
+번들을 풀고 서버 관리자가 libvips·FFmpeg를 먼저 설치한 뒤 실행합니다.
 
 ```bash
-sudo ./bin/g7mbctl install
+sudo ./bin/g7mbctl install --skip-dependency-install
 ```
 
 설치기는 Linux/native runtime과 번들을 먼저 검사하고 service user·경로·hardened systemd
 unit을 설치한 뒤 기존 `g7mbctl setup` CUI, `g7mediabooster.target` 기동, API ready 확인까지
 연속 수행합니다. 상시 프로세스는 API와 worker 두 개지만 사용자에게는 target 하나로
 노출합니다. sandbox는 작업별 자식 프로세스이고 나머지는 timer입니다. 공식 서버 번들 기준
-환경은 Ubuntu 24.04이며 libvips·FFmpeg가 없으면 installer가 runtime package를 설치합니다.
+환경은 Ubuntu 24.04입니다. 런타임 설치를 위임하려면 `--skip-dependency-install` 없이 실행하고
+설치 질문에 동의합니다. TTY 없는 자동화에서는 `--install-dependencies`를 명시해야 합니다.
+
+**현재 이미지 처리에는 libvips가 필수입니다.** “libvips 우선·미설치 시 Rust 이미지 폴백”은
+예정 정책이며 아직 구현되지 않았습니다. 영상의 MP4/H.264 폴백과는 다른 기능입니다.
+
+G7 연동부는 **모듈**이며 관리자 **모듈 관리 → 파일에서 설치**로 전용 ZIP을 설치합니다.
+ZIP만 설치해도 Rust 서버나 OS 라이브러리가 설치되는 것은 아닙니다. 서버 번들이 모듈 ZIP을
+함께 배치하고, 관리자 **미디어 부스터**에서 endpoint·HMAC을 연결합니다. 현재 G7 7.1 연동에는
+코어·게시판·기본 템플릿 patch가 필요 없습니다.
 
 ```bash
 sudo g7mbctl status
@@ -61,8 +71,10 @@ sudo g7mbctl doctor
 - HEAD, bounded worker GET, private derivative presigned GET, worker PutObject, idempotent DeleteObject
 
 MinIO는 로컬 protocol gate, R2는 실계정 object·multipart·browser CORS·미디어·삭제 gate를
-통과했습니다. AWS S3와 Lightsail은 선언한 profile을 fail-closed로 대조하지만 실계정 검증 전
-공식 지원으로 게시하지 않습니다. Lightsail bucket 생성·CORS는 Lightsail API/콘솔 사전 설정만
+통과했습니다. Lightsail은 실제 CLI single object·multipart complete/abort 검증을 통과했으나
+브라우저 CORS·전체 미디어 E2E 전에는 공식 지원으로 승격하지 않습니다. AWS S3는 실계정 검증
+전입니다. [최신 검증 경계](docs/evidence/G7_E2E_FIXES_20261013.json)를 따릅니다.
+Lightsail bucket 생성·CORS는 Lightsail API/콘솔 사전 설정만
 허용하고 S3 bootstrap 시도는 거부합니다. 검증하지 않은
 ACL, Object Lock, replication, inventory, IAM/STS, SSE-KMS는 공식 지원 기능으로 게시하지 않습니다.
 

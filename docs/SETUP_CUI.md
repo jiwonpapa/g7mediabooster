@@ -3,14 +3,19 @@
 `g7mbctl`만 사용자 입력을 받습니다. `g7mb-api`와 `g7mb-worker`는 무인 데몬이며 시작 중
 질문하거나 비밀값을 표준입력으로 받지 않습니다.
 
-일반 사용자는 서버 Release에서 다음 한 명령만 실행합니다. service user·경로·systemd target
+서버 관리자가 libvips·FFmpeg를 먼저 설치하는 경로를 권장합니다. 실제 패키지 목록과 서버·G7
+모듈의 설치 분리는 [Linux 서버 설치 안내](SERVER_INSTALL.md)를 따릅니다. 현재 Rust 이미지
+폴백은 미구현이며 libvips 부재 시 기본 이미지 엔진으로 자동 전환하지 않습니다.
+
+런타임을 준비한 뒤 서버 Release에서 다음 한 명령을 실행합니다. service user·경로·systemd target
 등록 후 이 문서의 대화형 setup을 자동으로 이어서 실행하고 API ready까지 확인합니다.
 
 ```bash
-sudo ./bin/g7mbctl install
+sudo ./bin/g7mbctl install --skip-dependency-install
 ```
 
-libvips 또는 FFmpeg가 없으면 설치기는 이미지·영상 처리에 필요한 이유와 설치 대상 패키지를
+선택적으로 `--skip-dependency-install` 없이 실행했을 때 libvips 또는 FFmpeg가 없으면
+설치기는 이미지·영상 처리에 필요한 이유와 설치 대상 패키지를
 먼저 표시하고 `설치할까요? [Y/n]`를 묻습니다. 거부하면 시스템을 변경하지 않고 종료합니다.
 TTY 없는 자동화는 `--install-dependencies`를 명시해야만 OS package를 설치합니다.
 

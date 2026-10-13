@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-IMAGE="quay.io/minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e"
+IMAGE="g7mb-minio-test:7aac2a2c5b7c"
 CONTAINER="g7mb-minio-$$"
 ACCESS_KEY="g7mbtestaccess"
 SECRET_KEY="g7mbtestsecret0123456789"
@@ -15,6 +15,7 @@ trap cleanup EXIT
 command -v docker >/dev/null
 command -v curl >/dev/null
 docker info >/dev/null
+docker build --quiet --file "$ROOT/tests/docker/minio.Dockerfile" --tag "$IMAGE" "$ROOT/tests/docker" >/dev/null
 
 docker run --detach --rm \
     --name "$CONTAINER" \
